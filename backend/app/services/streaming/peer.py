@@ -1,7 +1,9 @@
 """One GStreamer pipeline + webrtcbin per connected browser client.
 
-Pipeline: d3d11screencapturesrc -> d3d11convert -> d3d11download
-          -> videoconvert -> x264enc -> h264parse -> rtph264pay -> webrtcbin
+Windows: d3d11screencapturesrc -> d3d11convert -> d3d11download
+         -> videoconvert -> x264enc -> h264parse -> rtph264pay -> webrtcbin
+Linux:   ximagesrc -> videoconvert -> videoscale
+         -> x264enc -> h264parse -> rtph264pay -> webrtcbin
 
 Ported from the proven server/video/gstreamer_webrtc_server.py implementation.
 """
@@ -10,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import sys
 import threading
 import time
 from typing import Optional
@@ -18,6 +21,7 @@ from app.services.streaming.diagnostics import (
     GSTREAMER_AVAILABLE,
     ensure_gstreamer_initialized,
 )
+from app.utils.display_linux import get_monitor_geometry
 
 if GSTREAMER_AVAILABLE:
     import gi
@@ -28,6 +32,24 @@ if GSTREAMER_AVAILABLE:
     from gi.repository import GLib, Gst, GstSdp, GstWebRTC
 
 logger = logging.getLogger("streaming.peer")
+
+_LINUX_HW_ENCODER = "vah264lpenc"
+_linux_hw_encoder_checked = False
+_linux_hw_encoder_available = False
+
+
+def _linux_hw_encoder_ready() -> bool:
+    """Cached check for a VA-API hardware H.264 encoder (Intel/AMD iGPU).
+
+    Falls back to software x264enc when unavailable, so this only needs to
+    succeed once per process - cheap to call per pipeline build.
+    """
+    global _linux_hw_encoder_checked, _linux_hw_encoder_available
+    if not _linux_hw_encoder_checked:
+        _linux_hw_encoder_checked = True
+        ensure_gstreamer_initialized()
+        _linux_hw_encoder_available = Gst.ElementFactory.find(_LINUX_HW_ENCODER) is not None
+    return _linux_hw_encoder_available
 
 
 class GStreamerWebRTCPeer:
@@ -62,9 +84,9 @@ class GStreamerWebRTCPeer:
     # ------------------------------------------------------------------
     # Pipeline construction
     # ------------------------------------------------------------------
-    def _build_pipeline(self) -> None:
+    def _pipeline_description_windows(self) -> str:
         leaky = "queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 leaky=downstream"
-        pipeline_str = (
+        return (
             f"d3d11screencapturesrc monitor-index={self.monitor_index} "
             f"! {leaky} "
             f"! d3d11convert "
@@ -81,6 +103,55 @@ class GStreamerWebRTCPeer:
             f"! rtph264pay name=pay config-interval=-1 pt=96 "
             f"! queue name=q_out"
         )
+
+    def _pipeline_description_linux(self) -> str:
+        leaky = "queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 leaky=downstream"
+        region = ""
+        geometry = get_monitor_geometry(self.monitor_index)
+        if geometry is not None:
+            startx, starty, endx, endy = geometry
+            region = f"startx={startx} starty={starty} endx={endx} endy={endy} "
+        else:
+            logger.warning(
+                "[%s] Could not resolve monitor %d via xrandr; capturing whole X screen",
+                self.pc_id,
+                self.monitor_index,
+            )
+
+        if _linux_hw_encoder_ready():
+            logger.info("[%s] Using hardware encoder %s", self.pc_id, _LINUX_HW_ENCODER)
+            encoder = (
+                f"vah264lpenc target-usage=7 key-int-max={self.fps} "
+                f"qpi=24 qpp=26 qpb=28"
+            )
+        else:
+            logger.info("[%s] Using software encoder x264enc", self.pc_id)
+            encoder = (
+                f"x264enc speed-preset=ultrafast tune=zerolatency "
+                f"bitrate={self.bitrate_kbps} key-int-max={self.fps} vbv-buf-capacity=0"
+            )
+
+        return (
+            f"ximagesrc use-damage=0 {region}"
+            f"! video/x-raw,framerate={self.fps}/1 "
+            f"! {leaky} "
+            f"! videoconvert "
+            f"! videoscale "
+            f"! video/x-raw,width={self.width},height={self.height},format=NV12 "
+            f"! {leaky} "
+            f"! {encoder} "
+            f"! {leaky} "
+            f"! h264parse "
+            f"! {leaky} "
+            f"! rtph264pay name=pay config-interval=-1 pt=96 "
+            f"! queue name=q_out"
+        )
+
+    def _build_pipeline(self) -> None:
+        if sys.platform.startswith("linux"):
+            pipeline_str = self._pipeline_description_linux()
+        else:
+            pipeline_str = self._pipeline_description_windows()
 
         pipeline = Gst.parse_launch(pipeline_str)
         if pipeline is None:

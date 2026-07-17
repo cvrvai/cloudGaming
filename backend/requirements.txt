@@ -1,4 +1,7 @@
-# Cloud Game Backend - Dependencies (Python 3.9, matches GStreamer gi ABI)
+# Cloud Game Backend - Dependencies
+# Windows: Python 3.9, must match the GStreamer gi binding ABI.
+# Linux: use the system Python (venv with --system-site-packages) so the
+# apt-installed PyGObject/gi bindings are visible - see backend/README.md.
 
 # Web framework
 fastapi>=0.110.0
@@ -11,7 +14,8 @@ pydantic-settings>=2.1.0
 
 # Input control
 pynput>=1.7.0
-vgamepad>=0.1.0   # requires ViGEmBus driver: https://github.com/ViGEm/ViGEmBus/releases
+vgamepad>=0.1.0; sys_platform == "win32"   # requires ViGEmBus driver: https://github.com/ViGEm/ViGEmBus/releases
+python-uinput>=0.11.2; sys_platform == "linux"   # requires /dev/uinput access, see backend/README.md
 
 # QR code for phone connection
 qrcode>=7.4.0

@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from typing import Dict, List, Optional, Tuple
 
 from app.core.gst_env import configure_gstreamer_env
@@ -22,17 +23,28 @@ except Exception as exc:  # pragma: no cover - depends on host install
     GSTREAMER_AVAILABLE = False
     GSTREAMER_IMPORT_ERROR = str(exc)
 
-# Elements required by the D3D11 capture -> x264enc -> webrtcbin pipeline
-REQUIRED_ELEMENTS: List[str] = [
-    "d3d11screencapturesrc",
-    "d3d11convert",
-    "d3d11download",
-    "videoconvert",
-    "x264enc",
-    "h264parse",
-    "rtph264pay",
-    "webrtcbin",
-]
+# Elements required by the capture -> x264enc -> webrtcbin pipeline
+if sys.platform.startswith("linux"):
+    REQUIRED_ELEMENTS: List[str] = [
+        "ximagesrc",
+        "videoconvert",
+        "videoscale",
+        "x264enc",
+        "h264parse",
+        "rtph264pay",
+        "webrtcbin",
+    ]
+else:
+    REQUIRED_ELEMENTS = [
+        "d3d11screencapturesrc",
+        "d3d11convert",
+        "d3d11download",
+        "videoconvert",
+        "x264enc",
+        "h264parse",
+        "rtph264pay",
+        "webrtcbin",
+    ]
 
 
 def ensure_gstreamer_initialized() -> bool:

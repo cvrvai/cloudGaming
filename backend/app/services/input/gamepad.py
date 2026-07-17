@@ -7,6 +7,7 @@ the FastAPI WebSocket endpoint stays thin.
 from __future__ import annotations
 
 import logging
+import sys
 import threading
 import time
 from typing import Dict
@@ -24,7 +25,22 @@ try:
     VGAMEPAD_AVAILABLE = True
 except Exception:
     VGAMEPAD_AVAILABLE = False
-    logger.warning("vgamepad not available - keyboard fallback only")
+    if sys.platform == "win32":
+        logger.warning("vgamepad not available - keyboard fallback only")
+
+LINUX_GAMEPAD_AVAILABLE = False
+if sys.platform.startswith("linux"):
+    try:
+        from app.services.input.gamepad_linux import Button as LinuxButton
+        from app.services.input.gamepad_linux import LinuxVirtualGamepad
+
+        LINUX_GAMEPAD_AVAILABLE = True
+    except Exception as exc:
+        logger.warning(
+            "uinput virtual gamepad not available (%s) - keyboard fallback only. "
+            "Check /dev/uinput permissions (user must be in the 'input' group).",
+            exc,
+        )
 
 KEYBOARD_SPECIAL_KEYS = {
     "SPACE": Key.space,
@@ -97,22 +113,49 @@ class GamepadService:
                 "D_LEFT": vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_LEFT,
                 "D_RIGHT": vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_RIGHT,
             }
+        elif LINUX_GAMEPAD_AVAILABLE:
+            self.button_map = {
+                "A": LinuxButton.A,
+                "B": LinuxButton.B,
+                "X": LinuxButton.X,
+                "Y": LinuxButton.Y,
+                "LB": LinuxButton.LB,
+                "RB": LinuxButton.RB,
+                "START": LinuxButton.START,
+                "SELECT": LinuxButton.BACK,
+                "D_UP": LinuxButton.DPAD_UP,
+                "D_DOWN": LinuxButton.DPAD_DOWN,
+                "D_LEFT": LinuxButton.DPAD_LEFT,
+                "D_RIGHT": LinuxButton.DPAD_RIGHT,
+            }
 
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
     def start(self) -> None:
-        if VGAMEPAD_AVAILABLE and settings.input_mode != "keyboard":
-            try:
-                self.gamepad = vg.VX360Gamepad()
-                logger.info("Virtual Xbox 360 controller initialized")
-            except Exception as exc:
-                logger.warning(
-                    "Failed to create virtual gamepad (%s). "
-                    "Install ViGEmBus: https://github.com/ViGEm/ViGEmBus/releases",
-                    exc,
-                )
-                self.gamepad = None
+        if settings.input_mode != "keyboard":
+            if VGAMEPAD_AVAILABLE:
+                try:
+                    self.gamepad = vg.VX360Gamepad()
+                    logger.info("Virtual Xbox 360 controller initialized (ViGEmBus)")
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to create virtual gamepad (%s). "
+                        "Install ViGEmBus: https://github.com/ViGEm/ViGEmBus/releases",
+                        exc,
+                    )
+                    self.gamepad = None
+            elif LINUX_GAMEPAD_AVAILABLE:
+                try:
+                    self.gamepad = LinuxVirtualGamepad()
+                    logger.info("Virtual Xbox 360 controller initialized (uinput)")
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to create uinput gamepad (%s). Check /dev/uinput "
+                        "permissions (user must be in the 'input' group).",
+                        exc,
+                    )
+                    self.gamepad = None
 
         self._running = True
         self._update_thread = threading.Thread(target=self._update_loop, daemon=True)
