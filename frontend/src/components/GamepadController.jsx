@@ -3,11 +3,13 @@ import AnalogStick from './AnalogStick';
 import ActionButton from './ActionButton';
 import DPad from './DPad';
 import WebRTCPlayer from './WebRTCPlayer';
+import TouchpadOverlay from './TouchpadOverlay';
 
 export default function GamepadController({
     wsRef,
     serverStatus,
     controllerMode,
+    inputMode,
     controllerScale,
     controllerOpacity,
     visibleControls,
@@ -18,7 +20,8 @@ export default function GamepadController({
     onShowMenuDock,
     apiBase,
     inputStats,
-    onInputPacketSent
+    onInputPacketSent,
+    sensitivity,
 }) {
     const inputSequenceRef = useRef(0);
 
@@ -158,8 +161,11 @@ export default function GamepadController({
                 </button>
             )}
 
-            {/* Main controller layout */}
-            <div className="controller-layout" style={{ opacity: controllerOpacity, transform: `scale(${controllerScale})` }}>
+            {inputMode === 'touchpad' ? (
+                <TouchpadOverlay sendMessage={sendMessage} sensitivity={sensitivity} />
+            ) : (
+                /* Main controller layout */
+                <div className="controller-layout" style={{ opacity: controllerOpacity, transform: `scale(${controllerScale})` }}>
                 {/* Left side - Movement */}
                 <div className="controller-left">
                     <div className="shoulder-group">
@@ -223,7 +229,8 @@ export default function GamepadController({
                         />
                     )}
                 </div>
-            </div>
+                </div>
+            )}
         </div>
     );
 }

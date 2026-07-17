@@ -18,7 +18,7 @@ const Dot = ({ state }) => (
  * Entering the game requests fullscreen + landscape in the same tap
  * (browsers only allow it inside a user gesture).
  */
-export default function LandingScreen({ apiBase, serverIP, wsStatus, onPlay }) {
+export default function LandingScreen({ apiBase, serverIP, wsStatus, inputMode, onInputModeChange, onPlay }) {
     const [info, setInfo] = useState(null);
     const [reachable, setReachable] = useState('wait'); // wait | ok | fail
 
@@ -102,6 +102,41 @@ export default function LandingScreen({ apiBase, serverIP, wsStatus, onPlay }) {
                         <span className="landing-status-value">
                             {controllerState === 'ok' ? 'Ready' : controllerState === 'wait' ? 'Connecting…' : 'Offline'}
                         </span>
+                    </div>
+                </div>
+
+                <div className="landing-input-picker">
+                    <div>
+                        <h2 className="landing-input-title">Choose your controls</h2>
+                        <p className="landing-input-copy">You can switch this any time from the in-game menu.</p>
+                    </div>
+                    <div className="mode-cards" role="radiogroup" aria-label="Input mode">
+                        <button
+                            type="button"
+                            role="radio"
+                            aria-checked={inputMode === 'gamepad'}
+                            className={`mode-card ${inputMode === 'gamepad' ? 'selected' : ''}`}
+                            onClick={() => onInputModeChange('gamepad')}
+                        >
+                            <span className="mode-card-icon" aria-hidden="true">🎮</span>
+                            <span>
+                                <strong>Controller</strong>
+                                <small>Sticks, D-pad and face buttons</small>
+                            </span>
+                        </button>
+                        <button
+                            type="button"
+                            role="radio"
+                            aria-checked={inputMode === 'touchpad'}
+                            className={`mode-card ${inputMode === 'touchpad' ? 'selected' : ''}`}
+                            onClick={() => onInputModeChange('touchpad')}
+                        >
+                            <span className="mode-card-icon" aria-hidden="true">⌨</span>
+                            <span>
+                                <strong>Keys & Mouse</strong>
+                                <small>Trackpad, clicks and keyboard</small>
+                            </span>
+                        </button>
                     </div>
                 </div>
 

@@ -21,13 +21,29 @@ const rowStyle = {
 
 const sectionTitle = { margin: '0 0 14px 0', fontSize: '15px', fontWeight: '600' };
 
+const Slider = ({ label, value, min, max, onChange }) => (
+    <label className="settings-slider">
+        <span><span>{label}</span><strong>{Math.round(value)}</strong></span>
+        <input
+            type="range"
+            min={min}
+            max={max}
+            value={value}
+            onChange={(event) => onChange(Number(event.target.value))}
+        />
+    </label>
+);
+
 const connectToServer = (host) => {
     const url = new URL(window.location.href);
     url.searchParams.set('server', host);
     window.location.href = url.toString();
 };
 
-const SettingsPage = ({ apiBase, serverIP, quality, setQuality, onBack }) => {
+const SettingsPage = ({
+    apiBase, serverIP, quality, setQuality, inputMode, setInputMode,
+    sensitivity, onSensitivityChange, onBack
+}) => {
     const [info, setInfo] = useState(null);
     const [error, setError] = useState('');
     const [ipInput, setIpInput] = useState('');
@@ -109,9 +125,38 @@ const SettingsPage = ({ apiBase, serverIP, quality, setQuality, onBack }) => {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '600px', margin: '0 auto', width: '100%' }}>
 
+                {/* Input */}
+                <div style={{ ...glassStyle, padding: '22px', borderRadius: 'var(--radius-l)' }}>
+                    <h2 style={sectionTitle}>Input</h2>
+                    <p className="settings-copy">Choose controls for this phone. Both modes work with the same PC connection.</p>
+                    <div className="input-mode-segmented settings-segmented" role="group" aria-label="Input mode">
+                        <button
+                            type="button"
+                            className={inputMode === 'gamepad' ? 'active' : ''}
+                            onClick={() => setInputMode('gamepad')}
+                        >
+                            Controller
+                        </button>
+                        <button
+                            type="button"
+                            className={inputMode === 'touchpad' ? 'active' : ''}
+                            onClick={() => setInputMode('touchpad')}
+                        >
+                            Keys & Mouse
+                        </button>
+                    </div>
+                    <Slider
+                        label={inputMode === 'touchpad' ? 'Trackpad speed' : 'Camera sensitivity'}
+                        value={sensitivity}
+                        min={1}
+                        max={60}
+                        onChange={onSensitivityChange}
+                    />
+                </div>
+
                 {/* Server status */}
                 <div style={{ ...glassStyle, padding: '22px', borderRadius: 'var(--radius-l)' }}>
-                    <h2 style={sectionTitle}>Server</h2>
+                    <h2 style={sectionTitle}>Connection</h2>
                     {error && (
                         <div style={{ color: 'var(--err)', fontSize: '13px' }}>
                             Cannot reach backend: {error}
@@ -150,7 +195,7 @@ const SettingsPage = ({ apiBase, serverIP, quality, setQuality, onBack }) => {
 
                 {/* Connect to a different PC */}
                 <div style={{ ...glassStyle, padding: '22px', borderRadius: 'var(--radius-l)' }}>
-                    <h2 style={sectionTitle}>Connect to a PC</h2>
+                    <h2 style={sectionTitle}>Connect to another PC</h2>
                     <p style={{ margin: '0 0 14px 0', fontSize: '12px', color: 'var(--text-2)', lineHeight: 1.5 }}>
                         Currently connected to <b style={{ color: 'var(--text-1)' }}>{serverIP}</b>.
                         Enter another PC's IP or scan the QR code the backend prints.
@@ -264,6 +309,12 @@ const SettingsPage = ({ apiBase, serverIP, quality, setQuality, onBack }) => {
                     <p style={{ margin: '12px 0 0 0', fontSize: '11px', color: 'var(--text-3)', lineHeight: 1.5 }}>
                         Controller size, opacity and camera sensitivity are in Menu → Edit Controller.
                     </p>
+                </div>
+
+                <div className="settings-about" style={{ ...glassStyle, padding: '22px', borderRadius: 'var(--radius-l)' }}>
+                    <h2 style={sectionTitle}>About</h2>
+                    <p className="settings-copy">Cloud Play streams your PC over WebRTC and sends control input over your local network.</p>
+                    <span>Version 1.0</span>
                 </div>
 
             </div>

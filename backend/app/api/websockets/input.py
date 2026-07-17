@@ -1,7 +1,8 @@
 """WebSocket endpoint for controller input.
 
-Protocol (unchanged from the original client):
-  client -> server: {type: left_stick|right_stick|button|dpad, ..., sequence}
+Protocol:
+  client -> server (gamepad):  {type: left_stick|right_stick|button|dpad, ..., sequence}
+  client -> server (trackpad): {type: mouse_move|mouse_button|mouse_scroll|key|text, ...}
   server -> client: {type: status, ...} once on connect
                     {type: input_ack, sequence, serverApplyMs, ...} per message
 """
@@ -76,6 +77,24 @@ async def input_websocket(websocket: WebSocket) -> None:
                 gamepad_service.handle_dpad(
                     data.get("direction", ""), bool(data.get("pressed", False))
                 )
+            elif msg_type == "mouse_move":
+                gamepad_service.handle_mouse_move(
+                    data.get("dx", 0), data.get("dy", 0)
+                )
+            elif msg_type == "mouse_button":
+                gamepad_service.handle_mouse_button(
+                    data.get("button", "left"), bool(data.get("pressed", False))
+                )
+            elif msg_type == "mouse_scroll":
+                gamepad_service.handle_mouse_scroll(
+                    data.get("dx", 0), data.get("dy", 0)
+                )
+            elif msg_type == "key":
+                gamepad_service.handle_key(
+                    data.get("key", ""), bool(data.get("pressed", False))
+                )
+            elif msg_type == "text":
+                gamepad_service.handle_text(data.get("text", ""))
             elif msg_type == "set_sensitivity":
                 applied = gamepad_service.set_sensitivity(data.get("value"))
                 await websocket.send_text(

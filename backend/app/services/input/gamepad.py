@@ -13,7 +13,7 @@ import time
 from typing import Dict
 
 from pynput.keyboard import Controller as KeyboardController, Key
-from pynput.mouse import Controller as MouseController
+from pynput.mouse import Button as MouseButton, Controller as MouseController
 
 from app.core.config import settings
 
@@ -51,10 +51,22 @@ KEYBOARD_SPECIAL_KEYS = {
     "ESC": Key.esc,
     "TAB": Key.tab,
     "BACKSPACE": Key.backspace,
+    "DELETE": Key.delete,
+    "WIN": Key.cmd,
+    "HOME": Key.home,
+    "END": Key.end,
+    "PGUP": Key.page_up,
+    "PGDN": Key.page_down,
     "UP": Key.up,
     "DOWN": Key.down,
     "LEFT": Key.left,
     "RIGHT": Key.right,
+}
+
+MOUSE_BUTTONS = {
+    "left": MouseButton.left,
+    "right": MouseButton.right,
+    "middle": MouseButton.middle,
 }
 
 # App button name -> keyboard key when running in fallback mode
@@ -90,6 +102,7 @@ class GamepadService:
         self.mouse = MouseController()
         self.keyboard = KeyboardController()
         self.keyboard_keys_down: set = set()
+        self.mouse_buttons_down: set = set()
         self.gamepad = None
         self.left_stick: Dict[str, float] = {"x": 0.0, "y": 0.0}
         self.right_stick: Dict[str, float] = {"x": 0.0, "y": 0.0}
@@ -210,12 +223,15 @@ class GamepadService:
     def _set_keyboard_key(self, name: str, pressed: bool) -> None:
         key_name = name.upper()
         key = self._keyboard_key(key_name)
-        if pressed and key_name not in self.keyboard_keys_down:
-            self.keyboard.press(key)
-            self.keyboard_keys_down.add(key_name)
-        elif not pressed and key_name in self.keyboard_keys_down:
-            self.keyboard.release(key)
-            self.keyboard_keys_down.discard(key_name)
+        try:
+            if pressed and key_name not in self.keyboard_keys_down:
+                self.keyboard.press(key)
+                self.keyboard_keys_down.add(key_name)
+            elif not pressed and key_name in self.keyboard_keys_down:
+                self.keyboard.release(key)
+                self.keyboard_keys_down.discard(key_name)
+        except Exception:
+            logger.debug("Ignoring unsupported key: %r", name)
 
     def _release_all_keys(self) -> None:
         for key_name in list(self.keyboard_keys_down):
@@ -277,6 +293,50 @@ class GamepadService:
         if button:
             self.handle_button(button, pressed)
 
+    # ------------------------------------------------------------------
+    # Direct mouse/keyboard control (phone "Keys & Mouse" trackpad mode)
+    # ------------------------------------------------------------------
+    def handle_mouse_move(self, dx, dy) -> None:
+        try:
+            dx, dy = int(dx), int(dy)
+        except (TypeError, ValueError):
+            return
+        if dx or dy:
+            self.mouse.move(dx, dy)
+
+    def handle_mouse_button(self, button, pressed: bool) -> None:
+        mouse_button = MOUSE_BUTTONS.get(str(button).lower())
+        if mouse_button is None:
+            return
+        try:
+            if pressed:
+                self.mouse.press(mouse_button)
+                self.mouse_buttons_down.add(mouse_button)
+            else:
+                self.mouse.release(mouse_button)
+                self.mouse_buttons_down.discard(mouse_button)
+        except Exception as exc:
+            logger.debug("Mouse button error: %s", exc)
+
+    def handle_mouse_scroll(self, dx, dy) -> None:
+        try:
+            dx, dy = int(dx), int(dy)
+        except (TypeError, ValueError):
+            return
+        if dx or dy:
+            self.mouse.scroll(dx, dy)
+
+    def handle_key(self, key, pressed: bool) -> None:
+        if isinstance(key, str) and key:
+            self._set_keyboard_key(key, bool(pressed))
+
+    def handle_text(self, text) -> None:
+        if isinstance(text, str) and text:
+            try:
+                self.keyboard.type(text[:200])
+            except Exception as exc:
+                logger.debug("Text type error: %s", exc)
+
     def set_sensitivity(self, value) -> int:
         """Set camera/mouse sensitivity at runtime (clamped 1-100)."""
         try:
@@ -292,6 +352,12 @@ class GamepadService:
         self.left_stick = {"x": 0.0, "y": 0.0}
         self.right_stick = {"x": 0.0, "y": 0.0}
         self._release_all_keys()
+        for mouse_button in list(self.mouse_buttons_down):
+            try:
+                self.mouse.release(mouse_button)
+            except Exception:
+                pass
+        self.mouse_buttons_down.clear()
         if self.gamepad is not None:
             self.gamepad.reset()
             self.gamepad.update()

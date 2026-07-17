@@ -51,7 +51,12 @@ const NavigationDock = ({ status, onNavigate, onToggleMenu }) => {
             setIsFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement));
         };
 
-        revealToolbar();
+        // It starts visible, so only arm the initial auto-hide timer here.
+        // Avoid a synchronous state update while mounting the effect.
+        window.clearTimeout(window.__cloudGameToolbarTimer);
+        window.__cloudGameToolbarTimer = window.setTimeout(() => {
+            setIsVisible(false);
+        }, 3000);
         document.addEventListener('pointerdown', revealToolbar, { passive: true });
         document.addEventListener('fullscreenchange', syncFullscreenState);
         document.addEventListener('webkitfullscreenchange', syncFullscreenState);

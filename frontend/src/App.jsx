@@ -40,6 +40,9 @@ function App() {
   const [showMenu, setShowMenu] = useState(false);
   const [menuDockVisible, setMenuDockVisible] = useState(true);
   const [showVideo, setShowVideo] = useState(true);
+  // The overlay is a client preference: the PC can accept both controller
+  // and direct mouse/keyboard messages on the same input socket.
+  const [inputMode, setInputMode] = useState(() => localStorage.getItem('cp-input-mode') || 'gamepad');
 
   // Persisted controller preferences
   const [controllerScale, setControllerScale] = useState(() => loadNumber('cp-scale', 1.0));
@@ -68,6 +71,7 @@ function App() {
   const inputAckTimesRef = useRef([]);
 
   useEffect(() => { localStorage.setItem('cp-quality', quality); }, [quality]);
+  useEffect(() => { localStorage.setItem('cp-input-mode', inputMode); }, [inputMode]);
   useEffect(() => { localStorage.setItem('cp-statusbar', showStatusBar ? '1' : '0'); }, [showStatusBar]);
   useEffect(() => { localStorage.setItem('cp-scale', String(controllerScale)); }, [controllerScale]);
   useEffect(() => { localStorage.setItem('cp-opacity', String(controllerOpacity)); }, [controllerOpacity]);
@@ -236,13 +240,32 @@ function App() {
                   <button onClick={() => setShowMenu(false)} style={{ background: 'none', border: 'none', color: 'white', fontSize: '20px', cursor: 'pointer' }}>✕</button>
                 </div>
 
+                <div className="input-mode-segmented" role="group" aria-label="Input mode">
+                  <button
+                    type="button"
+                    className={inputMode === 'gamepad' ? 'active' : ''}
+                    onClick={() => setInputMode('gamepad')}
+                  >
+                    Controller
+                  </button>
+                  <button
+                    type="button"
+                    className={inputMode === 'touchpad' ? 'active' : ''}
+                    onClick={() => setInputMode('touchpad')}
+                  >
+                    Keys & Mouse
+                  </button>
+                </div>
+
                 <button onClick={() => setShowMenu(false)} style={menuButtonStyle}>
                   Resume ▶
                 </button>
 
-                <button onClick={() => navigateTo('editor')} style={menuButtonStyle}>
-                  Edit Controller 🎮
-                </button>
+                {inputMode === 'gamepad' && (
+                  <button onClick={() => navigateTo('editor')} style={menuButtonStyle}>
+                    Edit Controller 🎮
+                  </button>
+                )}
 
                 <button onClick={() => navigateTo('settings')} style={menuButtonStyle}>
                   Settings ⚙
@@ -280,6 +303,8 @@ function App() {
           apiBase={API_BASE}
           serverIP={SERVER_IP}
           wsStatus={wsStatus}
+          inputMode={inputMode}
+          onInputModeChange={setInputMode}
           onPlay={() => {
             sessionStorage.setItem('cloudplay-entered', '1');
             setCurrentView('game');
@@ -293,6 +318,7 @@ function App() {
           wsRef={wsRef}
           serverStatus={wsStatus}
           controllerMode={controllerMode}
+          inputMode={inputMode}
           controllerScale={controllerScale}
           controllerOpacity={controllerOpacity}
           visibleControls={visibleControls}
@@ -306,6 +332,7 @@ function App() {
           apiBase={API_BASE}
           inputStats={inputStats}
           onInputPacketSent={registerInputPacket}
+          sensitivity={sensitivity}
         />
       )}
 
@@ -315,6 +342,10 @@ function App() {
           serverIP={SERVER_IP}
           quality={quality}
           setQuality={setQuality}
+          inputMode={inputMode}
+          setInputMode={setInputMode}
+          sensitivity={sensitivity}
+          onSensitivityChange={updateSensitivity}
           onBack={() => setCurrentView('game')}
         />
       )}

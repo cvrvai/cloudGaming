@@ -30,6 +30,7 @@ controller** (touch joysticks + buttons, emulated via ViGEmBus).
 |---|---|---|
 | [backend/](backend/) | Python 3.9, FastAPI, GStreamer webrtcbin, vgamepad | [backend/README.md](backend/README.md) |
 | [frontend/](frontend/) | React 19, Vite 7, native WebRTC | [frontend/README.md](frontend/README.md) |
+| [site/](site/) | Static public CloudKH landing site | [site/README.md](site/README.md) |
 
 ## Quick start
 
