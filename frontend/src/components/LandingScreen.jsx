@@ -133,8 +133,8 @@ export default function LandingScreen({ apiBase, serverIP, wsStatus, inputMode, 
                         >
                             <span className="mode-card-icon" aria-hidden="true">⌨</span>
                             <span>
-                                <strong>Keys & Mouse</strong>
-                                <small>Trackpad, clicks and keyboard</small>
+                                <strong>Desktop</strong>
+                                <small>Mouse and keyboard</small>
                             </span>
                         </button>
                     </div>

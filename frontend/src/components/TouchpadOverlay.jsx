@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 /**
- * Keys & Mouse input mode: the whole screen is a trackpad, with a quick-key
- * bar and the phone's soft keyboard for typing.
+ * Desktop input mode: the whole screen is the remote input surface.
  *
  * Gestures: 1 finger drag = move pointer · tap = left click ·
  *           2-finger tap = right click · 2-finger drag = scroll ·
- *           hold the L/R corner buttons to drag.
+ *           physical keyboard = remote keyboard.
  */
 
 const TAP_MAX_MS = 260;
@@ -44,38 +43,41 @@ const browserKey = (event) => {
     return event.key.length === 1 ? event.key.toUpperCase() : null;
 };
 
-const MOMENTARY_KEYS = [
-    { label: 'Esc', key: 'ESC' },
-    { label: 'Tab', key: 'TAB' },
-    { label: '⊞', key: 'WIN' },
-    { label: 'Space', key: 'SPACE', wide: true },
-    { label: '⏎', key: 'ENTER' },
-];
-
-const LATCH_KEYS = [
-    { label: 'Shift', key: 'SHIFT' },
-    { label: 'Ctrl', key: 'CTRL' },
-    { label: 'Alt', key: 'ALT' },
-];
-
-export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
+export default function TouchpadOverlay({ sendMessage, sensitivity = 20, onOpenSettings }) {
     const gestureRef = useRef(null);
     const pendingMoveRef = useRef({ x: 0, y: 0 });
     const flushScheduledRef = useRef(false);
-    const latchedRef = useRef({});
     const desktopPointerRef = useRef(null);
     const desktopButtonsRef = useRef(new Set());
     const desktopKeysRef = useRef(new Set());
-    const [latched, setLatched] = useState({});
-    const [keyboardOpen, setKeyboardOpen] = useState(false);
-    const inputRef = useRef(null);
+    const surfaceRef = useRef(null);
 
     const speed = Math.max(0.3, sensitivity / 20);
 
+    const remotePixelScale = useCallback(() => {
+        const surface = surfaceRef.current;
+        const video = document.querySelector('.video-background video');
+        if (!surface || !video?.videoWidth || !video?.videoHeight) return 1;
+
+        const bounds = surface.getBoundingClientRect();
+        if (!bounds.width || !bounds.height) return 1;
+
+        // The video uses object-fit: contain. Convert browser movement into
+        // pixels on the real host monitor so a 1080p stream feels equally
+        // responsive on a smaller laptop viewport and in fullscreen.
+        const streamAspect = video.videoWidth / video.videoHeight;
+        const surfaceAspect = bounds.width / bounds.height;
+        const displayedWidth = surfaceAspect > streamAspect
+            ? bounds.height * streamAspect
+            : bounds.width;
+        return Math.max(0.5, Math.min(3, video.videoWidth / displayedWidth));
+    }, []);
+
     const queueMove = useCallback((dx, dy) => {
         const pending = pendingMoveRef.current;
-        pending.x += dx * speed;
-        pending.y += dy * speed;
+        const scale = remotePixelScale();
+        pending.x += dx * speed * scale;
+        pending.y += dy * speed * scale;
         if (flushScheduledRef.current) return;
         flushScheduledRef.current = true;
         requestAnimationFrame(() => {
@@ -88,7 +90,7 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
                 sendMessage({ type: 'mouse_move', dx: sendX, dy: sendY });
             }
         });
-    }, [sendMessage, speed]);
+    }, [sendMessage, speed, remotePixelScale]);
 
     const click = useCallback((button) => {
         sendMessage({ type: 'mouse_button', button, pressed: true });
@@ -182,27 +184,8 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
         gestureRef.current = null;
     };
 
-    // ------------------------------------------------------------------
-    // Quick keys
-    // ------------------------------------------------------------------
-    const pressKey = useCallback((key, pressed) => {
-        sendMessage({ type: 'key', key, pressed });
-    }, [sendMessage]);
-
-    const toggleLatch = useCallback((key) => {
-        setLatched(prev => {
-            const next = { ...prev, [key]: !prev[key] };
-            latchedRef.current = next;
-            pressKey(key, next[key]);
-            return next;
-        });
-    }, [pressKey]);
-
-    // Release held modifiers when leaving trackpad mode
+    // Release remote input when leaving Desktop mode.
     useEffect(() => () => {
-        Object.entries(latchedRef.current).forEach(([key, isDown]) => {
-            if (isDown) sendMessage({ type: 'key', key, pressed: false });
-        });
         desktopKeysRef.current.forEach((key) => sendMessage({ type: 'key', key, pressed: false }));
         desktopButtonsRef.current.forEach((button) => sendMessage({ type: 'mouse_button', button, pressed: false }));
     }, [sendMessage]);
@@ -220,6 +203,11 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
 
         const onKeyDown = (event) => {
             if (event.isComposing) return;
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                onOpenSettings?.();
+                return;
+            }
             const key = browserKey(event);
             if (!key) return;
             event.preventDefault();
@@ -251,27 +239,7 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
             document.removeEventListener('visibilitychange', onVisibilityChange);
             releaseAll();
         };
-    }, [sendMessage]);
-
-    // ------------------------------------------------------------------
-    // Soft keyboard capture
-    // ------------------------------------------------------------------
-    useEffect(() => {
-        if (keyboardOpen) inputRef.current?.focus();
-    }, [keyboardOpen]);
-
-    const handleBeforeInput = (e) => {
-        if (e.data) sendMessage({ type: 'text', text: e.data });
-        e.preventDefault();
-    };
-
-    const handleKeyDown = (e) => {
-        const mapped = KEYDOWN_MAP[e.key];
-        if (!mapped) return;
-        e.preventDefault();
-        pressKey(mapped, true);
-        pressKey(mapped, false);
-    };
+    }, [sendMessage, onOpenSettings]);
 
     const handleWheel = (e) => {
         e.preventDefault();
@@ -280,19 +248,10 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
         if (dx || dy) sendMessage({ type: 'mouse_scroll', dx, dy });
     };
 
-    const holdHandlers = (down, up) => ({
-        onPointerDown: (e) => {
-            e.stopPropagation();
-            e.currentTarget.setPointerCapture?.(e.pointerId);
-            down();
-        },
-        onPointerUp: (e) => { e.stopPropagation(); up(); },
-        onPointerCancel: (e) => { e.stopPropagation(); up(); },
-    });
-
     return (
         <div className="touchpad-mode rustdesk-touch-mode">
             <div
+                ref={surfaceRef}
                 className="touchpad-surface"
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
@@ -302,79 +261,6 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
                 onContextMenu={(e) => e.preventDefault()}
             />
 
-            <div className="touchpad-hint">
-                Direct control · drag to move · tap to click · two fingers to scroll
-            </div>
-
-            <button
-                type="button"
-                className="touch-click-btn touch-click-left"
-                {...holdHandlers(
-                    () => sendMessage({ type: 'mouse_button', button: 'left', pressed: true }),
-                    () => sendMessage({ type: 'mouse_button', button: 'left', pressed: false }),
-                )}
-            >
-                <span>⌁</span><small>Left</small>
-            </button>
-            <button
-                type="button"
-                className="touch-click-btn touch-click-right"
-                {...holdHandlers(
-                    () => sendMessage({ type: 'mouse_button', button: 'right', pressed: true }),
-                    () => sendMessage({ type: 'mouse_button', button: 'right', pressed: false }),
-                )}
-            >
-                <span>⌁</span><small>Right</small>
-            </button>
-
-            <div className="touchpad-bar" aria-label="Remote keyboard controls">
-                {LATCH_KEYS.map(({ label, key }) => (
-                    <button
-                        key={key}
-                        type="button"
-                        className={`touchpad-key ${latched[key] ? 'latched' : ''}`}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onClick={() => toggleLatch(key)}
-                    >
-                        {label}
-                    </button>
-                ))}
-                {MOMENTARY_KEYS.map(({ label, key, wide }) => (
-                    <button
-                        key={key}
-                        type="button"
-                        className={`touchpad-key ${wide ? 'wide' : ''}`}
-                        {...holdHandlers(() => pressKey(key, true), () => pressKey(key, false))}
-                    >
-                        {label}
-                    </button>
-                ))}
-                <button
-                    type="button"
-                    className={`touchpad-key ${keyboardOpen ? 'latched' : ''}`}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={() => setKeyboardOpen(open => !open)}
-                >
-                    ⌨
-                </button>
-            </div>
-
-            {keyboardOpen && (
-                <input
-                    ref={inputRef}
-                    className="kbd-capture"
-                    aria-label="Type on your PC"
-                    autoCapitalize="off"
-                    autoCorrect="off"
-                    autoComplete="off"
-                    spellCheck="false"
-                    value=""
-                    onChange={() => { }}
-                    onBeforeInput={handleBeforeInput}
-                    onKeyDown={handleKeyDown}
-                    onBlur={() => setKeyboardOpen(false)}
-                />
-            )}
         </div>
     );
 }

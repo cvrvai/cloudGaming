@@ -151,7 +151,10 @@ export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = tr
                 autoPlay
                 playsInline
                 muted
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                // A remote desktop must show every edge of the host display.
+                // `cover` cropped taskbars and sidebars whenever the local
+                // browser and host monitor had different aspect ratios.
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
             />
             {status !== 'connected' && (
                 <div

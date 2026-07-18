@@ -22,6 +22,7 @@ export default function GamepadController({
     inputStats,
     onInputPacketSent,
     sensitivity,
+    onOpenSettings,
 }) {
     const inputSequenceRef = useRef(0);
 
@@ -162,7 +163,11 @@ export default function GamepadController({
             )}
 
             {inputMode === 'touchpad' ? (
-                <TouchpadOverlay sendMessage={sendMessage} sensitivity={sensitivity} />
+                <TouchpadOverlay
+                    sendMessage={sendMessage}
+                    sensitivity={sensitivity}
+                    onOpenSettings={onOpenSettings}
+                />
             ) : (
                 /* Main controller layout */
                 <div className="controller-layout" style={{ opacity: controllerOpacity, transform: `scale(${controllerScale})` }}>

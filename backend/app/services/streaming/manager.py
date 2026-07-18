@@ -55,8 +55,8 @@ class StreamManager:
             raise RuntimeError(f"GStreamer not available: {self.unavailable_reason}")
 
         # The host configuration is the safe upper limit. Client quality
-        # presets may request lower values, but must not silently push this
-        # Linux VA-API pipeline into an H.264 level a browser cannot decode.
+        # presets may request lower values but cannot exceed what this host's
+        # capture and encoder are configured to provide.
         width = self._clamped(width, 320, settings.video_width, settings.video_width)
         height = self._clamped(height, 180, settings.video_height, settings.video_height)
         fps = self._clamped(fps, 15, settings.target_fps, settings.target_fps)

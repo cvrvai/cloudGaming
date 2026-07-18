@@ -5,7 +5,6 @@ import SettingsPage from './components/SettingsPage';
 import ControllerEditor from './components/ControllerEditor';
 import NavigationDock from './components/NavigationDock';
 import LandingScreen from './components/LandingScreen';
-import { REMOTE_QUALITY_KEYS } from './quality';
 import './App.css';
 
 const DEFAULT_VISIBLE = {
@@ -15,6 +14,13 @@ const DEFAULT_VISIBLE = {
   faceButtons: true,
   leftStick: true,
   rightStick: true,
+};
+const REMOTE_QUALITY_KEYS = ['auto', 'fast', 'balanced', 'fullhd'];
+
+const initialInputMode = () => {
+  const saved = localStorage.getItem('cp-input-mode');
+  if (saved === 'gamepad' || saved === 'touchpad') return saved;
+  return window.matchMedia?.('(hover: hover) and (pointer: fine)').matches ? 'touchpad' : 'gamepad';
 };
 
 const loadJSON = (key, fallback) => {
@@ -43,7 +49,7 @@ function App() {
   const [showVideo, setShowVideo] = useState(true);
   // The overlay is a client preference: the PC can accept both controller
   // and direct mouse/keyboard messages on the same input socket.
-  const [inputMode, setInputMode] = useState(() => localStorage.getItem('cp-input-mode') || 'gamepad');
+  const [inputMode, setInputMode] = useState(initialInputMode);
 
   // Persisted controller preferences
   const [controllerScale, setControllerScale] = useState(() => loadNumber('cp-scale', 1.0));
@@ -201,10 +207,12 @@ function App() {
     };
   }, []);
 
-  const navigateTo = (view) => {
+  const navigateTo = useCallback((view) => {
     setCurrentView(view);
     setShowMenu(false);
-  };
+  }, []);
+
+  const openSettings = useCallback(() => navigateTo('settings'), [navigateTo]);
 
   const hideMenuDock = () => setMenuDockVisible(false);
   const showMenuDock = () => setMenuDockVisible(true);
@@ -257,7 +265,7 @@ function App() {
                     className={inputMode === 'touchpad' ? 'active' : ''}
                     onClick={() => setInputMode('touchpad')}
                   >
-                    Keys & Mouse
+                    Desktop
                   </button>
                 </div>
 
@@ -337,6 +345,7 @@ function App() {
           inputStats={inputStats}
           onInputPacketSent={registerInputPacket}
           sensitivity={sensitivity}
+          onOpenSettings={openSettings}
         />
       )}
 

@@ -24,13 +24,11 @@ export const QUALITY_PRESETS = {
   fullhd: {
     label: 'Full HD',
     detail: '1080p · 30fps',
-    params: { width: 1920, height: 1080, fps: 30, bitrate: 12_000_000 },
+    params: { width: 1920, height: 1080, fps: 30, bitrate: 8_000_000 },
   },
 };
 
-// Browser remote sessions use profiles that are within the default host cap.
-// Keeping this deliberate prevents a stale Full HD choice from requesting an
-// expensive encoder profile that this small remote host does not provide.
+// Browser remote sessions use profiles up to the configured host limit.
 export const REMOTE_QUALITY_PRESETS = {
   auto: {
     label: 'Host default',
@@ -46,6 +44,11 @@ export const REMOTE_QUALITY_PRESETS = {
     label: 'Balanced',
     detail: '480p · 60 fps',
     params: QUALITY_PRESETS.balanced.params,
+  },
+  fullhd: {
+    label: 'Full HD',
+    detail: '1080p · 30 fps',
+    params: QUALITY_PRESETS.fullhd.params,
   },
 };
 

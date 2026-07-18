@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react';
-import { REMOTE_QUALITY_PRESETS } from '../quality';
+import { QUALITY_PRESETS } from '../quality';
+import './SettingsPage.css';
+
+// Keep these keys local to the settings surface. `QUALITY_PRESETS` has always
+// been a stable export, which prevents a stale development-module cache from
+// breaking the whole app during a Vite hot reload through the tunnel.
+const REMOTE_QUALITY_PRESETS = {
+    auto: { ...QUALITY_PRESETS.auto, label: 'Host default' },
+    fast: { ...QUALITY_PRESETS.fast, label: 'Low bandwidth' },
+    balanced: QUALITY_PRESETS.balanced,
+    fullhd: QUALITY_PRESETS.fullhd,
+};
 
 const Slider = ({ label, value, min, max, onChange }) => (
     <label className="remote-settings-slider">
@@ -51,7 +62,7 @@ const SettingsPage = ({
     }, [quality, setQuality]);
 
     const isReady = Boolean(info?.gstreamer_available);
-    const shortQualityLabels = { auto: 'Auto', fast: 'Low', balanced: 'Balanced' };
+    const shortQualityLabels = { auto: 'Auto', fast: 'Low', balanced: 'Balanced', fullhd: 'Full HD' };
 
     return (
         <main className="remote-settings" aria-label="Remote session settings">
