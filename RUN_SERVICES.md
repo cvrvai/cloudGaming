@@ -54,6 +54,54 @@ INFO streaming.peer [xxxxxxxx] Negotiation complete
 INFO streaming.peer [xxxxxxxx] ICE state: connected
 ```
 
+## Remote access through `cloudkh.space`
+
+The remote controller grants keyboard, mouse, and gamepad control of this
+computer. Protect the subdomain with Cloudflare Access before exposing it.
+
+1. Create a Cloudflare Zero Trust Access application for
+   `cloudkh.space` and allow only your account.
+2. Copy `frontend/.env.remote.example` to `frontend/.env`.
+3. Change `HOST=127.0.0.1` and set
+   `PUBLIC_FRONTEND_URL=https://cloudkh.space` in `backend/.env`.
+4. In Cloudflare Pages, remove `cloudkh.space` from the landing site's custom
+   domains; a Pages custom domain and a Tunnel hostname cannot share the apex.
+5. Install the new `cloudkh-pc-host` tunnel as a separate systemd service. Do
+   not replace the existing `cloudflared.service`, which already serves other
+   applications. Follow the commands below, using the token shown only in your
+   Cloudflare dashboard.
+6. Once its status is `active (running)`, open `cloudkh-pc-host` in Cloudflare
+   and add a Published application: domain `cloudkh.space`, service type
+   `HTTP`, service URL `http://127.0.0.1:5173`. This replaces the prior
+   apex-domain landing site.
+7. Start the backend and frontend using the commands above, then visit
+   `https://cloudkh.space` and complete the Access login.
+
+Vite proxies `/api` and `/ws` to the local backend, so the browser uses HTTPS
+and WSS under the domain. Do not create a public hostname for port 8000.
+
+### Install the dedicated CloudKH tunnel
+
+Copy the exact token from Cloudflare directly into the local file below; never
+place it in this repository or share it in chat.
+
+```bash
+sudo install -d -m 700 /etc/cloudflared
+sudo nano /etc/cloudflared/cloudkh-pc-host.env
+# Add exactly: TUNNEL_TOKEN=<token from Cloudflare>
+sudo chmod 600 /etc/cloudflared/cloudkh-pc-host.env
+sudo cp deploy/cloudflared-cloudkh.service.example /etc/systemd/system/cloudflared-cloudkh.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now cloudflared-cloudkh
+sudo systemctl status cloudflared-cloudkh --no-pager
+```
+
+This creates `cloudflared-cloudkh.service` alongside the existing connectors.
+Do **not** run `cloudflared service install <token>`: it may replace the
+generic `cloudflared.service`. The config example in
+`deploy/cloudflared-cloudplay.example.yml` remains only for a manually managed
+tunnel configuration.
+
 ## Changing stream quality
 
 Edit `backend/.env` (`VIDEO_WIDTH`, `VIDEO_HEIGHT`, `TARGET_FPS`,

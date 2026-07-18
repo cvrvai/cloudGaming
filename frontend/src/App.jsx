@@ -5,6 +5,7 @@ import SettingsPage from './components/SettingsPage';
 import ControllerEditor from './components/ControllerEditor';
 import NavigationDock from './components/NavigationDock';
 import LandingScreen from './components/LandingScreen';
+import { REMOTE_QUALITY_KEYS } from './quality';
 import './App.css';
 
 const DEFAULT_VISIBLE = {
@@ -49,7 +50,10 @@ function App() {
   const [controllerOpacity, setControllerOpacity] = useState(() => loadNumber('cp-opacity', 0.8));
   const [sensitivity, setSensitivity] = useState(() => loadNumber('cp-sensitivity', 20));
   const [visibleControls, setVisibleControls] = useState(() => loadJSON('cp-visible', DEFAULT_VISIBLE));
-  const [quality, setQuality] = useState(() => localStorage.getItem('cp-quality') || 'auto');
+  const [quality, setQuality] = useState(() => {
+    const saved = localStorage.getItem('cp-quality');
+    return REMOTE_QUALITY_KEYS.includes(saved) ? saved : 'auto';
+  });
   const [showStatusBar, setShowStatusBar] = useState(() => localStorage.getItem('cp-statusbar') === '1');
 
   const [inputStats, setInputStats] = useState({

@@ -81,6 +81,11 @@ export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = tr
         };
 
         pc.onconnectionstatechange = () => {
+            if (pc.connectionState === 'connected') {
+                // Some browsers report the completed ICE transport slightly
+                // before firing `track`; avoid leaving the UI on Connecting.
+                setStatus('connected');
+            }
             if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
                 setStatus('disconnected');
                 cleanup();

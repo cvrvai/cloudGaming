@@ -1,0 +1,17 @@
+[Unit]
+Description=Cloudflare Tunnel - CloudKH remote controller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=zhampt
+# Create this file locally with mode 600. It must contain only:
+# TUNNEL_TOKEN=<the token shown in the Cloudflare dashboard>
+EnvironmentFile=/etc/cloudflared/cloudkh-pc-host.env
+ExecStart=/usr/bin/cloudflared tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

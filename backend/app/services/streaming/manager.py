@@ -54,10 +54,23 @@ class StreamManager:
         if not GSTREAMER_AVAILABLE:
             raise RuntimeError(f"GStreamer not available: {self.unavailable_reason}")
 
-        width = self._clamped(width, 320, 2560, settings.video_width)
-        height = self._clamped(height, 180, 1440, settings.video_height)
-        fps = self._clamped(fps, 15, 60, settings.target_fps)
-        bitrate = self._clamped(bitrate, 500_000, 20_000_000, settings.video_bitrate)
+        # The host configuration is the safe upper limit. Client quality
+        # presets may request lower values, but must not silently push this
+        # Linux VA-API pipeline into an H.264 level a browser cannot decode.
+        width = self._clamped(width, 320, settings.video_width, settings.video_width)
+        height = self._clamped(height, 180, settings.video_height, settings.video_height)
+        fps = self._clamped(fps, 15, settings.target_fps, settings.target_fps)
+        bitrate = self._clamped(bitrate, 500_000, settings.video_bitrate, settings.video_bitrate)
+
+        # This host is a single-user remote desktop. Browser refreshes do not
+        # reliably trigger an immediate ICE close, so discard old capture /
+        # encoder pipelines before creating the replacement stream.
+        with self._lock:
+            previous_peers = list(self._peers.values())
+            self._peers.clear()
+        for old_peer in previous_peers:
+            old_peer.on_closed = None
+            old_peer.close()
 
         pc_id = str(uuid.uuid4())[:8]
         logger.info(
@@ -70,7 +83,7 @@ class StreamManager:
             height=height,
             fps=fps,
             bitrate_kbps=bitrate // 1000,
-            monitor_index=settings.monitor_index - 1,
+            monitor_index=settings.monitor_index,
             stun_server=settings.stun_server,
             on_closed=self._remove_peer,
         )

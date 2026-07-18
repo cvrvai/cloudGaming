@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     # Network
     host: str = "0.0.0.0"
     port: int = 8000
+    # Optional URL shown in the startup banner and QR code. Set this to the
+    # Access-protected frontend domain when using a reverse tunnel.
+    public_frontend_url: str = ""
 
     # Video stream
     target_fps: int = 60

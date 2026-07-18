@@ -33,11 +33,41 @@ prints a QR code for this URL on startup.
 npm run build    # outputs to dist/
 ```
 
+## Remote access with a domain
+
+This setup publishes the controller at `cloudkh.space`. It replaces the
+public landing site, so protect it with Cloudflare Access: this app can send
+keyboard and mouse input to this computer.
+
+1. In Cloudflare Zero Trust, create an **Access application** for
+   `cloudkh.space`. Add a policy that allows only your identity (for
+   example, your email address). Do this before creating the public hostname.
+2. Copy `.env.remote.example` to `.env`. This binds Vite to localhost and
+   makes its `/api` and `/ws` proxy reach the local backend.
+3. Set `HOST=127.0.0.1` and
+   `PUBLIC_FRONTEND_URL=https://cloudkh.space` in `backend/.env`, so
+   port 8000 cannot be reached directly from the LAN or internet and the QR
+   code opens the protected domain.
+4. In Cloudflare Pages, remove `cloudkh.space` from the landing site's custom
+   domains. Install the new `cloudkh-pc-host` tunnel as a separate systemd
+   service with `deploy/cloudflared-cloudkh.service.example`; do not replace
+   the existing connector used by other applications.
+5. Once that tunnel is Connected, add a Published application: domain
+   `cloudkh.space`, service type `HTTP`, service URL
+   `http://127.0.0.1:5173`.
+6. Start the backend and `npm run dev`. Open
+   `https://cloudkh.space` after Access signs you in.
+
+The Cloudflare Tunnel carries only the app, signaling, and controller traffic.
+For remote video, WebRTC still needs a working ICE path. The default STUN
+server may be sufficient on permissive NATs; configure a TURN server in
+`backend/.env` if the stream remains stuck at connecting on mobile data.
+
 ## Key files
 
 | File | Purpose |
 |---|---|
-| `src/config.js` | Server IP/port resolution |
+| `src/config.js` | Same-origin proxy and direct-LAN connection resolution |
 | `src/App.jsx` | Input WebSocket + view routing |
 | `src/components/WebRTCPlayer.jsx` | Native WebRTC video (H264, auto-reconnect, FPS overlay) |
 | `src/components/GamepadController.jsx` | Touch controller UI |

@@ -31,7 +31,9 @@ const NavigationDock = ({ status, onNavigate, onToggleMenu }) => {
     };
 
     const toggleFullscreen = async () => {
-        const root = document.documentElement;
+        // Fullscreen only the remote application—not unrelated browser UI—so
+        // the streamed desktop fills the display like a native remote client.
+        const root = document.querySelector('.app-container') || document.documentElement;
 
         try {
             if (!document.fullscreenElement && !document.webkitFullscreenElement) {
@@ -48,7 +50,18 @@ const NavigationDock = ({ status, onNavigate, onToggleMenu }) => {
 
     useEffect(() => {
         const syncFullscreenState = () => {
-            setIsFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement));
+            const fullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+            setIsFullscreen(fullscreen);
+            // Keep controls immediately reachable after entering or leaving.
+            setIsVisible(true);
+            window.clearTimeout(window.__cloudGameToolbarTimer);
+            if (fullscreen) {
+                window.__cloudGameToolbarTimer = window.setTimeout(() => setIsVisible(false), 3000);
+            }
+        };
+
+        const revealAtTopEdge = (event) => {
+            if ((document.fullscreenElement || document.webkitFullscreenElement) && event.clientY <= 72) revealToolbar();
         };
 
         // It starts visible, so only arm the initial auto-hide timer here.
@@ -58,12 +71,14 @@ const NavigationDock = ({ status, onNavigate, onToggleMenu }) => {
             setIsVisible(false);
         }, 3000);
         document.addEventListener('pointerdown', revealToolbar, { passive: true });
+        document.addEventListener('pointermove', revealAtTopEdge, { passive: true });
         document.addEventListener('fullscreenchange', syncFullscreenState);
         document.addEventListener('webkitfullscreenchange', syncFullscreenState);
 
         return () => {
             window.clearTimeout(window.__cloudGameToolbarTimer);
             document.removeEventListener('pointerdown', revealToolbar);
+            document.removeEventListener('pointermove', revealAtTopEdge);
             document.removeEventListener('fullscreenchange', syncFullscreenState);
             document.removeEventListener('webkitfullscreenchange', syncFullscreenState);
         };
@@ -71,13 +86,22 @@ const NavigationDock = ({ status, onNavigate, onToggleMenu }) => {
 
     return (
         <div className={`edge-toolbar ${isVisible ? 'visible' : 'hidden'}`}>
-            <div className="edge-toolbar-status" aria-label={`Controller ${status}`}>
-                <span className="toolbar-dot" style={{ backgroundColor: statusColor(status) }} />
-                <span>Controller</span>
+            <div className="remote-session-brand" aria-label="CloudKH Remote">
+                <span className="remote-session-mark" aria-hidden="true">▣</span>
+                <span>CloudKH Remote</span>
             </div>
 
-            <IconButton label="Menu" onClick={onToggleMenu}>
-                <span aria-hidden="true">☰</span>
+            <div className="edge-toolbar-divider" />
+
+            <div className="edge-toolbar-status" aria-label={`Remote control ${status}`}>
+                <span className="toolbar-dot" style={{ backgroundColor: statusColor(status) }} />
+                <span>{status === 'connected' ? 'Connected' : status === 'error' ? 'Reconnecting' : 'Connecting'}</span>
+            </div>
+
+            <div className="edge-toolbar-divider" />
+
+            <IconButton label="Remote controls" onClick={onToggleMenu}>
+                <span aria-hidden="true">⌘</span>
             </IconButton>
 
             <IconButton label="Settings" onClick={() => onNavigate('settings')}>

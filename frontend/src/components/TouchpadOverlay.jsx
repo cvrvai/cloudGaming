@@ -19,10 +19,29 @@ const KEYDOWN_MAP = {
     Escape: 'ESC',
     Tab: 'TAB',
     Delete: 'DELETE',
+    Shift: 'SHIFT',
+    Control: 'CTRL',
+    Alt: 'ALT',
+    Meta: 'WIN',
+    Home: 'HOME',
+    End: 'END',
+    PageUp: 'PGUP',
+    PageDown: 'PGDN',
     ArrowUp: 'UP',
     ArrowDown: 'DOWN',
     ArrowLeft: 'LEFT',
     ArrowRight: 'RIGHT',
+};
+
+const buttonName = (button) => ({ 0: 'left', 1: 'middle', 2: 'right' }[button]);
+
+const browserKey = (event) => {
+    const named = KEYDOWN_MAP[event.key];
+    if (named) return named;
+    // The backend normalizes printable key names to lower case. Keep a
+    // single-character physical key as a held key rather than typed text so
+    // shortcuts and games receive both keydown and keyup events.
+    return event.key.length === 1 ? event.key.toUpperCase() : null;
 };
 
 const MOMENTARY_KEYS = [
@@ -44,6 +63,9 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
     const pendingMoveRef = useRef({ x: 0, y: 0 });
     const flushScheduledRef = useRef(false);
     const latchedRef = useRef({});
+    const desktopPointerRef = useRef(null);
+    const desktopButtonsRef = useRef(new Set());
+    const desktopKeysRef = useRef(new Set());
     const [latched, setLatched] = useState({});
     const [keyboardOpen, setKeyboardOpen] = useState(false);
     const inputRef = useRef(null);
@@ -77,6 +99,18 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
     // Trackpad surface gestures
     // ------------------------------------------------------------------
     const onPointerDown = (e) => {
+        if (e.pointerType === 'mouse') {
+            const button = buttonName(e.button);
+            desktopPointerRef.current = { x: e.clientX, y: e.clientY };
+            if (button) {
+                e.preventDefault();
+                e.currentTarget.setPointerCapture?.(e.pointerId);
+                desktopButtonsRef.current.add(button);
+                sendMessage({ type: 'mouse_button', button, pressed: true });
+            }
+            return;
+        }
+
         e.currentTarget.setPointerCapture?.(e.pointerId);
         if (!gestureRef.current) {
             gestureRef.current = {
@@ -93,6 +127,15 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
     };
 
     const onPointerMove = (e) => {
+        // Desktop browsers do not need a touch-style drag. Forward ordinary
+        // local mouse movement while the pointer is over the streamed screen.
+        if (e.pointerType === 'mouse') {
+            const previous = desktopPointerRef.current;
+            desktopPointerRef.current = { x: e.clientX, y: e.clientY };
+            if (previous) queueMove(e.clientX - previous.x, e.clientY - previous.y);
+            return;
+        }
+
         const gesture = gestureRef.current;
         const point = gesture?.pointers.get(e.pointerId);
         if (!point) return;
@@ -117,6 +160,14 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
     };
 
     const onPointerEnd = (e) => {
+        if (e.pointerType === 'mouse') {
+            const button = buttonName(e.button);
+            if (button && desktopButtonsRef.current.delete(button)) {
+                sendMessage({ type: 'mouse_button', button, pressed: false });
+            }
+            return;
+        }
+
         const gesture = gestureRef.current;
         if (!gesture?.pointers.has(e.pointerId)) return;
         gesture.pointers.delete(e.pointerId);
@@ -152,6 +203,54 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
         Object.entries(latchedRef.current).forEach(([key, isDown]) => {
             if (isDown) sendMessage({ type: 'key', key, pressed: false });
         });
+        desktopKeysRef.current.forEach((key) => sendMessage({ type: 'key', key, pressed: false }));
+        desktopButtonsRef.current.forEach((button) => sendMessage({ type: 'mouse_button', button, pressed: false }));
+    }, [sendMessage]);
+
+    // In desktop mode, use the laptop's real keyboard. The old overlay only
+    // captured characters from the optional phone soft keyboard, so a remote
+    // laptop session could never type or use shortcuts.
+    useEffect(() => {
+        const releaseAll = () => {
+            desktopKeysRef.current.forEach((key) => sendMessage({ type: 'key', key, pressed: false }));
+            desktopKeysRef.current.clear();
+            desktopButtonsRef.current.forEach((button) => sendMessage({ type: 'mouse_button', button, pressed: false }));
+            desktopButtonsRef.current.clear();
+        };
+
+        const onKeyDown = (event) => {
+            if (event.isComposing) return;
+            const key = browserKey(event);
+            if (!key) return;
+            event.preventDefault();
+            if (desktopKeysRef.current.has(key)) return;
+            desktopKeysRef.current.add(key);
+            sendMessage({ type: 'key', key, pressed: true });
+        };
+
+        const onKeyUp = (event) => {
+            const key = browserKey(event);
+            if (!key) return;
+            event.preventDefault();
+            if (!desktopKeysRef.current.delete(key)) return;
+            sendMessage({ type: 'key', key, pressed: false });
+        };
+
+        const onVisibilityChange = () => {
+            if (document.hidden) releaseAll();
+        };
+
+        window.addEventListener('keydown', onKeyDown, true);
+        window.addEventListener('keyup', onKeyUp, true);
+        window.addEventListener('blur', releaseAll);
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        return () => {
+            window.removeEventListener('keydown', onKeyDown, true);
+            window.removeEventListener('keyup', onKeyUp, true);
+            window.removeEventListener('blur', releaseAll);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+            releaseAll();
+        };
     }, [sendMessage]);
 
     // ------------------------------------------------------------------
@@ -174,6 +273,13 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
         pressKey(mapped, false);
     };
 
+    const handleWheel = (e) => {
+        e.preventDefault();
+        const dx = Math.sign(e.deltaX);
+        const dy = Math.sign(e.deltaY);
+        if (dx || dy) sendMessage({ type: 'mouse_scroll', dx, dy });
+    };
+
     const holdHandlers = (down, up) => ({
         onPointerDown: (e) => {
             e.stopPropagation();
@@ -185,17 +291,19 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
     });
 
     return (
-        <div className="touchpad-mode">
+        <div className="touchpad-mode rustdesk-touch-mode">
             <div
                 className="touchpad-surface"
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerEnd}
                 onPointerCancel={onPointerEnd}
+                onWheel={handleWheel}
+                onContextMenu={(e) => e.preventDefault()}
             />
 
             <div className="touchpad-hint">
-                1 finger move · tap click · 2 fingers scroll / right-click · hold L to drag
+                Direct control · drag to move · tap to click · two fingers to scroll
             </div>
 
             <button
@@ -206,7 +314,7 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
                     () => sendMessage({ type: 'mouse_button', button: 'left', pressed: false }),
                 )}
             >
-                L
+                <span>⌁</span><small>Left</small>
             </button>
             <button
                 type="button"
@@ -216,10 +324,10 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20 }) {
                     () => sendMessage({ type: 'mouse_button', button: 'right', pressed: false }),
                 )}
             >
-                R
+                <span>⌁</span><small>Right</small>
             </button>
 
-            <div className="touchpad-bar">
+            <div className="touchpad-bar" aria-label="Remote keyboard controls">
                 {LATCH_KEYS.map(({ label, key }) => (
                     <button
                         key={key}

@@ -121,14 +121,19 @@ class GStreamerWebRTCPeer:
         if _linux_hw_encoder_ready():
             logger.info("[%s] Using hardware encoder %s", self.pc_id, _LINUX_HW_ENCODER)
             encoder = (
+                # Constrained-baseline is the broadly interoperable WebRTC
+                # H.264 profile. The VA encoder otherwise selects High, which
+                # can negotiate but fail to decode in mobile browsers.
                 f"vah264lpenc target-usage=7 key-int-max={self.fps} "
-                f"qpi=24 qpp=26 qpb=28"
+                f"qpi=24 qpp=26 qpb=28 cabac=false dct8x8=false "
+                f"! video/x-h264,profile=constrained-baseline"
             )
         else:
             logger.info("[%s] Using software encoder x264enc", self.pc_id)
             encoder = (
                 f"x264enc speed-preset=ultrafast tune=zerolatency "
                 f"bitrate={self.bitrate_kbps} key-int-max={self.fps} vbv-buf-capacity=0"
+                f" ! video/x-h264,profile=constrained-baseline"
             )
 
         return (

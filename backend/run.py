@@ -14,13 +14,14 @@ from app.utils.network import get_local_ip, print_qr_ascii
 
 def main() -> None:
     local_ip = get_local_ip()
-    frontend_url = f"http://{local_ip}:5173"
+    frontend_url = settings.public_frontend_url or f"http://{local_ip}:5173"
+    api_url = f"http://127.0.0.1:{settings.port}" if settings.host in {"127.0.0.1", "localhost"} else f"http://{local_ip}:{settings.port}"
 
     print("=" * 55)
     print("  Cloud Game Backend (FastAPI + GStreamer)")
     print("=" * 55)
-    print(f"  API:        http://{local_ip}:{settings.port}")
-    print(f"  Input WS:   ws://{local_ip}:{settings.port}/ws/input")
+    print(f"  API:        {api_url}")
+    print(f"  Input WS:   {api_url.replace('http://', 'ws://')}/ws/input")
     print(f"  Video:      {settings.video_width}x{settings.video_height} @ {settings.target_fps}fps")
     print("=" * 55)
     print(f"\nOpen on phone: {frontend_url}")

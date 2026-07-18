@@ -1,0 +1,7 @@
+# Fallback for a locally managed Cloudflare Tunnel configuration. Prefer
+# adding the Published application in the Cloudflare dashboard. Do not put
+# tunnel credentials in this repository.
+ingress:
+  - hostname: cloudkh.space
+    service: http://127.0.0.1:5173
+  - service: http_status:404
