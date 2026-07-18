@@ -47,7 +47,8 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20, onOpenS
     const gestureRef = useRef(null);
     const pendingMoveRef = useRef({ x: 0, y: 0 });
     const flushScheduledRef = useRef(false);
-    const desktopPointerRef = useRef(null);
+    const pendingAbsoluteRef = useRef(null);
+    const absoluteFlushScheduledRef = useRef(false);
     const desktopButtonsRef = useRef(new Set());
     const desktopKeysRef = useRef(new Set());
     const surfaceRef = useRef(null);
@@ -75,22 +76,64 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20, onOpenS
 
     const queueMove = useCallback((dx, dy) => {
         const pending = pendingMoveRef.current;
-        const scale = remotePixelScale();
-        pending.x += dx * speed * scale;
-        pending.y += dy * speed * scale;
+        pending.x += dx * speed;
+        pending.y += dy * speed;
         if (flushScheduledRef.current) return;
         flushScheduledRef.current = true;
         requestAnimationFrame(() => {
             flushScheduledRef.current = false;
-            const sendX = Math.trunc(pending.x);
-            const sendY = Math.trunc(pending.y);
+            // Measure the displayed-video scale once per rendered frame,
+            // rather than forcing layout work for every raw mouse event.
+            const scale = remotePixelScale();
+            const sendX = Math.trunc(pending.x * scale);
+            const sendY = Math.trunc(pending.y * scale);
             if (sendX || sendY) {
-                pending.x -= sendX;
-                pending.y -= sendY;
+                pending.x -= sendX / scale;
+                pending.y -= sendY / scale;
                 sendMessage({ type: 'mouse_move', dx: sendX, dy: sendY });
             }
         });
     }, [sendMessage, speed, remotePixelScale]);
+
+    const normalizedPointer = useCallback((clientX, clientY) => {
+        const surface = surfaceRef.current;
+        const video = document.querySelector('.video-background video');
+        if (!surface || !video?.videoWidth || !video?.videoHeight) return null;
+
+        const bounds = surface.getBoundingClientRect();
+        const streamAspect = video.videoWidth / video.videoHeight;
+        const surfaceAspect = bounds.width / bounds.height;
+        const displayedWidth = surfaceAspect > streamAspect
+            ? bounds.height * streamAspect
+            : bounds.width;
+        const displayedHeight = surfaceAspect > streamAspect
+            ? bounds.height
+            : bounds.width / streamAspect;
+        const offsetX = bounds.left + (bounds.width - displayedWidth) / 2;
+        const offsetY = bounds.top + (bounds.height - displayedHeight) / 2;
+
+        return {
+            x: Math.max(0, Math.min(1, (clientX - offsetX) / displayedWidth)),
+            y: Math.max(0, Math.min(1, (clientY - offsetY) / displayedHeight)),
+        };
+    }, []);
+
+    const sendAbsolutePointer = useCallback((clientX, clientY) => {
+        const point = normalizedPointer(clientX, clientY);
+        if (point) sendMessage({ type: 'mouse_abs', ...point });
+    }, [normalizedPointer, sendMessage]);
+
+    const queueAbsolutePointer = useCallback((clientX, clientY) => {
+        pendingAbsoluteRef.current = { clientX, clientY };
+        if (absoluteFlushScheduledRef.current) return;
+        absoluteFlushScheduledRef.current = true;
+        requestAnimationFrame(() => {
+            absoluteFlushScheduledRef.current = false;
+            const pending = pendingAbsoluteRef.current;
+            pendingAbsoluteRef.current = null;
+            if (pending) sendAbsolutePointer(pending.clientX, pending.clientY);
+        });
+    }, [sendAbsolutePointer]);
 
     const click = useCallback((button) => {
         sendMessage({ type: 'mouse_button', button, pressed: true });
@@ -103,7 +146,9 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20, onOpenS
     const onPointerDown = (e) => {
         if (e.pointerType === 'mouse') {
             const button = buttonName(e.button);
-            desktopPointerRef.current = { x: e.clientX, y: e.clientY };
+            // Position is sent before button-down, so a click always targets
+            // the exact image location—even in fullscreen or at screen edges.
+            sendAbsolutePointer(e.clientX, e.clientY);
             if (button) {
                 e.preventDefault();
                 e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -130,11 +175,10 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20, onOpenS
 
     const onPointerMove = (e) => {
         // Desktop browsers do not need a touch-style drag. Forward ordinary
-        // local mouse movement while the pointer is over the streamed screen.
+        // local mouse movement as absolute host coordinates. This is the same
+        // model native remote-desktop clients use for reliable point-and-click.
         if (e.pointerType === 'mouse') {
-            const previous = desktopPointerRef.current;
-            desktopPointerRef.current = { x: e.clientX, y: e.clientY };
-            if (previous) queueMove(e.clientX - previous.x, e.clientY - previous.y);
+            queueAbsolutePointer(e.clientX, e.clientY);
             return;
         }
 

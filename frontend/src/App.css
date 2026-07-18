@@ -441,6 +441,10 @@
   inset: 0;
 }
 
+/* The host pointer is part of the captured video. Never draw Chrome's local
+   pointer over the remote surface, including in responsive/emulated modes. */
+.touchpad-surface { cursor: none; }
+
 .touchpad-mode {
   z-index: 5;
   pointer-events: none;
@@ -560,10 +564,6 @@
    completely clear; the full touch-control overlay remains available on
    phones/tablets, where these controls are needed. */
 @media (hover: hover) and (pointer: fine) {
-  /* The streamed desktop already contains the host cursor. Hide the browser
-     cursor over the input surface so remote use does not show two pointers. */
-  .touchpad-surface { cursor: none; }
-
   .touchpad-hint,
   .touch-click-btn,
   .touchpad-bar {

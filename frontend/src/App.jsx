@@ -15,7 +15,7 @@ const DEFAULT_VISIBLE = {
   leftStick: true,
   rightStick: true,
 };
-const REMOTE_QUALITY_KEYS = ['auto', 'fast', 'balanced', 'fullhd'];
+const REMOTE_QUALITY_KEYS = ['auto', 'fast', 'balanced', 'hd'];
 
 const initialInputMode = () => {
   const saved = localStorage.getItem('cp-input-mode');

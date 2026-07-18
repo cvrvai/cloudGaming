@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     video_height: int = 480
     video_bitrate: int = 4_000_000
     monitor_index: int = 1
+    capture_use_damage: bool = True
 
     # WebRTC
     stun_server: str = "stun://stun.l.google.com:19302"

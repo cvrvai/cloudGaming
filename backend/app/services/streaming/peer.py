@@ -63,6 +63,7 @@ class GStreamerWebRTCPeer:
         fps: int,
         bitrate_kbps: int,
         monitor_index: int,
+        capture_use_damage: bool,
         stun_server: str,
         on_closed=None,
     ):
@@ -72,6 +73,7 @@ class GStreamerWebRTCPeer:
         self.fps = fps
         self.bitrate_kbps = bitrate_kbps
         self.monitor_index = monitor_index
+        self.capture_use_damage = capture_use_damage
         self.stun_server = stun_server
         self.on_closed = on_closed
         self.pipeline: Optional["Gst.Pipeline"] = None
@@ -137,7 +139,7 @@ class GStreamerWebRTCPeer:
             )
 
         return (
-            f"ximagesrc use-damage=0 {region}"
+            f"ximagesrc use-damage={str(self.capture_use_damage).lower()} {region}"
             f"! video/x-raw,framerate={self.fps}/1 "
             f"! {leaky} "
             f"! videoconvert "

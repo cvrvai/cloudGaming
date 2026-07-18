@@ -16,6 +16,7 @@ from pynput.keyboard import Controller as KeyboardController, Key
 from pynput.mouse import Button as MouseButton, Controller as MouseController
 
 from app.core.config import settings
+from app.utils.display_linux import get_monitor_geometry
 
 logger = logging.getLogger("input.gamepad")
 
@@ -107,6 +108,9 @@ class GamepadService:
         self.left_stick: Dict[str, float] = {"x": 0.0, "y": 0.0}
         self.right_stick: Dict[str, float] = {"x": 0.0, "y": 0.0}
         self.mouse_sensitivity = settings.mouse_sensitivity
+        # The browser sends normalized coordinates (0..1). Resolve the X11
+        # monitor once rather than spawning xrandr for every pointer event.
+        self._mouse_region = None
         self._update_thread: threading.Thread = None
         self._running = False
 
@@ -146,6 +150,7 @@ class GamepadService:
     # Lifecycle
     # ------------------------------------------------------------------
     def start(self) -> None:
+        self._mouse_region = get_monitor_geometry(settings.monitor_index)
         if settings.input_mode != "keyboard":
             if VGAMEPAD_AVAILABLE:
                 try:
@@ -303,6 +308,35 @@ class GamepadService:
             return
         if dx or dy:
             self.mouse.move(dx, dy)
+
+    def handle_mouse_absolute(self, x, y) -> None:
+        """Place the host cursor at normalized coordinates from the browser.
+
+        Unlike relative browser movement, this remains accurate at the edge of
+        a fullscreen window and is independent of the streamed encode size.
+        """
+        try:
+            x = max(0.0, min(1.0, float(x)))
+            y = max(0.0, min(1.0, float(y)))
+        except (TypeError, ValueError):
+            return
+
+        if self._mouse_region is None:
+            self._mouse_region = get_monitor_geometry(settings.monitor_index)
+
+        if self._mouse_region is not None:
+            startx, starty, endx, endy = self._mouse_region
+            target_x = round(startx + x * (endx - startx))
+            target_y = round(starty + y * (endy - starty))
+        else:
+            # Best-effort fallback for platforms without X11 monitor geometry.
+            target_x = round(x * max(1, settings.video_width - 1))
+            target_y = round(y * max(1, settings.video_height - 1))
+
+        try:
+            self.mouse.position = (target_x, target_y)
+        except Exception as exc:
+            logger.debug("Absolute mouse move error: %s", exc)
 
     def handle_mouse_button(self, button, pressed: bool) -> None:
         mouse_button = MOUSE_BUTTONS.get(str(button).lower())

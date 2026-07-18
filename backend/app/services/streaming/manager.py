@@ -84,6 +84,7 @@ class StreamManager:
             fps=fps,
             bitrate_kbps=bitrate // 1000,
             monitor_index=settings.monitor_index,
+            capture_use_damage=settings.capture_use_damage,
             stun_server=settings.stun_server,
             on_closed=self._remove_peer,
         )

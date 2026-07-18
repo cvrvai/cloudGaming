@@ -9,7 +9,7 @@ const REMOTE_QUALITY_PRESETS = {
     auto: { ...QUALITY_PRESETS.auto, label: 'Host default' },
     fast: { ...QUALITY_PRESETS.fast, label: 'Low bandwidth' },
     balanced: QUALITY_PRESETS.balanced,
-    fullhd: QUALITY_PRESETS.fullhd,
+    hd: QUALITY_PRESETS.hd,
 };
 
 const Slider = ({ label, value, min, max, onChange }) => (
@@ -62,7 +62,7 @@ const SettingsPage = ({
     }, [quality, setQuality]);
 
     const isReady = Boolean(info?.gstreamer_available);
-    const shortQualityLabels = { auto: 'Auto', fast: 'Low', balanced: 'Balanced', fullhd: 'Full HD' };
+    const shortQualityLabels = { auto: 'Auto', fast: 'Low', balanced: 'Balanced', hd: 'Smooth' };
 
     return (
         <main className="remote-settings" aria-label="Remote session settings">

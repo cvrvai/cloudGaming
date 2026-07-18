@@ -2,7 +2,7 @@
 
 Protocol:
   client -> server (gamepad):  {type: left_stick|right_stick|button|dpad, ..., sequence}
-  client -> server (trackpad): {type: mouse_move|mouse_button|mouse_scroll|key|text, ...}
+  client -> server (desktop):  {type: mouse_abs|mouse_move|mouse_button|mouse_scroll|key|text, ...}
   server -> client: {type: status, ...} once on connect
                     {type: input_ack, sequence, serverApplyMs, ...} per message
 """
@@ -80,6 +80,10 @@ async def input_websocket(websocket: WebSocket) -> None:
             elif msg_type == "mouse_move":
                 gamepad_service.handle_mouse_move(
                     data.get("dx", 0), data.get("dy", 0)
+                )
+            elif msg_type == "mouse_abs":
+                gamepad_service.handle_mouse_absolute(
+                    data.get("x", 0), data.get("y", 0)
                 )
             elif msg_type == "mouse_button":
                 gamepad_service.handle_mouse_button(

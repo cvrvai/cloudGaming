@@ -23,8 +23,8 @@ export const QUALITY_PRESETS = {
   },
   fullhd: {
     label: 'Full HD',
-    detail: '1080p · 30fps',
-    params: { width: 1920, height: 1080, fps: 30, bitrate: 8_000_000 },
+    detail: '1080p · 60fps',
+    params: { width: 1920, height: 1080, fps: 60, bitrate: 12_000_000 },
   },
 };
 
@@ -45,10 +45,10 @@ export const REMOTE_QUALITY_PRESETS = {
     detail: '480p · 60 fps',
     params: QUALITY_PRESETS.balanced.params,
   },
-  fullhd: {
-    label: 'Full HD',
-    detail: '1080p · 30 fps',
-    params: QUALITY_PRESETS.fullhd.params,
+  hd: {
+    label: 'Smooth desktop',
+    detail: '720p · 60 fps',
+    params: QUALITY_PRESETS.hd.params,
   },
 };
 
