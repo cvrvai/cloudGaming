@@ -194,6 +194,14 @@ class GamepadService:
     # ------------------------------------------------------------------
     # Continuous updates (sticks -> gamepad + mouse) at ~60 Hz
     # ------------------------------------------------------------------
+    def _camera_scale(self) -> float:
+        """Map the shared speed slider onto the gamepad's right stick.
+
+        20 remains the neutral/default speed. Values below it slow camera
+        movement; values above it reach full-stick deflection sooner.
+        """
+        return max(0.1, min(3.0, self.mouse_sensitivity / 20.0))
+
     def _update_loop(self) -> None:
         while self._running:
             if self.gamepad is not None:
@@ -203,15 +211,17 @@ class GamepadService:
                         y_value_float=self.left_stick["y"],
                     )
                     self.gamepad.right_joystick_float(
-                        x_value_float=self.right_stick["x"],
-                        y_value_float=self.right_stick["y"],
+                        x_value_float=max(-1.0, min(1.0, self.right_stick["x"] * self._camera_scale())),
+                        y_value_float=max(-1.0, min(1.0, self.right_stick["y"] * self._camera_scale())),
                     )
                     self.gamepad.update()
                 except Exception as exc:
                     logger.error("Gamepad update error: %s", exc)
 
-            # Mouse fallback for camera (works even without ViGEmBus)
-            if self.right_stick["x"] != 0 or self.right_stick["y"] != 0:
+            # Mouse fallback is only for hosts without a virtual controller.
+            # Sending both a gamepad right stick and OS mouse movement makes
+            # games apply the camera input twice, causing fast/jittery motion.
+            if self.gamepad is None and (self.right_stick["x"] != 0 or self.right_stick["y"] != 0):
                 dx = int(self.right_stick["x"] * self.mouse_sensitivity)
                 dy = int(self.right_stick["y"] * self.mouse_sensitivity)
                 if dx != 0 or dy != 0:
