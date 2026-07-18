@@ -103,6 +103,8 @@
 
 .remote-settings-mode button strong { font-size: 13px; }
 
+.remote-settings-pointer { margin-top: -8px; }
+
 .remote-settings-mode button.active,
 .remote-quality-list button.active {
   border-color: rgba(94, 157, 255, 0.75);

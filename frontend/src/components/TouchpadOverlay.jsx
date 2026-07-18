@@ -43,15 +43,17 @@ const browserKey = (event) => {
     return event.key.length === 1 ? event.key.toUpperCase() : null;
 };
 
-export default function TouchpadOverlay({ sendMessage, sensitivity = 20, onOpenSettings }) {
+export default function TouchpadOverlay({ sendMessage, sensitivity = 20, mouseMode = 'absolute', onOpenSettings }) {
     const gestureRef = useRef(null);
     const pendingMoveRef = useRef({ x: 0, y: 0 });
     const flushScheduledRef = useRef(false);
     const pendingAbsoluteRef = useRef(null);
     const absoluteFlushScheduledRef = useRef(false);
+    const desktopPointerRef = useRef(null);
     const desktopButtonsRef = useRef(new Set());
     const desktopKeysRef = useRef(new Set());
     const surfaceRef = useRef(null);
+    const pointerLockWasActiveRef = useRef(false);
 
     const speed = Math.max(0.3, sensitivity / 20);
 
@@ -148,7 +150,11 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20, onOpenS
             const button = buttonName(e.button);
             // Position is sent before button-down, so a click always targets
             // the exact image location—even in fullscreen or at screen edges.
-            sendAbsolutePointer(e.clientX, e.clientY);
+            if (mouseMode === 'absolute') {
+                sendAbsolutePointer(e.clientX, e.clientY);
+            } else {
+                desktopPointerRef.current = { x: e.clientX, y: e.clientY };
+            }
             if (button) {
                 e.preventDefault();
                 e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -178,6 +184,16 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20, onOpenS
         // local mouse movement as absolute host coordinates. This is the same
         // model native remote-desktop clients use for reliable point-and-click.
         if (e.pointerType === 'mouse') {
+            if (mouseMode === 'relative') {
+                if (document.pointerLockElement === surfaceRef.current) {
+                    if (e.movementX || e.movementY) queueMove(e.movementX, e.movementY);
+                    return;
+                }
+                const previous = desktopPointerRef.current;
+                desktopPointerRef.current = { x: e.clientX, y: e.clientY };
+                if (previous) queueMove(e.clientX - previous.x, e.clientY - previous.y);
+                return;
+            }
             queueAbsolutePointer(e.clientX, e.clientY);
             return;
         }
@@ -234,6 +250,19 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20, onOpenS
         desktopButtonsRef.current.forEach((button) => sendMessage({ type: 'mouse_button', button, pressed: false }));
     }, [sendMessage]);
 
+    useEffect(() => {
+        const onPointerLockChange = () => {
+            const active = document.pointerLockElement === surfaceRef.current;
+            if (pointerLockWasActiveRef.current && !active && !document.hidden && mouseMode === 'relative') {
+                onOpenSettings?.();
+            }
+            pointerLockWasActiveRef.current = active;
+            if (!active) desktopPointerRef.current = null;
+        };
+        document.addEventListener('pointerlockchange', onPointerLockChange);
+        return () => document.removeEventListener('pointerlockchange', onPointerLockChange);
+    }, [mouseMode, onOpenSettings]);
+
     // In desktop mode, use the laptop's real keyboard. The old overlay only
     // captured characters from the optional phone soft keyboard, so a remote
     // laptop session could never type or use shortcuts.
@@ -249,6 +278,7 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20, onOpenS
             if (event.isComposing) return;
             if (event.key === 'Escape') {
                 event.preventDefault();
+                if (document.pointerLockElement === surfaceRef.current) document.exitPointerLock?.();
                 onOpenSettings?.();
                 return;
             }
@@ -292,6 +322,14 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20, onOpenS
         if (dx || dy) sendMessage({ type: 'mouse_scroll', dx, dy });
     };
 
+    const enableGameMouse = (e) => {
+        // Lock only after the completed click. This preserves the click that
+        // starts game mouse mode while providing unlimited relative movement.
+        if (mouseMode === 'relative' && document.pointerLockElement !== e.currentTarget) {
+            e.currentTarget.requestPointerLock?.();
+        }
+    };
+
     return (
         <div className="touchpad-mode rustdesk-touch-mode">
             <div
@@ -301,6 +339,7 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20, onOpenS
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerEnd}
                 onPointerCancel={onPointerEnd}
+                onClick={enableGameMouse}
                 onWheel={handleWheel}
                 onContextMenu={(e) => e.preventDefault()}
             />

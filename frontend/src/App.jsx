@@ -23,6 +23,10 @@ const initialInputMode = () => {
   return window.matchMedia?.('(hover: hover) and (pointer: fine)').matches ? 'touchpad' : 'gamepad';
 };
 
+const initialMouseMode = () => (
+  localStorage.getItem('cp-mouse-mode') === 'relative' ? 'relative' : 'absolute'
+);
+
 const loadJSON = (key, fallback) => {
   try {
     const raw = localStorage.getItem(key);
@@ -50,6 +54,7 @@ function App() {
   // The overlay is a client preference: the PC can accept both controller
   // and direct mouse/keyboard messages on the same input socket.
   const [inputMode, setInputMode] = useState(initialInputMode);
+  const [mouseMode, setMouseMode] = useState(initialMouseMode);
 
   // Persisted controller preferences
   const [controllerScale, setControllerScale] = useState(() => loadNumber('cp-scale', 1.0));
@@ -82,6 +87,7 @@ function App() {
 
   useEffect(() => { localStorage.setItem('cp-quality', quality); }, [quality]);
   useEffect(() => { localStorage.setItem('cp-input-mode', inputMode); }, [inputMode]);
+  useEffect(() => { localStorage.setItem('cp-mouse-mode', mouseMode); }, [mouseMode]);
   useEffect(() => { localStorage.setItem('cp-statusbar', showStatusBar ? '1' : '0'); }, [showStatusBar]);
   useEffect(() => { localStorage.setItem('cp-scale', String(controllerScale)); }, [controllerScale]);
   useEffect(() => { localStorage.setItem('cp-opacity', String(controllerOpacity)); }, [controllerOpacity]);
@@ -316,6 +322,7 @@ function App() {
           serverIP={SERVER_IP}
           wsStatus={wsStatus}
           inputMode={inputMode}
+          mouseMode={mouseMode}
           onInputModeChange={setInputMode}
           onPlay={() => {
             sessionStorage.setItem('cloudplay-entered', '1');
@@ -331,6 +338,7 @@ function App() {
           serverStatus={wsStatus}
           controllerMode={controllerMode}
           inputMode={inputMode}
+          mouseMode={mouseMode}
           controllerScale={controllerScale}
           controllerOpacity={controllerOpacity}
           visibleControls={visibleControls}
@@ -357,6 +365,8 @@ function App() {
           setQuality={setQuality}
           inputMode={inputMode}
           setInputMode={setInputMode}
+          mouseMode={mouseMode}
+          setMouseMode={setMouseMode}
           sensitivity={sensitivity}
           onSensitivityChange={updateSensitivity}
           onBack={() => setCurrentView('game')}

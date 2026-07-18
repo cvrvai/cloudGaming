@@ -27,6 +27,7 @@ const Slider = ({ label, value, min, max, onChange }) => (
 
 const SettingsPage = ({
     apiBase, quality, setQuality, inputMode, setInputMode,
+    mouseMode, setMouseMode,
     sensitivity, onSensitivityChange, onBack
 }) => {
     const [info, setInfo] = useState(null);
@@ -99,6 +100,24 @@ const SettingsPage = ({
                                 <strong>Gamepad</strong>
                             </button>
                         </div>
+                        {inputMode === 'touchpad' && (
+                            <div className="remote-settings-mode remote-settings-pointer" role="group" aria-label="Mouse behavior">
+                                <button
+                                    type="button"
+                                    className={mouseMode === 'absolute' ? 'active' : ''}
+                                    onClick={() => setMouseMode('absolute')}
+                                >
+                                    <strong>Desktop cursor</strong>
+                                </button>
+                                <button
+                                    type="button"
+                                    className={mouseMode === 'relative' ? 'active' : ''}
+                                    onClick={() => setMouseMode('relative')}
+                                >
+                                    <strong>Game mouse</strong>
+                                </button>
+                            </div>
+                        )}
                         <Slider
                             label="Speed"
                             value={sensitivity}

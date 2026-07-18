@@ -10,6 +10,7 @@ export default function GamepadController({
     serverStatus,
     controllerMode,
     inputMode,
+    mouseMode,
     controllerScale,
     controllerOpacity,
     visibleControls,
@@ -166,6 +167,7 @@ export default function GamepadController({
                 <TouchpadOverlay
                     sendMessage={sendMessage}
                     sensitivity={sensitivity}
+                    mouseMode={mouseMode}
                     onOpenSettings={onOpenSettings}
                 />
             ) : (
