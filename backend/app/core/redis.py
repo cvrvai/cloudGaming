@@ -27,9 +27,19 @@ async def get_redis_client():
         logger.info("[CACHE] No REDIS_URL configured. Operating in high-speed in-memory fallback mode.")
         return None
 
+    # Auto-sanitize if user copied CLI prefix or quotes
+    redis_url = redis_url.strip("\"' ")
+    if "rediss://" in redis_url:
+        redis_url = redis_url[redis_url.index("rediss://"):]
+    elif "redis://" in redis_url:
+        redis_url = redis_url[redis_url.index("redis://"):]
+
+    # Upstash with TLS enabled requires rediss:// (double 's') for SSL in Python
+    if redis_url.startswith("redis://") and "upstash.io" in redis_url:
+        redis_url = "rediss://" + redis_url[len("redis://"):]
+
     try:
         import redis.asyncio as aioredis
-        # Support TLS connection strings (rediss:// for Upstash)
         client = aioredis.from_url(
             redis_url,
             encoding="utf-8",
