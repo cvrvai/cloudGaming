@@ -224,7 +224,9 @@ def _seed_initial_data(conn: Any) -> None:
             ("Cloud Gamer", "gamer@cloudkh.com", user_hash, user_salt, now_iso),
         )
 
-    # 2. Seed or sync Gaming Rigs with real host hardware
+    # 2. Seed or sync Gaming Rigs with real host hardware (Remove mock rigs)
+    cursor.execute("DELETE FROM node_games WHERE node_id IN (SELECT id FROM machines WHERE is_host = 0);")
+    cursor.execute("DELETE FROM machines WHERE is_host = 0 AND name IN ('Cloud Rig 02', 'Cloud Rig 03');")
     cursor.execute("SELECT COUNT(*) AS count FROM machines;")
     row = cursor.fetchone()
     if row["count"] == 0:
@@ -237,24 +239,6 @@ def _seed_initial_data(conn: Any) -> None:
                 "available",
                 1,
                 "Local Host Gaming Workstation - WebRTC Screen Streamer",
-            ),
-            (
-                "Cloud Rig 02",
-                "NVIDIA GeForce RTX 3080",
-                "AMD Ryzen 7 5800X",
-                "32GB DDR4",
-                "available",
-                0,
-                "Dedicated esports node",
-            ),
-            (
-                "Cloud Rig 03",
-                "NVIDIA GeForce RTX 4070 Ti",
-                "Intel Core i7-13700K",
-                "32GB DDR5",
-                "available",
-                0,
-                "VR & Ultra Ray Tracing station",
             ),
         ]
         cursor.executemany(
@@ -358,11 +342,10 @@ def _seed_initial_data(conn: Any) -> None:
         cursor.execute("SELECT id, slug FROM games;")
         game_map = {row["slug"]: row["id"] for row in cursor.fetchall()}
 
-        # Fetch Host PC (node_id 1) and Cloud Rig 02 (node_id 2)
-        cursor.execute("SELECT id, is_host FROM machines ORDER BY id ASC;")
-        machine_rows = cursor.fetchall()
-        host_id = machine_rows[0]["id"] if machine_rows else 1
-        rig2_id = machine_rows[1]["id"] if len(machine_rows) > 1 else 2
+        # Fetch Host PC (node_id with is_host = 1)
+        cursor.execute("SELECT id FROM machines WHERE is_host = 1 LIMIT 1;")
+        host_row = cursor.fetchone()
+        host_id = host_row["id"] if host_row else 1
 
         node_configs = [
             # Host PC games
@@ -415,29 +398,6 @@ def _seed_initial_data(conn: Any) -> None:
                 game_map["black-myth-wukong"],
                 r"C:\Games\BlackMythWukong\b1\Binaries\Win64\b1-Win64-Shipping.exe",
                 r"C:\Games\BlackMythWukong",
-                "",
-                True,
-                "ready",
-                now_iso,
-                now_iso,
-            ),
-            # Cloud Rig 02 games
-            (
-                rig2_id,
-                game_map["black-myth-wukong"],
-                r"D:\Games\BlackMythWukong\b1\Binaries\Win64\b1-Win64-Shipping.exe",
-                r"D:\Games\BlackMythWukong",
-                "",
-                True,
-                "ready",
-                now_iso,
-                now_iso,
-            ),
-            (
-                rig2_id,
-                game_map["cyberpunk-2077"],
-                r"D:\Games\Cyberpunk2077\bin\x64\Cyberpunk2077.exe",
-                r"D:\Games\Cyberpunk2077",
                 "",
                 True,
                 "ready",

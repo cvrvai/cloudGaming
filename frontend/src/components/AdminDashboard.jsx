@@ -82,6 +82,24 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleDeleteMachine = async (machineId, machineName) => {
+    if (!window.confirm(`Delete gaming PC node "${machineName}"? This action cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/machines/${machineId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        fetchAllAdminData();
+      } else {
+        const err = await res.json();
+        alert(err.detail || 'Failed to delete machine');
+      }
+    } catch (err) {
+      alert('Delete error: ' + err.message);
+    }
+  };
+
   const handleAdminCancelBooking = async (bookingId) => {
     if (!window.confirm(`Cancel reservation #${bookingId}?`)) return;
     try {
@@ -451,17 +469,30 @@ export default function AdminDashboard() {
                       )}
                     </div>
 
-                    <button
-                      className={`btn-toggle-maintenance ${m.status === 'maintenance' ? 'restore' : ''}`}
-                      onClick={() => handleToggleMaintenance(m)}
-                      disabled={updatingId === m.id}
-                    >
-                      {updatingId === m.id
-                        ? 'Updating...'
-                        : m.status === 'maintenance'
-                        ? '✓ Restore to Available'
-                        : '⚠️ Put Under Maintenance'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+                      <button
+                        style={{ flex: 1 }}
+                        className={`btn-toggle-maintenance ${m.status === 'maintenance' ? 'restore' : ''}`}
+                        onClick={() => handleToggleMaintenance(m)}
+                        disabled={updatingId === m.id}
+                      >
+                        {updatingId === m.id
+                          ? 'Updating...'
+                          : m.status === 'maintenance'
+                          ? '✓ Restore to Available'
+                          : '⚠️ Put Under Maintenance'}
+                      </button>
+                      {m.is_host !== 1 && (
+                        <button
+                          className="btn-game-delete"
+                          style={{ padding: '0 16px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', cursor: 'pointer', fontWeight: 600 }}
+                          onClick={() => handleDeleteMachine(m.id, m.name)}
+                          title="Delete this gaming PC node"
+                        >
+                          🗑️ Delete
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

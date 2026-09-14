@@ -317,3 +317,24 @@ def remove_game_from_machine(
         conn.commit()
 
     return {"message": "Game unassigned from gaming PC successfully"}
+
+
+@router.delete("/{machine_id}")
+def delete_machine(
+    machine_id: int,
+    admin_user: Dict = Depends(require_admin),
+):
+    """Admin-only: Delete a gaming machine node (primary host workstation cannot be deleted)."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name, is_host FROM machines WHERE id = %s;", (machine_id,))
+        m = cursor.fetchone()
+        if not m:
+            raise HTTPException(status_code=404, detail="Machine not found")
+        if m["is_host"] == 1:
+            raise HTTPException(status_code=400, detail="Cannot delete the primary host gaming workstation")
+        cursor.execute("DELETE FROM machines WHERE id = %s;", (machine_id,))
+        conn.commit()
+
+    return {"message": f"Machine '{m['name']}' deleted successfully"}
+
