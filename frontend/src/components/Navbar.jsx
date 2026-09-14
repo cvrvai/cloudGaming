@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { GamepadIcon, CalendarIcon, SettingsIcon, SearchIcon, UserIcon } from './Icons';
 
@@ -9,6 +10,19 @@ export default function Navbar({
   onSearchChange,
 }) {
   const { user, logout, openAuth } = useAuth();
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
     <>
@@ -22,7 +36,7 @@ export default function Navbar({
             <span className="brand-title">CloudKH</span>
           </div>
 
-          {/* Desktop Navigation Links - Grouped with brand on left */}
+          {/* Desktop Navigation Links */}
           <nav className="navbar-links desktop-nav">
             <button
               className={`nav-tab-btn ${activeTab === 'games' ? 'active' : ''}`}
@@ -90,26 +104,93 @@ export default function Navbar({
           </div>
 
           {user ? (
-            <div
-              className="user-profile-badge"
-              onClick={() => onTabChange('profile')}
-              style={{ cursor: 'pointer' }}
-              title="View Profile & Settings"
-            >
-              <div className="user-avatar-circle">
-                {user.name.charAt(0).toUpperCase()}
-              </div>
-              <span className="user-name">{user.name}</span>
+            <div className="navbar-user-wrapper" ref={userMenuRef}>
               <button
-                className="nav-btn-logout"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  logout();
-                }}
-                title="Sign Out"
+                type="button"
+                className={`navbar-user-chip ${userMenuOpen ? 'active' : ''}`}
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                aria-label="User menu"
               >
-                Sign Out
+                <div className="user-avatar-circle">
+                  <span>{user.name.charAt(0).toUpperCase()}</span>
+                  <span className="nav-avatar-status" />
+                </div>
+                <span className="user-name desktop-only">{user.name}</span>
+                <span className="user-chevron desktop-only">▾</span>
               </button>
+
+              {userMenuOpen && (
+                <div className="navbar-user-dropdown glass-panel">
+                  <div className="dropdown-user-header">
+                    <div className="dropdown-user-avatar">
+                      {user.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="dropdown-user-meta">
+                      <span className="dropdown-user-name">{user.name}</span>
+                      <span className="dropdown-user-email">{user.email}</span>
+                      <span className={`dropdown-user-role role-${user.role || 'student'}`}>
+                        {user.role === 'admin' ? 'ADMIN' : 'STUDENT'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="dropdown-divider" />
+
+                  <button
+                    type="button"
+                    className="dropdown-item"
+                    onClick={() => {
+                      onTabChange('profile');
+                      setUserMenuOpen(false);
+                    }}
+                  >
+                    <UserIcon size={15} />
+                    <span>Profile & Settings</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="dropdown-item"
+                    onClick={() => {
+                      onTabChange('bookings');
+                      setUserMenuOpen(false);
+                    }}
+                  >
+                    <CalendarIcon size={15} />
+                    <span>My Bookings</span>
+                    {activeBookingsCount > 0 && (
+                      <span className="dropdown-badge">{activeBookingsCount}</span>
+                    )}
+                  </button>
+
+                  {user.role === 'admin' && (
+                    <button
+                      type="button"
+                      className="dropdown-item"
+                      onClick={() => {
+                        onTabChange('admin');
+                        setUserMenuOpen(false);
+                      }}
+                    >
+                      <SettingsIcon size={15} />
+                      <span>Admin Dashboard</span>
+                    </button>
+                  )}
+
+                  <div className="dropdown-divider" />
+
+                  <button
+                    type="button"
+                    className="dropdown-item item-danger"
+                    onClick={() => {
+                      logout();
+                      setUserMenuOpen(false);
+                    }}
+                  >
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="auth-buttons-group">
@@ -171,3 +252,4 @@ export default function Navbar({
     </>
   );
 }
+
