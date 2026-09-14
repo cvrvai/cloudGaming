@@ -36,9 +36,9 @@ def list_machines():
                 """
                 SELECT id, start_time, end_time, status
                 FROM bookings
-                WHERE machine_id = ? 
+                WHERE machine_id = %s 
                   AND status = 'confirmed'
-                  AND end_time >= ?
+                  AND end_time >= %s
                 ORDER BY start_time ASC;
                 """,
                 (m["id"], now_iso),
@@ -63,7 +63,7 @@ def get_machine(machine_id: int):
     """Get detailed specs and schedule for a specific gaming PC."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM machines WHERE id = ?;", (machine_id,))
+        cursor.execute("SELECT * FROM machines WHERE id = %s;", (machine_id,))
         machine = cursor.fetchone()
         if not machine:
             raise HTTPException(status_code=404, detail="Machine not found")
@@ -73,7 +73,7 @@ def get_machine(machine_id: int):
             """
             SELECT id, start_time, end_time, status 
             FROM bookings 
-            WHERE machine_id = ? AND status = 'confirmed'
+            WHERE machine_id = %s AND status = 'confirmed'
             ORDER BY start_time ASC;
             """,
             (machine_id,),
@@ -94,7 +94,7 @@ def update_machine_status(
 
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("UPDATE machines SET status = ? WHERE id = ?;", (req.status, machine_id))
+        cursor.execute("UPDATE machines SET status = %s WHERE id = %s;", (req.status, machine_id))
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="Machine not found")
         conn.commit()

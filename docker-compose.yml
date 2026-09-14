@@ -1,0 +1,21 @@
+﻿services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cloudkh-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cloudkh
+      POSTGRES_PASSWORD: cloudkh_pass
+      POSTGRES_DB: cloudkh
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudkh -d cloudkh"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

@@ -43,7 +43,7 @@ def register(req: RegisterRequest):
 
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM users WHERE email = ?;", (email_clean,))
+        cursor.execute("SELECT id FROM users WHERE email = %s;", (email_clean,))
         if cursor.fetchone():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -57,12 +57,13 @@ def register(req: RegisterRequest):
         cursor.execute(
             """
             INSERT INTO users (name, email, password_hash, salt, role, created_at)
-            VALUES (?, ?, ?, ?, ?, ?);
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id;
             """,
             (name_clean, email_clean, password_hash, salt, role, now_iso),
         )
+        user_id = cursor.fetchone()["id"]
         conn.commit()
-        user_id = cursor.lastrowid
 
     token = create_access_token({"sub": user_id, "email": email_clean, "role": role})
     return {
@@ -86,7 +87,7 @@ def login(req: LoginRequest):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, email, password_hash, salt, role, created_at FROM users WHERE email = ?;",
+            "SELECT id, name, email, password_hash, salt, role, created_at FROM users WHERE email = %s;",
             (email_clean,),
         )
         user = cursor.fetchone()

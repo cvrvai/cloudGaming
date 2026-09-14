@@ -32,7 +32,7 @@ def verify_session_access(
                    m.name as machine_name, m.is_host, m.gpu
             FROM bookings b
             JOIN machines m ON b.machine_id = m.id
-            WHERE b.id = ?;
+            WHERE b.id = %s;
             """,
             (req.booking_id,),
         )

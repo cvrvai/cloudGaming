@@ -12,6 +12,9 @@ python-dotenv>=1.0.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 
+# Database
+psycopg2-binary>=2.9.9
+
 # Input control
 pynput>=1.7.0
 vgamepad>=0.1.0; sys_platform == "win32"   # requires ViGEmBus driver: https://github.com/ViGEm/ViGEmBus/releases

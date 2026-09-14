@@ -93,7 +93,7 @@ def get_my_bookings(current_user: Dict = Depends(get_current_user)):
             FROM bookings b
             JOIN machines m ON b.machine_id = m.id
             LEFT JOIN games g ON b.game_id = g.id
-            WHERE b.user_id = ?
+            WHERE b.user_id = %s
             ORDER BY b.start_time DESC;
             """,
             (current_user["id"],),
@@ -139,7 +139,7 @@ def cancel_booking(
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, user_id, status, start_time FROM bookings WHERE id = ?;",
+            "SELECT id, user_id, status, start_time FROM bookings WHERE id = %s;",
             (booking_id,),
         )
         booking = cursor.fetchone()
@@ -153,7 +153,7 @@ def cancel_booking(
             raise HTTPException(status_code=400, detail=f"Booking is already {booking['status']}.")
 
         cursor.execute(
-            "UPDATE bookings SET status = 'cancelled' WHERE id = ?;",
+            "UPDATE bookings SET status = 'cancelled' WHERE id = %s;",
             (booking_id,),
         )
         conn.commit()

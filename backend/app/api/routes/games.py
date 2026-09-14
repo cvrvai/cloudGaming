@@ -51,7 +51,7 @@ def get_game(game_id: int):
     """Get details for a specific game."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM games WHERE id = ?;", (game_id,))
+        cursor.execute("SELECT * FROM games WHERE id = %s;", (game_id,))
         game = cursor.fetchone()
         if not game:
             raise HTTPException(status_code=404, detail="Game not found")
@@ -70,7 +70,8 @@ def add_game(
         cursor.execute(
             """
             INSERT INTO games (title, genre, cover_url, description, exe_path, size_gb, installed_machines, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id;
             """,
             (
                 req.title.strip(),
@@ -83,8 +84,8 @@ def add_game(
                 now_iso,
             ),
         )
+        game_id = cursor.fetchone()["id"]
         conn.commit()
-        game_id = cursor.lastrowid
 
     return {
         "id": game_id,
@@ -108,7 +109,7 @@ def update_game(
     """Admin-only: Update an existing game's metadata."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM games WHERE id = ?;", (game_id,))
+        cursor.execute("SELECT * FROM games WHERE id = %s;", (game_id,))
         game = cursor.fetchone()
         if not game:
             raise HTTPException(status_code=404, detail="Game not found")
@@ -116,31 +117,31 @@ def update_game(
         updates = []
         params = []
         if req.title is not None:
-            updates.append("title = ?")
+            updates.append("title = %s")
             params.append(req.title)
         if req.genre is not None:
-            updates.append("genre = ?")
+            updates.append("genre = %s")
             params.append(req.genre)
         if req.cover_url is not None:
-            updates.append("cover_url = ?")
+            updates.append("cover_url = %s")
             params.append(req.cover_url)
         if req.description is not None:
-            updates.append("description = ?")
+            updates.append("description = %s")
             params.append(req.description)
         if req.exe_path is not None:
-            updates.append("exe_path = ?")
+            updates.append("exe_path = %s")
             params.append(req.exe_path)
         if req.size_gb is not None:
-            updates.append("size_gb = ?")
+            updates.append("size_gb = %s")
             params.append(req.size_gb)
         if req.installed_machines is not None:
-            updates.append("installed_machines = ?")
+            updates.append("installed_machines = %s")
             params.append(req.installed_machines)
 
         if updates:
             params.append(game_id)
             cursor.execute(
-                f"UPDATE games SET {', '.join(updates)} WHERE id = ?;",
+                f"UPDATE games SET {', '.join(updates)} WHERE id = %s;",
                 params,
             )
             conn.commit()
@@ -156,7 +157,7 @@ def delete_game(
     """Admin-only: Remove a game from the platform library."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM games WHERE id = ?;", (game_id,))
+        cursor.execute("DELETE FROM games WHERE id = %s;", (game_id,))
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="Game not found")
         conn.commit()

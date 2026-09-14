@@ -98,7 +98,7 @@ async def get_current_user(
 
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name, email, role, created_at FROM users WHERE id = ?;", (user_id,))
+        cursor.execute("SELECT id, name, email, role, created_at FROM users WHERE id = %s;", (user_id,))
         user = cursor.fetchone()
         if not user:
             raise HTTPException(

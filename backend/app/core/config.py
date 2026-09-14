@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # Access-protected frontend domain when using a reverse tunnel.
     public_frontend_url: str = ""
 
+    # Database
+    database_url: str = "postgresql://cloudkh:cloudkh_pass@127.0.0.1:5432/cloudkh"
+
     # Video stream
     target_fps: int = 60
     video_width: int = 854
