@@ -669,18 +669,10 @@ export default function AdminDashboard() {
                 <select
                   className="admin-select-input"
                   value={nodeGameId}
-                  onChange={(e) => {
-                    setNodeGameId(e.target.value);
-                    const sel = games.find((g) => String(g.id) === e.target.value);
-                    if (sel && !nodeGameExe) {
-                      // Suggest sensible placeholder
-                      const safeSlug = sel.slug || sel.title.toLowerCase().replace(/[^a-z0-9]+/g, '');
-                      setNodeGameExe(`C:\\Games\\${sel.title}\\${safeSlug}.exe`);
-                      setNodeGameWorkDir(`C:\\Games\\${sel.title}`);
-                    }
-                  }}
+                  onChange={(e) => setNodeGameId(e.target.value)}
                   required
                 >
+                  <option value="" disabled>Select a catalog game...</option>
                   {games.map((g) => (
                     <option key={g.id} value={String(g.id)}>
                       {g.title} ({g.genre})
@@ -693,7 +685,7 @@ export default function AdminDashboard() {
                 <label>Executable Path</label>
                 <input
                   type="text"
-                  placeholder="e.g. C:\Games\Forza Horizon 4\ForzaHorizon4.exe"
+                  placeholder="e.g. C:\Program Files\GameFolder\game.exe"
                   value={nodeGameExe}
                   onChange={(e) => setNodeGameExe(e.target.value)}
                   required
@@ -704,7 +696,7 @@ export default function AdminDashboard() {
                 <label>Working Directory</label>
                 <input
                   type="text"
-                  placeholder="e.g. C:\Games\Forza Horizon 4"
+                  placeholder="e.g. C:\Program Files\GameFolder"
                   value={nodeGameWorkDir}
                   onChange={(e) => setNodeGameWorkDir(e.target.value)}
                 />
@@ -785,7 +777,7 @@ export default function AdminDashboard() {
                 <label>Game Title</label>
                 <input
                   type="text"
-                  placeholder="e.g. Forza Horizon 4, Persona 3 Reload"
+                  placeholder="Enter game title"
                   value={gameTitle}
                   onChange={(e) => setGameTitle(e.target.value)}
                   required
@@ -796,7 +788,7 @@ export default function AdminDashboard() {
                 <label>Slug / Identifier</label>
                 <input
                   type="text"
-                  placeholder="e.g. forza-horizon-4 (optional, auto-generated if empty)"
+                  placeholder="e.g. game-slug (optional, auto-generated if empty)"
                   value={gameSlug}
                   onChange={(e) => setGameSlug(e.target.value)}
                 />
