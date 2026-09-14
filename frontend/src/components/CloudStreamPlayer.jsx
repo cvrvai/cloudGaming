@@ -23,10 +23,44 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
   const [gameExitedData, setGameExitedData] = useState(null);
   const [countdown, setCountdown] = useState(5);
   const [isExiting, setIsExiting] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
   const containerRef = useRef(null);
   const wsRef = useRef(null);
   const keySequenceRef = useRef(0);
   const hudTimerRef = useRef(null);
+
+  const toggleMute = useCallback(() => {
+    setIsMuted((prev) => !prev);
+  }, []);
+
+  // Auto-close remote game if user navigates away, closes tab, or leaves browser
+  useEffect(() => {
+    const handleBrowserLeave = () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      try {
+        const beaconData = new Blob([JSON.stringify({ booking_id: sessionData?.booking_id })], {
+          type: 'application/json',
+        });
+        navigator.sendBeacon(`${apiBase}/api/session/stop`, beaconData);
+      } catch {
+        try {
+          fetch(`${apiBase}/api/session/stop`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            keepalive: true,
+          });
+        } catch {}
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBrowserLeave);
+    window.addEventListener('pagehide', handleBrowserLeave);
+    return () => {
+      window.removeEventListener('beforeunload', handleBrowserLeave);
+      window.removeEventListener('pagehide', handleBrowserLeave);
+    };
+  }, [apiBase, sessionData?.booking_id]);
 
   // Auto-hide HUD after 3.5 seconds of inactivity
   const resetHudTimer = useCallback(() => {
@@ -73,12 +107,30 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
   }, []);
 
+  const isIOSDevice = () => {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  };
+
   const toggleFullscreen = () => {
     resetHudTimer();
+    if (isIOSDevice()) {
+      setIsFullscreen((prev) => !prev);
+      return;
+    }
     if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen().catch(() => {});
+      if (containerRef.current?.requestFullscreen) {
+        containerRef.current.requestFullscreen().catch(() => {
+          setIsFullscreen(true);
+        });
+      } else {
+        setIsFullscreen(true);
+      }
     } else {
-      document.exitFullscreen().catch(() => {});
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+      setIsFullscreen(false);
     }
   };
 
@@ -236,7 +288,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
 
   return (
     <div
-      className="cloud-stream-player-container"
+      className={`cloud-stream-player-container ${isFullscreen ? 'ios-pseudo-fullscreen' : ''}`}
       ref={containerRef}
       onMouseMove={resetHudTimer}
       onTouchStart={resetHudTimer}
@@ -250,6 +302,8 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
         onToggleInputMode={toggleInputMode}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
+        isMuted={isMuted}
+        onToggleMute={toggleMute}
       />
 
       <div className="stream-canvas-wrapper">
@@ -260,6 +314,8 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
             machineId={sessionData?.machine_id}
             quality="auto"
             showStats={false}
+            isMuted={isMuted}
+            onToggleMute={toggleMute}
           />
         ) : gameExitedData ? (
           <div className="stream-connecting-box glass-panel" style={{ maxWidth: '460px', padding: '28px' }}>

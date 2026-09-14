@@ -9,7 +9,15 @@ import { getQualityParams } from '../quality';
  * H264 track. Auto-reconnects when the connection drops, and renegotiates
  * automatically when the selected quality preset changes.
  */
-export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = true, stunServer = 'stun:stun.l.google.com:19302', machineId }) {
+export default function WebRTCPlayer({
+    apiBase,
+    quality = 'auto',
+    showStats = true,
+    stunServer = 'stun:stun.l.google.com:19302',
+    machineId,
+    isMuted = true,
+    onToggleMute,
+}) {
     const videoRef = useRef(null);
     const pcRef = useRef(null);
     const retryTimerRef = useRef(null);
@@ -18,6 +26,13 @@ export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = tr
     const [errorDetail, setErrorDetail] = useState('');
     const [fps, setFps] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
+
+    useEffect(() => {
+        if (videoRef.current) {
+            videoRef.current.muted = isMuted;
+            videoRef.current.defaultMuted = isMuted;
+        }
+    }, [isMuted]);
 
     const cleanup = useCallback(() => {
         if (statsTimerRef.current) {
@@ -61,8 +76,8 @@ export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = tr
         pc.ontrack = (event) => {
             if (videoRef.current) {
                 videoRef.current.srcObject = event.streams[0];
-                videoRef.current.muted = true;
-                videoRef.current.defaultMuted = true;
+                videoRef.current.muted = isMuted;
+                videoRef.current.defaultMuted = isMuted;
                 videoRef.current.playsInline = true;
                 videoRef.current.setAttribute('playsinline', '');
                 videoRef.current.setAttribute('webkit-playsinline', '');
@@ -121,8 +136,23 @@ export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = tr
             const transceiver = pc.addTransceiver('video', { direction: 'recvonly' });
             const codecs = RTCRtpReceiver.getCapabilities('video')?.codecs || [];
             const h264 = codecs.filter((c) => c.mimeType.toLowerCase() === 'video/h264');
-            if (h264.length > 0 && transceiver.setCodecPreferences) {
-                transceiver.setCodecPreferences(h264);
+            // Prioritize Constrained Baseline profile (42e01f / 42001f) so iOS Safari hardware decoder initializes cleanly
+            const sortedH264 = [...h264].sort((a, b) => {
+                const aFmtp = (a.sdpFmtpLine || '').toLowerCase();
+                const bFmtp = (b.sdpFmtpLine || '').toLowerCase();
+                if (aFmtp.includes('42e01f') || aFmtp.includes('42001f')) return -1;
+                if (bFmtp.includes('42e01f') || bFmtp.includes('42001f')) return 1;
+                return 0;
+            });
+            if (sortedH264.length > 0 && transceiver.setCodecPreferences) {
+                transceiver.setCodecPreferences(sortedH264);
+            }
+
+            // Add audio transceiver for live game sound stream
+            try {
+                pc.addTransceiver('audio', { direction: 'recvonly' });
+            } catch (e) {
+                console.warn('[WebRTC] audio transceiver error:', e);
             }
 
             const offer = await pc.createOffer();

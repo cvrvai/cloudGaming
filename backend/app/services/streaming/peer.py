@@ -83,12 +83,15 @@ class GStreamerWebRTCPeer:
         self._q_out: Optional["Gst.Element"] = None
         self._payloader: Optional["Gst.Element"] = None
         self._webrtc_sink_pad: Optional["Gst.Pad"] = None
+        self._q_audio_out: Optional["Gst.Element"] = None
+        self._audio_payloader: Optional["Gst.Element"] = None
+        self._webrtc_audio_sink_pad: Optional["Gst.Pad"] = None
         self._closed = False
 
     # ------------------------------------------------------------------
     # Pipeline construction
     # ------------------------------------------------------------------
-    def _pipeline_description_windows(self) -> str:
+    def _pipeline_description_windows(self, include_audio: bool = True) -> str:
         leaky = "queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 leaky=downstream"
         if self.window_handle:
             capture_elem = (
@@ -107,7 +110,9 @@ class GStreamerWebRTCPeer:
             capture_elem = f"d3d11screencapturesrc monitor-index={mon_idx}"
             logger.info("[%s] WebRTC using monitor capture (index %d)", self.pc_id, mon_idx)
 
-        return (
+        # Constrained Baseline profile + zero B-frames ensures Apple VideoToolbox on iOS
+        # Safari and Android Chromium decode flawlessly with ultra-low latency.
+        video_branch = (
             f"{capture_elem} "
             f"! {leaky} "
             f"! d3d11convert "
@@ -117,15 +122,33 @@ class GStreamerWebRTCPeer:
             f"! {leaky} "
             f"! videoconvert "
             f"! {leaky} "
-            f"! x264enc speed-preset=ultrafast tune=zerolatency bitrate={self.bitrate_kbps} key-int-max={self.fps} vbv-buf-capacity=0 "
+            f"! x264enc speed-preset=ultrafast tune=zerolatency bitrate={self.bitrate_kbps} key-int-max={self.fps} bframes=0 ref=1 vbv-buf-capacity=0 "
+            f"! video/x-h264,profile=constrained-baseline "
             f"! {leaky} "
-            f"! h264parse "
+            f"! h264parse config-interval=-1 "
             f"! {leaky} "
             f"! rtph264pay name=pay config-interval=-1 pt=96 "
             f"! queue name=q_out"
         )
 
-    def _pipeline_description_linux(self) -> str:
+        if not include_audio:
+            return video_branch
+
+        # Real-time game audio capture via Windows WASAPI Loopback -> Opus 48kHz stereo
+        audio_branch = (
+            f"wasapisrc loopback=true "
+            f"! queue max-size-buffers=3 max-size-bytes=0 max-size-time=0 leaky=downstream "
+            f"! audioconvert "
+            f"! audioresample "
+            f"! audio/x-raw,channels=2,rate=48000 "
+            f"! opusenc bitrate=128000 "
+            f"! rtpopuspay name=pay_audio pt=111 "
+            f"! queue name=q_audio_out"
+        )
+
+        return f"{video_branch} {audio_branch}"
+
+    def _pipeline_description_linux(self, include_audio: bool = False) -> str:
         leaky = "queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 leaky=downstream"
         region = ""
         geometry = get_monitor_geometry(self.monitor_index)
@@ -174,21 +197,35 @@ class GStreamerWebRTCPeer:
         )
 
     def _build_pipeline(self) -> None:
-        if sys.platform.startswith("linux"):
-            pipeline_str = self._pipeline_description_linux()
-        else:
-            if sys.platform == "win32":
-                try:
-                    import ctypes
-                    user32 = ctypes.windll.user32
-                    hdesk = user32.OpenDesktopW("default", 0, False, 0x01FF)
-                    if hdesk:
-                        user32.SetThreadDesktop(hdesk)
-                except Exception:
-                    pass
-            pipeline_str = self._pipeline_description_windows()
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                user32 = ctypes.windll.user32
+                hdesk = user32.OpenDesktopW("default", 0, False, 0x01FF)
+                if hdesk:
+                    user32.SetThreadDesktop(hdesk)
+            except Exception:
+                pass
 
-        pipeline = Gst.parse_launch(pipeline_str)
+        # Try building with audio first; fall back cleanly to video-only if audio capture fails
+        pipeline = None
+        has_audio = False
+
+        if sys.platform == "win32":
+            try:
+                pipe_str = self._pipeline_description_windows(include_audio=True)
+                pipeline = Gst.parse_launch(pipe_str)
+                has_audio = True
+                logger.info("[%s] WebRTC initialized with video + WASAPI loopback game audio", self.pc_id)
+            except Exception as exc:
+                logger.warning("[%s] Audio pipeline init failed: %s; falling back to video-only", self.pc_id, exc)
+                pipe_str = self._pipeline_description_windows(include_audio=False)
+                pipeline = Gst.parse_launch(pipe_str)
+                has_audio = False
+        else:
+            pipe_str = self._pipeline_description_linux(include_audio=False)
+            pipeline = Gst.parse_launch(pipe_str)
+
         if pipeline is None:
             raise RuntimeError("Gst.parse_launch returned None")
 
@@ -207,6 +244,10 @@ class GStreamerWebRTCPeer:
         self.webrtc = webrtc
         self._q_out = q_out
         self._payloader = payloader
+
+        if has_audio:
+            self._q_audio_out = pipeline.get_by_name("q_audio_out")
+            self._audio_payloader = pipeline.get_by_name("pay_audio")
 
     # ------------------------------------------------------------------
     # ICE state monitoring
@@ -265,6 +306,41 @@ class GStreamerWebRTCPeer:
         logger.warning("[%s] No H264 payload type in offer; defaulting to 96", self.pc_id)
         return 96
 
+    def _extract_opus_payload_type(self, offer_sdp: str) -> int:
+        """Return the Opus payload type the browser offered (default 111)."""
+        audio_payloads: list = []
+        payload_map: dict = {}
+        in_audio_media = False
+
+        for raw_line in offer_sdp.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            if line.startswith("m=audio "):
+                parts = line.split()
+                audio_payloads = []
+                for token in parts[3:]:
+                    try:
+                        audio_payloads.append(int(token))
+                    except ValueError:
+                        continue
+                in_audio_media = True
+                continue
+            if line.startswith("m="):
+                in_audio_media = False
+                continue
+            if not in_audio_media:
+                continue
+            match = re.match(r"a=rtpmap:(\d+)\s+([^/]+)/(\d+)", line, re.IGNORECASE)
+            if match:
+                payload_map[int(match.group(1))] = match.group(2).upper()
+
+        for payload_type in audio_payloads:
+            if payload_map.get(payload_type) == "OPUS":
+                return payload_type
+
+        return 111
+
     def _negotiate_blocking(self, offer_sdp: str) -> dict:
         """Full offer/answer negotiation. Runs in a worker thread.
 
@@ -283,8 +359,7 @@ class GStreamerWebRTCPeer:
         payload_type = self._extract_h264_payload_type(offer_sdp)
         self._payloader.set_property("pt", payload_type)
 
-        # 1. Link encoder output into webrtcbin (creates transceiver 0, which
-        #    maps onto the single video m-line of the browser offer).
+        # 1. Link video encoder output into webrtcbin (creates transceiver 0)
         sink_pad = self.webrtc.request_pad_simple("sink_%u")
         if sink_pad is None:
             sink_pad = self.webrtc.get_request_pad("sink_%u")
@@ -296,7 +371,21 @@ class GStreamerWebRTCPeer:
         if src_pad.link(sink_pad) != Gst.PadLinkReturn.OK:
             raise RuntimeError("Failed to link output queue to webrtcbin")
 
-        # 2. We only send video, never receive.
+        # 1b. Link audio encoder output into webrtcbin (creates transceiver 1) if offered
+        if self._q_audio_out is not None and self._audio_payloader is not None and "m=audio " in offer_sdp:
+            audio_pt = self._extract_opus_payload_type(offer_sdp)
+            self._audio_payloader.set_property("pt", audio_pt)
+
+            audio_sink_pad = self.webrtc.request_pad_simple("sink_%u")
+            if audio_sink_pad is not None:
+                self._webrtc_audio_sink_pad = audio_sink_pad
+                src_audio_pad = self._q_audio_out.get_static_pad("src")
+                if src_audio_pad.link(audio_sink_pad) != Gst.PadLinkReturn.OK:
+                    logger.warning("[%s] Failed to link audio queue to webrtcbin", self.pc_id)
+                else:
+                    logger.info("[%s] Audio output linked to WebRTC (Opus PT: %d)", self.pc_id, audio_pt)
+
+        # 2. We only send media, never receive.
         try:
             transceiver = self.webrtc.emit("get-transceiver", 0)
             if transceiver is not None:
@@ -304,7 +393,17 @@ class GStreamerWebRTCPeer:
                     "direction", GstWebRTC.WebRTCRTPTransceiverDirection.SENDONLY
                 )
         except Exception as exc:
-            logger.warning("[%s] Could not set transceiver direction: %s", self.pc_id, exc)
+            logger.warning("[%s] Could not set video transceiver direction: %s", self.pc_id, exc)
+
+        if self._webrtc_audio_sink_pad is not None:
+            try:
+                transceiver_audio = self.webrtc.emit("get-transceiver", 1)
+                if transceiver_audio is not None:
+                    transceiver_audio.set_property(
+                        "direction", GstWebRTC.WebRTCRTPTransceiverDirection.SENDONLY
+                    )
+            except Exception as exc:
+                logger.warning("[%s] Could not set audio transceiver direction: %s", self.pc_id, exc)
 
         # 3. Start capture/encode before negotiating.
         ret = self.pipeline.set_state(Gst.State.PLAYING)
@@ -401,11 +500,19 @@ class GStreamerWebRTCPeer:
             except Exception:
                 pass
             self._webrtc_sink_pad = None
+        if self.webrtc is not None and self._webrtc_audio_sink_pad is not None:
+            try:
+                self.webrtc.release_request_pad(self._webrtc_audio_sink_pad)
+            except Exception:
+                pass
+            self._webrtc_audio_sink_pad = None
         if self.pipeline is not None:
             self.pipeline.set_state(Gst.State.NULL)
             self.pipeline = None
         self.webrtc = None
         self._q_out = None
         self._payloader = None
+        self._q_audio_out = None
+        self._audio_payloader = None
         if self.on_closed is not None:
             self.on_closed(self.pc_id)

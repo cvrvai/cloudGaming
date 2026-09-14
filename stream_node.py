@@ -223,6 +223,21 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
 
     host_agent.register_exit_callback(on_game_exit)
 
+    def on_browser_disconnect_empty():
+        ts = datetime.now().strftime("%H:%M:%S")
+        if host_agent.is_game_running():
+            print(f"\n[{ts}] [STREAM] Client left browser (WebRTC peers disconnected for 6s). Automatically closing game process...")
+            try:
+                stream_manager.close_all()
+            except Exception:
+                pass
+            try:
+                host_agent.stop_game()
+            except Exception as exc:
+                print(f"[{ts}] Error auto-stopping game on client disconnect: {exc}")
+
+    stream_manager.set_empty_callback(on_browser_disconnect_empty)
+
     reconnect_delay = 3
 
     while True:

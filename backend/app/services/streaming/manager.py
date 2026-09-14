@@ -19,6 +19,48 @@ class StreamManager:
     def __init__(self) -> None:
         self._peers: Dict[str, GStreamerWebRTCPeer] = {}
         self._lock = threading.Lock()
+        self._disconnect_timer: Optional[threading.Timer] = None
+        self.on_empty_callback = None
+
+    def set_empty_callback(self, cb) -> None:
+        """Register callback invoked when all stream peers disconnect without reconnecting."""
+        self.on_empty_callback = cb
+
+    def _start_disconnect_timer(self, delay: float = 6.0) -> None:
+        with self._lock:
+            if self._disconnect_timer is not None:
+                try:
+                    self._disconnect_timer.cancel()
+                except Exception:
+                    pass
+
+            def _on_timeout():
+                with self._lock:
+                    if len(self._peers) > 0:
+                        return
+                logger.info(
+                    "[StreamManager] All streaming peers disconnected for %.1fs. Client left browser. Triggering auto-close...",
+                    delay,
+                )
+                if self.on_empty_callback is not None:
+                    try:
+                        self.on_empty_callback()
+                    except Exception as e:
+                        logger.warning("[StreamManager] Error in on_empty_callback: %s", e)
+
+            t = threading.Timer(delay, _on_timeout)
+            t.daemon = True
+            self._disconnect_timer = t
+            t.start()
+
+    def _cancel_disconnect_timer(self) -> None:
+        with self._lock:
+            if self._disconnect_timer is not None:
+                try:
+                    self._disconnect_timer.cancel()
+                except Exception:
+                    pass
+                self._disconnect_timer = None
 
     @property
     def available(self) -> bool:
@@ -55,6 +97,9 @@ class StreamManager:
         """
         if not GSTREAMER_AVAILABLE:
             raise RuntimeError(f"GStreamer not available: {self.unavailable_reason}")
+
+        # Cancel any pending disconnect auto-close timer since a new stream connection is starting
+        self._cancel_disconnect_timer()
 
         # The host configuration is the safe upper limit. Client quality
         # presets may request lower values but cannot exceed what this host's
@@ -104,8 +149,12 @@ class StreamManager:
     def _remove_peer(self, pc_id: str) -> None:
         with self._lock:
             self._peers.pop(pc_id, None)
+            remaining = len(self._peers)
+        if remaining == 0:
+            self._start_disconnect_timer(delay=6.0)
 
     def close_all(self) -> None:
+        self._cancel_disconnect_timer()
         with self._lock:
             peers = list(self._peers.values())
             self._peers.clear()

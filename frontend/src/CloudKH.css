@@ -2478,7 +2478,6 @@ input:-webkit-autofill:active {
   background: rgba(255, 69, 58, 0.2);
 }
 
-/* Cloud Stream Player Layout */
 .cloud-stream-player-container {
   position: fixed;
   inset: 0;
@@ -2489,6 +2488,26 @@ input:-webkit-autofill:active {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+.cloud-stream-player-container.ios-pseudo-fullscreen {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  z-index: 999999 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.hud-icon-btn.active-glow {
+  color: #00d2ff !important;
+  background: rgba(0, 210, 255, 0.2) !important;
+  border-color: rgba(0, 210, 255, 0.4) !important;
 }
 
 .stream-canvas-wrapper {

@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
-import { ClockIcon, HourglassIcon, GamepadIcon, MouseIcon, MaximizeIcon, MinimizeIcon } from './Icons';
+import {
+  ClockIcon,
+  HourglassIcon,
+  GamepadIcon,
+  MouseIcon,
+  MaximizeIcon,
+  MinimizeIcon,
+  Volume2Icon,
+  VolumeXIcon,
+} from './Icons';
 
 export default function StreamHUD({
   sessionData,
@@ -10,6 +19,8 @@ export default function StreamHUD({
   onToggleInputMode,
   isFullscreen = false,
   onToggleFullscreen,
+  isMuted = true,
+  onToggleMute,
 }) {
   const [remainingSeconds, setRemainingSeconds] = useState(
     sessionData?.remaining_seconds || 60
@@ -84,6 +95,19 @@ export default function StreamHUD({
             >
               {inputMode === 'controller' ? <GamepadIcon size={15} /> : <MouseIcon size={15} />}
               <span className="hud-btn-text">{inputMode === 'controller' ? 'Gamepad' : 'Keys'}</span>
+            </button>
+          )}
+
+          {onToggleMute && (
+            <button
+              type="button"
+              className={`hud-icon-btn ${!isMuted ? 'active-glow' : ''}`}
+              onClick={onToggleMute}
+              title={isMuted ? 'Unmute Game Sound' : 'Mute Game Sound'}
+              aria-label="Toggle game audio"
+            >
+              {isMuted ? <VolumeXIcon size={15} /> : <Volume2Icon size={15} />}
+              <span className="hud-btn-text">{isMuted ? 'Muted' : 'Sound'}</span>
             </button>
           )}
 
