@@ -17,6 +17,7 @@ export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = tr
     const [status, setStatus] = useState('connecting');
     const [errorDetail, setErrorDetail] = useState('');
     const [fps, setFps] = useState(0);
+    const [isPlaying, setIsPlaying] = useState(false);
 
     const cleanup = useCallback(() => {
         if (statsTimerRef.current) {
@@ -179,15 +180,54 @@ export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = tr
                 ref={videoRef}
                 autoPlay
                 playsInline
+                webkit-playsinline=""
                 muted
+                onPlay={() => setIsPlaying(true)}
+                onPlaying={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
                 onLoadedMetadata={() => {
-                    videoRef.current?.play().catch(() => {});
+                    videoRef.current?.play().then(() => setIsPlaying(true)).catch(() => {});
                 }}
                 // A remote desktop must show every edge of the host display.
                 // `cover` cropped taskbars and sidebars whenever the local
                 // browser and host monitor had different aspect ratios.
                 style={{ width: '100%', height: '100%', objectFit: 'contain' }}
             />
+            {status === 'connected' && !isPlaying && (
+                <button
+                    type="button"
+                    onClick={() => {
+                        if (videoRef.current) {
+                            videoRef.current.muted = true;
+                            videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+                        }
+                    }}
+                    style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        zIndex: 15,
+                        padding: '12px 24px',
+                        background: 'rgba(0, 210, 255, 0.22)',
+                        border: '1px solid #00d2ff',
+                        color: '#fff',
+                        borderRadius: '999px',
+                        fontSize: '14px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        boxShadow: '0 8px 32px rgba(0, 210, 255, 0.3)',
+                        pointerEvents: 'auto',
+                    }}
+                >
+                    <span>▶ Tap to Start Video Stream</span>
+                </button>
+            )}
             {status !== 'connected' && (
                 <div
                     style={{
