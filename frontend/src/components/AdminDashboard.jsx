@@ -1080,17 +1080,19 @@ export default function AdminDashboard() {
           {/* TAB 4: USER ACCOUNTS TRACKING */}
           {adminTab === 'users' && (
             <div className="admin-tab-content">
-              <div className="tab-section-header">
+              <div className="tab-section-header compact">
                 <div>
-                  <h2>User Accounts &amp; Roster</h2>
-                  <p>Track all registered players, student test accounts, and access permissions.</p>
+                  <h2 className="section-heading-compact">User Roster &amp; Player Tracking</h2>
+                  <p className="section-sub-compact">
+                    Track registered accounts, roles, reservations, and individual gaming hours for Sean&apos;s CTQ 2.
+                  </p>
                 </div>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <div className="admin-search-box">
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <div className="admin-search-box compact">
                     <input
                       type="text"
                       className="admin-search-input"
-                      placeholder="Search name or email (e.g. bokpa)..."
+                      placeholder="Search player or email (e.g. bokpa)..."
                       value={userSearch}
                       onChange={(e) => setUserSearch(e.target.value)}
                     />
@@ -1101,27 +1103,28 @@ export default function AdminDashboard() {
                     )}
                   </div>
                   <button
-                    className="btn-primary"
+                    className="btn-primary btn-compact"
                     onClick={() => setShowCreateUserModal(true)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
                   >
-                    <PlusIcon size={14} />
+                    <PlusIcon size={13} />
                     <span>+ Add User</span>
                   </button>
                 </div>
               </div>
 
-              <div className="admin-bookings-table-wrapper glass-panel">
-                <table className="admin-bookings-table">
+              <div className="admin-bookings-table-wrapper glass-panel compact-table-wrapper">
+                <table className="admin-bookings-table compact-table">
                   <thead>
                     <tr>
-                      <th>ID</th>
+                      <th style={{ width: '50px' }}>ID</th>
                       <th>Player / Account</th>
-                      <th>Role</th>
-                      <th>Bookings Record</th>
-                      <th>Registered</th>
-                      <th>Last Login</th>
-                      <th>Action</th>
+                      <th style={{ width: '110px' }}>Role</th>
+                      <th style={{ width: '130px' }}>Gaming Hours (CTQ 2)</th>
+                      <th style={{ width: '120px' }}>Bookings</th>
+                      <th style={{ width: '110px' }}>Registered</th>
+                      <th style={{ width: '110px' }}>Last Login</th>
+                      <th style={{ width: '60px', textAlign: 'center' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1141,8 +1144,8 @@ export default function AdminDashboard() {
                             <span className="user-id-badge">#{u.id}</span>
                           </td>
                           <td>
-                            <div className="user-identity-cell">
-                              <div className="user-avatar-circle">
+                            <div className="user-identity-cell compact">
+                              <div className="user-avatar-circle compact">
                                 {(u.name || u.email || 'U')[0].toUpperCase()}
                               </div>
                               <div className="user-details-col">
@@ -1153,7 +1156,7 @@ export default function AdminDashboard() {
                           </td>
                           <td>
                             <select
-                              className={`admin-role-select role-${u.role}`}
+                              className={`admin-role-select compact role-${u.role}`}
                               value={u.role}
                               onChange={(e) => handleRoleChange(u.id, e.target.value)}
                             >
@@ -1163,13 +1166,18 @@ export default function AdminDashboard() {
                             </select>
                           </td>
                           <td>
-                            <div className="user-bookings-stat">
+                            <span className="user-gaming-hours-pill" title="Tracked Gaming Duration for Sean CTQ 2">
+                              ⚡ {(u.gaming_hours || 0).toFixed(1)} hrs
+                            </span>
+                          </td>
+                          <td>
+                            <div className="user-bookings-stat compact">
                               <span className="booking-stat-active" title="Active Reservations">
                                 {u.active_bookings || 0} active
                               </span>
                               <span className="booking-stat-divider">/</span>
                               <span className="booking-stat-total" title="Total Reservations">
-                                {u.total_bookings || 0} total
+                                {u.total_bookings || 0} tot
                               </span>
                             </div>
                           </td>
@@ -1177,9 +1185,9 @@ export default function AdminDashboard() {
                             <span className="text-muted-cell">
                               {u.created_at
                                 ? new Date(u.created_at).toLocaleDateString([], {
-                                    year: 'numeric',
                                     month: 'short',
                                     day: 'numeric',
+                                    year: '2-digit',
                                   })
                                 : '—'}
                             </span>
@@ -1194,13 +1202,13 @@ export default function AdminDashboard() {
                                 : 'Never'}
                             </span>
                           </td>
-                          <td>
+                          <td style={{ textAlign: 'center' }}>
                             <button
-                              className="btn-admin-delete-user"
+                              className="btn-admin-delete-user compact"
                               onClick={() => handleDeleteUser(u.id, u.email)}
                               title="Delete account"
                             >
-                              <TrashIcon size={13} />
+                              <TrashIcon size={12} />
                             </button>
                           </td>
                         </tr>
@@ -1214,68 +1222,68 @@ export default function AdminDashboard() {
           {/* TAB 5: LEAN SIX SIGMA DMAIC CTQ DASHBOARD */}
           {adminTab === 'dmaic' && (
             <div className="admin-tab-content">
-              {/* Project Hero Banner */}
-              <div className="dmaic-hero-banner glass-panel">
+              {/* Project Hero Banner - Compact Executive Header */}
+              <div className="dmaic-hero-banner glass-panel compact">
                 <div className="dmaic-hero-content">
-                  <div className="dmaic-badge-row">
+                  <div className="dmaic-badge-row compact">
                     <span className="dmaic-badge">Operations Research &bull; Lean Six Sigma DMAIC</span>
                     <span className="dmaic-subbadge">CloudKH Single-PC MVP</span>
                   </div>
-                  <h2 className="dmaic-hero-title">Voice of Customer (VOC) to Critical to Quality (CTQ) Telemetry</h2>
-                  <p className="dmaic-hero-desc">
-                    Single RTX 3050 rig pilot experiment evaluating Queue Waiting Times, Network Latency, Rig Utilization &amp; Energy Waste, and Session Completion Defect Rates across DMAIC Phases (V1 Baseline vs V2 Improved).
+                  <h2 className="dmaic-hero-title compact">Voice of Customer (VOC) to Critical to Quality (CTQ) Telemetry</h2>
+                  <p className="dmaic-hero-desc compact">
+                    Single RTX 3050 rig pilot tracking Queue Waiting Times, Network Latency, Rig Utilization &amp; Energy Waste, and Session Defect Rates.
                   </p>
                 </div>
-                <div className="dmaic-hero-actions">
+                <div className="dmaic-hero-actions compact">
                   <button
-                    className="btn-primary"
+                    className="btn-primary btn-compact"
                     onClick={handleExportCsv}
                     disabled={exportingCsv}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                   >
-                    <DownloadIcon size={16} />
+                    <DownloadIcon size={14} />
                     <span>{exportingCsv ? 'Exporting...' : '📥 Export Dataset (.CSV)'}</span>
                   </button>
                   <button
-                    className="btn-secondary"
+                    className="btn-secondary btn-compact"
                     onClick={() => setShowAddTestModal(true)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                   >
-                    <PlusIcon size={14} />
+                    <PlusIcon size={13} />
                     <span>+ Log Test Run</span>
                   </button>
                 </div>
               </div>
 
-              {/* 4 Team Member CTQ Cards */}
-              <div className="dmaic-ctq-grid">
+              {/* 4 Team Member CTQ Cards - Compact & Balanced */}
+              <div className="dmaic-ctq-grid compact">
                 {/* CTQ 1: Latency & Frame Stability (Choonvai) */}
-                <div className="dmaic-ctq-card glass-panel">
-                  <div className="ctq-card-header">
-                    <div className="ctq-owner-tag">CTQ 1 &bull; Choonvai</div>
-                    <span className={`ctq-status-badge ${dmaicMetrics?.ctq1_latency?.status === 'PASS' ? 'pass' : 'risk'}`}>
+                <div className="dmaic-ctq-card glass-panel compact ctq-border-choonvai">
+                  <div className="ctq-card-header compact">
+                    <div className="ctq-owner-tag choonvai">CTQ 1 &bull; Choonvai</div>
+                    <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq1_latency?.status === 'PASS' ? 'pass' : 'risk'}`}>
                       {dmaicMetrics?.ctq1_latency?.status || 'PASS'}
                     </span>
                   </div>
-                  <h3 className="ctq-metric-title">Latency &amp; FPS Stability</h3>
-                  <div className="ctq-target-spec">
+                  <h3 className="ctq-metric-title compact">Latency &amp; FPS Stability</h3>
+                  <div className="ctq-target-spec compact">
                     <span className="spec-label">Target:</span> &le; 100 ms &bull; 60 FPS
                   </div>
-                  <div className="ctq-big-value">
+                  <div className="ctq-big-value compact">
                     {dmaicMetrics?.ctq1_latency?.mean_latency_ms || 0}
                     <span className="ctq-unit">ms mean</span>
                   </div>
-                  <div className="ctq-stats-breakdown">
+                  <div className="ctq-stats-breakdown compact">
                     <div className="ctq-substat">
                       <span className="substat-label">Peak Latency</span>
                       <span className="substat-val">{dmaicMetrics?.ctq1_latency?.peak_latency_ms || 0} ms</span>
                     </div>
                     <div className="ctq-substat">
-                      <span className="substat-label">Mean Framerate</span>
+                      <span className="substat-label">Framerate</span>
                       <span className="substat-val">{dmaicMetrics?.ctq1_latency?.mean_fps || 0} FPS</span>
                     </div>
                     <div className="ctq-substat">
-                      <span className="substat-label">Defect Rate (&gt;100ms)</span>
+                      <span className="substat-label">Defects (&gt;100ms)</span>
                       <span className={`substat-val ${(dmaicMetrics?.ctq1_latency?.defect_rate_pct || 0) > 0 ? 'text-defect' : ''}`}>
                         {dmaicMetrics?.ctq1_latency?.defect_rate_pct || 0}%
                       </span>
@@ -1284,32 +1292,32 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* CTQ 2: PC Utilization & Energy Waste (Sean Pheavyraksonya) */}
-                <div className="dmaic-ctq-card glass-panel">
-                  <div className="ctq-card-header">
-                    <div className="ctq-owner-tag">CTQ 2 &bull; Sean Pheavyraksonya</div>
-                    <span className={`ctq-status-badge ${dmaicMetrics?.ctq2_utilization?.status === 'PASS' ? 'pass' : 'risk'}`}>
+                <div className="dmaic-ctq-card glass-panel compact ctq-border-sean">
+                  <div className="ctq-card-header compact">
+                    <div className="ctq-owner-tag sean">CTQ 2 &bull; Sean Pheavyraksonya</div>
+                    <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq2_utilization?.status === 'PASS' ? 'pass' : 'risk'}`}>
                       {dmaicMetrics?.ctq2_utilization?.status || 'OPTIMAL'}
                     </span>
                   </div>
-                  <h3 className="ctq-metric-title">PC Utilization &amp; Energy Waste</h3>
-                  <div className="ctq-target-spec">
+                  <h3 className="ctq-metric-title compact">PC Utilization &amp; Energy Waste</h3>
+                  <div className="ctq-target-spec compact">
                     <span className="spec-label">Target:</span> &ge; 70% Rig Utilization
                   </div>
-                  <div className="ctq-big-value">
+                  <div className="ctq-big-value compact">
                     {dmaicMetrics?.ctq2_utilization?.utilization_pct || 0}
                     <span className="ctq-unit">%</span>
                   </div>
-                  <div className="ctq-stats-breakdown">
+                  <div className="ctq-stats-breakdown compact">
                     <div className="ctq-substat">
-                      <span className="substat-label">Gaming Hours</span>
+                      <span className="substat-label">Gaming Time</span>
                       <span className="substat-val">{dmaicMetrics?.ctq2_utilization?.gaming_hours || 0} hrs</span>
                     </div>
                     <div className="ctq-substat">
-                      <span className="substat-label">Idle Hours</span>
+                      <span className="substat-label">Idle Time</span>
                       <span className="substat-val">{dmaicMetrics?.ctq2_utilization?.idle_hours || 0} hrs</span>
                     </div>
                     <div className="ctq-substat">
-                      <span className="substat-label">Est. Energy Waste</span>
+                      <span className="substat-label">Energy Waste</span>
                       <span className="substat-val">
                         {dmaicMetrics?.ctq2_utilization?.est_kwh || 0} kWh (~${dmaicMetrics?.ctq2_utilization?.est_cost_usd || 0})
                       </span>
@@ -1318,22 +1326,22 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* CTQ 3: Booking Waiting Time & Capacity (Lim Hokann) */}
-                <div className="dmaic-ctq-card glass-panel">
-                  <div className="ctq-card-header">
-                    <div className="ctq-owner-tag">CTQ 3 &bull; Lim Hokann</div>
-                    <span className={`ctq-status-badge ${dmaicMetrics?.ctq3_waiting_time?.status === 'PASS' ? 'pass' : 'risk'}`}>
+                <div className="dmaic-ctq-card glass-panel compact ctq-border-hokann">
+                  <div className="ctq-card-header compact">
+                    <div className="ctq-owner-tag hokann">CTQ 3 &bull; Lim Hokann</div>
+                    <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq3_waiting_time?.status === 'PASS' ? 'pass' : 'risk'}`}>
                       {dmaicMetrics?.ctq3_waiting_time?.status || 'PASS'}
                     </span>
                   </div>
-                  <h3 className="ctq-metric-title">Queue Waiting &amp; Capacity</h3>
-                  <div className="ctq-target-spec">
+                  <h3 className="ctq-metric-title compact">Queue Waiting &amp; Capacity</h3>
+                  <div className="ctq-target-spec compact">
                     <span className="spec-label">Target:</span> &le; 30 min queue wait
                   </div>
-                  <div className="ctq-big-value">
+                  <div className="ctq-big-value compact">
                     {dmaicMetrics?.ctq3_waiting_time?.mean_waiting_time_mins || 0}
                     <span className="ctq-unit">min mean</span>
                   </div>
-                  <div className="ctq-stats-breakdown">
+                  <div className="ctq-stats-breakdown compact">
                     <div className="ctq-substat">
                       <span className="substat-label">Max Queue Wait</span>
                       <span className="substat-val">{dmaicMetrics?.ctq3_waiting_time?.max_waiting_time_mins || 0} min</span>
@@ -1343,31 +1351,31 @@ export default function AdminDashboard() {
                       <span className="substat-val">{dmaicMetrics?.ctq3_waiting_time?.total_booked_slots || 0}</span>
                     </div>
                     <div className="ctq-substat">
-                      <span className="substat-label">Capacity Bottlenecks</span>
+                      <span className="substat-label">Slot Rejections</span>
                       <span className={`substat-val ${(dmaicMetrics?.ctq3_waiting_time?.capacity_defects_count || 0) > 0 ? 'text-defect' : ''}`}>
-                        {dmaicMetrics?.ctq3_waiting_time?.capacity_defects_count || 0} rejections
+                        {dmaicMetrics?.ctq3_waiting_time?.capacity_defects_count || 0}
                       </span>
                     </div>
                   </div>
                 </div>
 
                 {/* CTQ 4: Session Completion Rate (Hour) */}
-                <div className="dmaic-ctq-card glass-panel">
-                  <div className="ctq-card-header">
-                    <div className="ctq-owner-tag">CTQ 4 &bull; Hour</div>
-                    <span className={`ctq-status-badge ${dmaicMetrics?.ctq4_completion_rate?.status === 'PASS' ? 'pass' : 'risk'}`}>
+                <div className="dmaic-ctq-card glass-panel compact ctq-border-hour">
+                  <div className="ctq-card-header compact">
+                    <div className="ctq-owner-tag hour">CTQ 4 &bull; Hour</div>
+                    <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq4_completion_rate?.status === 'PASS' ? 'pass' : 'risk'}`}>
                       {dmaicMetrics?.ctq4_completion_rate?.status || 'PASS'}
                     </span>
                   </div>
-                  <h3 className="ctq-metric-title">Session Completion Rate</h3>
-                  <div className="ctq-target-spec">
+                  <h3 className="ctq-metric-title compact">Session Completion Rate</h3>
+                  <div className="ctq-target-spec compact">
                     <span className="spec-label">Target:</span> &ge; 95% Completion (6&sigma;)
                   </div>
-                  <div className="ctq-big-value">
+                  <div className="ctq-big-value compact">
                     {dmaicMetrics?.ctq4_completion_rate?.completion_rate_pct || 0}
                     <span className="ctq-unit">%</span>
                   </div>
-                  <div className="ctq-stats-breakdown">
+                  <div className="ctq-stats-breakdown compact">
                     <div className="ctq-substat">
                       <span className="substat-label">Completed / Total</span>
                       <span className="substat-val">
@@ -1381,7 +1389,7 @@ export default function AdminDashboard() {
                       </span>
                     </div>
                     <div className="ctq-substat">
-                      <span className="substat-label">Failure Causes</span>
+                      <span className="substat-label">Failure Breakdown</span>
                       <span className="substat-val">
                         {dmaicMetrics?.ctq4_completion_rate?.failure_breakdown?.disconnect || 0} disc, {dmaicMetrics?.ctq4_completion_rate?.failure_breakdown?.crash || 0} crash
                       </span>
@@ -1390,27 +1398,29 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Research Observation Dataset Section */}
-              <div className="tab-section-header" style={{ marginTop: '30px' }}>
+              {/* Research Observation Dataset Section - Compact Table */}
+              <div className="tab-section-header compact" style={{ marginTop: '20px' }}>
                 <div>
-                  <h2>Experimental Observation Dataset</h2>
-                  <p>Individual trial records formatted for statistical analysis (ANOVA, 2-Sample t-test, Capability Analysis).</p>
+                  <h2 className="section-heading-compact">Experimental Observation Dataset</h2>
+                  <p className="section-sub-compact">
+                    Individual trial records formatted for statistical analysis (ANOVA, 2-Sample t-test, Capability Analysis).
+                  </p>
                 </div>
-                <div className="dmaic-phase-filter-bar">
+                <div className="dmaic-phase-filter-bar compact">
                   <button
-                    className={`phase-filter-btn ${dmaicPhaseFilter === 'all' ? 'active' : ''}`}
+                    className={`phase-filter-btn compact ${dmaicPhaseFilter === 'all' ? 'active' : ''}`}
                     onClick={() => setDmaicPhaseFilter('all')}
                   >
                     All ({dmaicRecords.length})
                   </button>
                   <button
-                    className={`phase-filter-btn ${dmaicPhaseFilter === 'V1_Baseline' ? 'active' : ''}`}
+                    className={`phase-filter-btn compact ${dmaicPhaseFilter === 'V1_Baseline' ? 'active' : ''}`}
                     onClick={() => setDmaicPhaseFilter('V1_Baseline')}
                   >
                     V1 Baseline ({dmaicRecords.filter((r) => r.phase === 'V1_Baseline').length})
                   </button>
                   <button
-                    className={`phase-filter-btn ${dmaicPhaseFilter === 'V2_Improved' ? 'active' : ''}`}
+                    className={`phase-filter-btn compact ${dmaicPhaseFilter === 'V2_Improved' ? 'active' : ''}`}
                     onClick={() => setDmaicPhaseFilter('V2_Improved')}
                   >
                     V2 Improved ({dmaicRecords.filter((r) => r.phase === 'V2_Improved').length})
@@ -1418,23 +1428,23 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div className="admin-bookings-table-wrapper glass-panel">
-                <table className="admin-bookings-table dmaic-dataset-table">
+              <div className="admin-bookings-table-wrapper glass-panel compact-table-wrapper">
+                <table className="admin-bookings-table compact-table dmaic-dataset-table">
                   <thead>
                     <tr>
-                      <th>Test ID</th>
-                      <th>Phase</th>
+                      <th style={{ width: '85px' }}>Test ID</th>
+                      <th style={{ width: '95px' }}>Phase</th>
                       <th>Account</th>
-                      <th>Booking Slot</th>
-                      <th>Wait Time</th>
-                      <th>Latency</th>
-                      <th>FPS</th>
-                      <th>Disconnects</th>
-                      <th>Status</th>
-                      <th>Failure Reason</th>
-                      <th>Idle Time</th>
-                      <th>Power (W)</th>
-                      <th>Logged At</th>
+                      <th style={{ width: '105px' }}>Slot</th>
+                      <th style={{ width: '75px' }}>Wait</th>
+                      <th style={{ width: '75px' }}>Latency</th>
+                      <th style={{ width: '65px' }}>FPS</th>
+                      <th style={{ width: '60px' }}>Disc</th>
+                      <th style={{ width: '95px' }}>Status</th>
+                      <th style={{ width: '100px' }}>Failure Reason</th>
+                      <th style={{ width: '75px' }}>Idle</th>
+                      <th style={{ width: '75px' }}>Power</th>
+                      <th style={{ width: '105px' }}>Logged</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1444,35 +1454,35 @@ export default function AdminDashboard() {
                         <tr key={r.id}>
                           <td><strong>{r.test_id}</strong></td>
                           <td>
-                            <span className={`phase-badge-pill ${r.phase}`}>
+                            <span className={`phase-badge-pill compact ${r.phase}`}>
                               {r.phase === 'V1_Baseline' ? 'V1 Baseline' : 'V2 Improved'}
                             </span>
                           </td>
-                          <td>{r.account_name}</td>
-                          <td>{r.booking_slot || '—'}</td>
-                          <td>{r.waiting_time_mins} min</td>
+                          <td><span className="user-name-text">{r.account_name}</span></td>
+                          <td><span className="text-muted-cell">{r.booking_slot || '—'}</span></td>
+                          <td>{r.waiting_time_mins}m</td>
                           <td className={r.latency_ms > 100 ? 'text-defect' : ''}>
-                            {r.latency_ms} ms
+                            {r.latency_ms}ms
                           </td>
-                          <td>{r.fps} fps</td>
+                          <td>{r.fps}</td>
                           <td>{r.disconnects_count}</td>
                           <td>
-                            <span className={`status-pill-small ${r.completed ? 'confirmed' : 'cancelled'}`}>
-                              {r.completed ? 'COMPLETED' : 'DEFECT'}
+                            <span className={`status-pill-small compact ${r.completed ? 'confirmed' : 'cancelled'}`}>
+                              {r.completed ? 'PASS' : 'DEFECT'}
                             </span>
                           </td>
                           <td>
                             {r.failure_reason ? (
-                              <span className="failure-reason-pill">{r.failure_reason}</span>
+                              <span className="failure-reason-pill compact">{r.failure_reason}</span>
                             ) : (
                               <span className="text-muted-cell">—</span>
                             )}
                           </td>
-                          <td>{r.pc_idle_time_mins} min</td>
-                          <td>{r.power_usage_watts} W</td>
+                          <td>{r.pc_idle_time_mins}m</td>
+                          <td>{r.power_usage_watts}W</td>
                           <td>
                             <span className="text-muted-cell">
-                              {new Date(r.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                              {new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </td>
                         </tr>

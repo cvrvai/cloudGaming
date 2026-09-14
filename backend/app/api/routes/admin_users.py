@@ -1,4 +1,4 @@
-﻿"""Admin User Management API endpoints."""
+"""Admin User Management API endpoints."""
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -39,6 +39,7 @@ def list_users(
                    COUNT(CASE WHEN b.status = 'confirmed' AND b.start_time <= %s AND %s <= b.end_time THEN 1 END) as active_bookings,
                    COUNT(CASE WHEN b.status = 'confirmed' AND b.end_time < %s THEN 1 END) as completed_bookings,
                    COUNT(CASE WHEN b.status = 'cancelled' THEN 1 END) as cancelled_bookings,
+                   ROUND(COALESCE(SUM(CASE WHEN b.status = 'confirmed' THEN (EXTRACT(EPOCH FROM (b.end_time::timestamptz - b.start_time::timestamptz)) / 3600.0) ELSE 0 END), 0)::numeric, 1) as gaming_hours,
                    MAX(b.start_time) as last_booking_time
             FROM users u
             LEFT JOIN bookings b ON u.id = b.user_id
@@ -53,7 +54,11 @@ def list_users(
         sql += " GROUP BY u.id ORDER BY u.created_at DESC;"
 
         cursor.execute(sql, tuple(params))
-        users = [dict(r) for r in cursor.fetchall()]
+        users = []
+        for r in cursor.fetchall():
+            d = dict(r)
+            d["gaming_hours"] = float(d.get("gaming_hours") or 0.0)
+            users.append(d)
 
     return users
 

@@ -6784,5 +6784,283 @@ input:checked + .slider-round:before {
   border-radius: 4px;
 }
 
+/* ==========================================================================
+   COMPACT & MINIMALIST UX/UI ENHANCEMENTS FOR ADMIN DASHBOARD & DMAIC
+   ========================================================================== */
+
+/* Section Headings Compact */
+.section-heading-compact {
+  font-size: 16px;
+  font-weight: 800;
+  margin: 0 0 2px;
+  color: #fff;
+  letter-spacing: -0.2px;
+}
+
+.section-sub-compact {
+  font-size: 11.5px;
+  color: var(--text-2, #a1a1aa);
+  margin: 0;
+}
+
+.tab-section-header.compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.admin-search-box.compact {
+  width: 240px;
+}
+
+.admin-search-box.compact .admin-search-input {
+  padding: 6px 28px 6px 10px;
+  font-size: 11.5px;
+  border-radius: 6px;
+}
+
+.btn-compact {
+  padding: 6px 12px;
+  font-size: 11.5px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+/* User Accounts Table Compact */
+.compact-table-wrapper {
+  border-radius: 10px;
+  max-height: 480px;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.compact-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.compact-table th {
+  padding: 8px 10px;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(10, 14, 22, 0.85);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-3, #71717a);
+}
+
+.compact-table td {
+  padding: 7px 10px;
+  font-size: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.compact-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.user-identity-cell.compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-avatar-circle.compact {
+  width: 26px;
+  height: 26px;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.user-gaming-hours-pill {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: monospace;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.admin-role-select.compact {
+  padding: 2px 6px;
+  font-size: 10.5px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.user-bookings-stat.compact {
+  font-size: 11px;
+}
+
+.btn-admin-delete-user.compact {
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+/* Compact DMAIC Hero Banner */
+.dmaic-hero-banner.compact {
+  padding: 12px 18px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  gap: 14px;
+}
+
+.dmaic-badge-row.compact {
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.dmaic-hero-title.compact {
+  font-size: 15px;
+  margin: 0 0 2px;
+}
+
+.dmaic-hero-desc.compact {
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.dmaic-hero-actions.compact {
+  flex-direction: row;
+  gap: 8px;
+}
+
+/* Compact DMAIC 4 CTQ Cards Grid */
+.dmaic-ctq-grid.compact {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dmaic-ctq-card.compact {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(16, 20, 30, 0.7);
+  transition: transform 0.15s, border-color 0.15s;
+}
+
+.dmaic-ctq-card.compact:hover {
+  transform: translateY(-2px);
+}
+
+.ctq-border-choonvai {
+  border-left: 3px solid #38bdf8 !important;
+}
+
+.ctq-border-sean {
+  border-left: 3px solid #34d399 !important;
+}
+
+.ctq-border-hokann {
+  border-left: 3px solid #fbbf24 !important;
+}
+
+.ctq-border-hour {
+  border-left: 3px solid #a78bfa !important;
+}
+
+.ctq-card-header.compact {
+  margin-bottom: 4px;
+}
+
+.ctq-owner-tag.choonvai {
+  color: #38bdf8;
+}
+
+.ctq-owner-tag.sean {
+  color: #34d399;
+}
+
+.ctq-owner-tag.hokann {
+  color: #fbbf24;
+}
+
+.ctq-owner-tag.hour {
+  color: #a78bfa;
+}
+
+.ctq-metric-title.compact {
+  font-size: 13.5px;
+  font-weight: 800;
+  margin: 0 0 2px;
+}
+
+.ctq-target-spec.compact {
+  font-size: 10.5px;
+  margin-bottom: 8px;
+}
+
+.ctq-big-value.compact {
+  font-size: 24px;
+  font-weight: 900;
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+
+.ctq-stats-breakdown.compact {
+  padding: 6px 8px;
+  border-radius: 6px;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.ctq-stats-breakdown.compact .ctq-substat {
+  font-size: 11px;
+}
+
+.ctq-status-badge.compact {
+  font-size: 9.5px;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.dmaic-phase-filter-bar.compact {
+  padding: 2px;
+  gap: 3px;
+  border-radius: 6px;
+}
+
+.phase-filter-btn.compact {
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: 4px;
+}
+
+.phase-badge-pill.compact {
+  font-size: 9.5px;
+  padding: 1px 5px;
+}
+
+.failure-reason-pill.compact {
+  font-size: 10px;
+  padding: 1px 5px;
+}
+
+.status-pill-small.compact {
+  font-size: 9.5px;
+  padding: 1px 5px;
+}
+
 
 
