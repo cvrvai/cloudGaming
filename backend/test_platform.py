@@ -99,6 +99,39 @@ def test_full_platform_flow():
     assert "access_token" in user_login_data
     print("[OK] Student login returned immediate authenticated session (no MFA)")
 
+    # Test User Profile Update (PUT /api/auth/profile)
+    res = client.put(
+        "/api/auth/profile",
+        json={"name": "Sokha Cheong"},
+        headers=student_headers,
+    )
+    assert res.status_code == 200, f"Profile update failed: {res.text}"
+    assert res.json()["user"]["name"] == "Sokha Cheong"
+    print("[OK] User profile name update verified")
+
+    # Test User Password Change (PUT /api/auth/password)
+    res = client.put(
+        "/api/auth/password",
+        json={"current_password": "wrongpassword", "new_password": "newsecurepass123"},
+        headers=student_headers,
+    )
+    assert res.status_code == 400, "Wrong current password must be rejected"
+    res = client.put(
+        "/api/auth/password",
+        json={"current_password": "securepass123", "new_password": "newsecurepass123"},
+        headers=student_headers,
+    )
+    assert res.status_code == 200, f"Password change failed: {res.text}"
+    print("[OK] User password update with Argon2id re-hashing verified")
+
+    # Test User Stats (GET /api/auth/stats)
+    res = client.get("/api/auth/stats", headers=student_headers)
+    assert res.status_code == 200, f"Stats fetch failed: {res.text}"
+    stats_data = res.json()
+    assert "total_bookings" in stats_data
+    assert "active_bookings" in stats_data
+    print("[OK] User profile stats endpoint verified")
+
     # 3. Test Machine Fleet (FR-02)
     res = client.get("/api/machines")
     assert res.status_code == 200

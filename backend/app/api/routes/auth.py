@@ -50,6 +50,15 @@ class MFAVerifyRequest(BaseModel):
     code: str = Field(..., min_length=6, max_length=8)
 
 
+class UpdateProfileRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=50)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=6, max_length=100)
+
+
 @router.post("/register")
 def register(req: RegisterRequest, request: Request):
     """Register a new student account (FR-01)."""
@@ -337,3 +346,117 @@ def verify_mfa(req: MFAVerifyRequest, request: Request):
 def get_me(current_user: Dict = Depends(get_current_user)):
     """Return profile details for current authenticated session."""
     return current_user
+
+
+@router.put("/profile")
+def update_profile(req: UpdateProfileRequest, current_user: Dict = Depends(get_current_user)):
+    """Update display name for the currently authenticated user."""
+    name_clean = req.name.strip()
+    if not name_clean:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Name cannot be empty.",
+        )
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE users SET name = %s WHERE id = %s RETURNING id, name, email, role, created_at;",
+            (name_clean, current_user["id"]),
+        )
+        updated = cursor.fetchone()
+        conn.commit()
+
+    return {
+        "status": "success",
+        "user": dict(updated),
+    }
+
+
+@router.put("/password")
+def change_password(req: ChangePasswordRequest, request: Request, current_user: Dict = Depends(get_current_user)):
+    """Change user password after verifying the current password."""
+    client_ip = request.client.host if request.client else None
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT password_hash, salt FROM users WHERE id = %s;", (current_user["id"],))
+        user_row = cursor.fetchone()
+
+    if not user_row or not verify_password(req.current_password, user_row["password_hash"], user_row.get("salt", "")):
+        record_audit_event(
+            action="PASSWORD_CHANGE_FAILED",
+            actor_user_id=current_user["id"],
+            role=current_user["role"],
+            ip=client_ip,
+            result="FAILED",
+            details="Invalid current password provided",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect current password.",
+        )
+
+    new_hash, new_salt = hash_password(req.new_password)
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE users SET password_hash = %s, salt = %s WHERE id = %s;",
+            (new_hash, new_salt, current_user["id"]),
+        )
+        conn.commit()
+
+    record_audit_event(
+        action="PASSWORD_CHANGED",
+        actor_user_id=current_user["id"],
+        role=current_user["role"],
+        ip=client_ip,
+        result="SUCCESS",
+        details="User updated password via self-service",
+    )
+
+    return {
+        "status": "success",
+        "message": "Password updated successfully.",
+    }
+
+
+@router.get("/stats")
+def get_user_stats(current_user: Dict = Depends(get_current_user)):
+    """Return summary statistics for user profile."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        # Total bookings
+        cursor.execute("SELECT COUNT(*) AS total FROM bookings WHERE user_id = %s;", (current_user["id"],))
+        total_bookings = cursor.fetchone()["total"]
+
+        # Active bookings
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS active FROM bookings
+            WHERE user_id = %s AND status = 'active' AND end_time > %s;
+            """,
+            (current_user["id"], now_iso),
+        )
+        active_bookings = cursor.fetchone()["active"]
+
+        # Completed bookings
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS completed FROM bookings
+            WHERE user_id = %s AND (status = 'completed' OR end_time <= %s);
+            """,
+            (current_user["id"], now_iso),
+        )
+        completed_bookings = cursor.fetchone()["completed"]
+
+    return {
+        "total_bookings": total_bookings,
+        "active_bookings": active_bookings,
+        "completed_bookings": completed_bookings,
+        "role": current_user.get("role", "student"),
+        "mfa_enabled": current_user.get("mfa_enabled", False),
+        "created_at": current_user.get("created_at"),
+    }
+

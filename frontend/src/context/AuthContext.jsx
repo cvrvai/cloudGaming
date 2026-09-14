@@ -103,6 +103,54 @@ export function AuthProvider({ children }) {
     return data.user;
   };
 
+  const updateProfile = async (name) => {
+    const res = await fetch(`${API_BASE}/api/auth/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || 'Failed to update profile');
+    }
+    setUser((prev) => ({ ...prev, ...data.user }));
+    return data.user;
+  };
+
+  const changePassword = async (currentPassword, newPassword) => {
+    const res = await fetch(`${API_BASE}/api/auth/password`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || 'Failed to change password');
+    }
+    return data;
+  };
+
+  const fetchStats = async () => {
+    const res = await fetch(`${API_BASE}/api/auth/stats`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) {
+      throw new Error('Failed to fetch stats');
+    }
+    return await res.json();
+  };
+
   const logout = () => {
     localStorage.removeItem('cloudkh_token');
     setToken(null);
@@ -121,7 +169,11 @@ export function AuthProvider({ children }) {
         token,
         loading,
         login,
+        verifyMfa,
         register,
+        updateProfile,
+        changePassword,
+        fetchStats,
         logout,
         authModalOpen,
         setAuthModalOpen,

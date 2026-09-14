@@ -1,5 +1,5 @@
 import { useAuth } from '../context/AuthContext';
-import { GamepadIcon, CalendarIcon, SettingsIcon, SearchIcon } from './Icons';
+import { GamepadIcon, CalendarIcon, SettingsIcon, SearchIcon, UserIcon } from './Icons';
 
 export default function Navbar({
   activeTab,
@@ -47,6 +47,16 @@ export default function Navbar({
               )}
             </button>
 
+            <button
+              className={`nav-tab-btn ${activeTab === 'profile' ? 'active' : ''}`}
+              onClick={() => (user ? onTabChange('profile') : openAuth('login'))}
+            >
+              <span className="nav-btn-icon">
+                <UserIcon size={16} />
+              </span>
+              <span>Profile & Settings</span>
+            </button>
+
             {user?.role === 'admin' && (
               <button
                 className={`nav-tab-btn ${activeTab === 'admin' ? 'active' : ''}`}
@@ -90,12 +100,24 @@ export default function Navbar({
           </div>
 
           {user ? (
-            <div className="user-profile-badge">
+            <div
+              className="user-profile-badge"
+              onClick={() => onTabChange('profile')}
+              style={{ cursor: 'pointer' }}
+              title="View Profile & Settings"
+            >
               <div className="user-avatar-circle">
                 {user.name.charAt(0).toUpperCase()}
               </div>
               <span className="user-name">{user.name}</span>
-              <button className="nav-btn-logout" onClick={logout} title="Sign Out">
+              <button
+                className="nav-btn-logout"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  logout();
+                }}
+                title="Sign Out"
+              >
                 Sign Out
               </button>
             </div>
@@ -132,6 +154,16 @@ export default function Navbar({
             )}
           </span>
           <span className="bottom-nav-label">Bookings</span>
+        </button>
+
+        <button
+          className={`bottom-nav-item ${activeTab === 'profile' ? 'active' : ''}`}
+          onClick={() => (user ? onTabChange('profile') : openAuth('login'))}
+        >
+          <span className="bottom-nav-icon">
+            <UserIcon size={19} />
+          </span>
+          <span className="bottom-nav-label">Profile</span>
         </button>
 
         {user?.role === 'admin' && (

@@ -6,6 +6,7 @@ import AuthModal from './components/AuthModal';
 import GamesView from './components/GamesView';
 import MyBookingsView from './components/MyBookingsView';
 import AdminDashboard from './components/AdminDashboard';
+import ProfileSettingsView from './components/ProfileSettingsView';
 import BookingModal from './components/BookingModal';
 import CloudStreamPlayer from './components/CloudStreamPlayer';
 import './App.css';
@@ -13,7 +14,7 @@ import './CloudKH.css';
 
 function CloudKHPlatform() {
   const { token, user } = useAuth();
-  const [activeTab, setActiveTab] = useState('games'); // games | bookings | admin | stream
+  const [activeTab, setActiveTab] = useState('games'); // games | bookings | profile | admin | stream
   const [activeSession, setActiveSession] = useState(null);
   const [activeBookingsCount, setActiveBookingsCount] = useState(0);
   const [selectedGameForBooking, setSelectedGameForBooking] = useState(null);
@@ -106,8 +107,16 @@ function CloudKHPlatform() {
               />
             )}
 
+            {activeTab === 'profile' && (
+              <ProfileSettingsView
+                onNavigateToBookings={() => setActiveTab('bookings')}
+                onNavigateToGames={() => setActiveTab('games')}
+              />
+            )}
+
             {activeTab === 'admin' && <AdminDashboard />}
           </main>
+
 
           {selectedGameForBooking && (
             <BookingModal
