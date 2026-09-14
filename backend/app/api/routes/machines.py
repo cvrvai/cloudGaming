@@ -162,6 +162,29 @@ def update_machine_status(
     return {"message": f"Machine status updated to {req.status}"}
 
 
+@router.post("/{machine_id}/heartbeat")
+def machine_heartbeat(machine_id: int):
+    """Heartbeat endpoint pinged periodically by the terminal streaming service on each PC."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE machines
+            SET last_seen = %s
+            WHERE id = %s
+            RETURNING id, name, status;
+            """,
+            (now_iso, machine_id),
+        )
+        m = cursor.fetchone()
+        if not m:
+            raise HTTPException(status_code=404, detail="Machine not found")
+        conn.commit()
+
+    return {"status": "ok", "machine_id": machine_id, "timestamp": now_iso}
+
+
 # =========================================================================
 # NODE GAMES: Manual per-PC game configuration (Admin only)
 # =========================================================================
@@ -339,15 +362,13 @@ def delete_machine(
     machine_id: int,
     admin_user: Dict = Depends(require_admin),
 ):
-    """Admin-only: Delete a gaming machine node (primary host workstation cannot be deleted)."""
+    """Admin-only: Delete a gaming machine node."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name, is_host FROM machines WHERE id = %s;", (machine_id,))
+        cursor.execute("SELECT id, name FROM machines WHERE id = %s;", (machine_id,))
         m = cursor.fetchone()
         if not m:
             raise HTTPException(status_code=404, detail="Machine not found")
-        if m["is_host"] == 1:
-            raise HTTPException(status_code=400, detail="Cannot delete the primary host gaming workstation")
         cursor.execute("DELETE FROM machines WHERE id = %s;", (machine_id,))
         conn.commit()
 
@@ -411,8 +432,6 @@ def complete_pairing(
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
 
-    from app.utils.hardware import detect_host_hardware
-
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -432,13 +451,12 @@ def complete_pairing(
             conn.commit()
             raise HTTPException(status_code=400, detail="Pairing code has expired. Please generate a new code.")
 
-        detected = detect_host_hardware()
-        final_name = req.name or pairing["target_name"] or detected.get("name") or "Gaming Rig Node"
-        final_gpu = req.gpu or detected.get("gpu") or "Dedicated Gaming GPU"
-        final_cpu = req.cpu or detected.get("cpu") or "High-Performance CPU"
-        final_ram = req.ram or detected.get("ram") or "16GB RAM"
-        final_os = req.os or detected.get("os") or "Windows"
-        final_notes = req.notes or f"Paired via Admin Google Authenticator Keypair on {now.strftime('%Y-%m-%d %H:%M UTC')}"
+        final_name = req.name or pairing["target_name"] or "Gaming Rig Node"
+        final_gpu = req.gpu or "Dedicated Gaming GPU"
+        final_cpu = req.cpu or "High-Performance CPU"
+        final_ram = req.ram or "16GB RAM"
+        final_os = req.os or "Windows"
+        final_notes = req.notes or f"Paired via Admin MFA Keypair on {now.strftime('%Y-%m-%d %H:%M UTC')}"
 
         cursor.execute(
             """
@@ -456,7 +474,7 @@ def complete_pairing(
             SET status = 'paired', machine_id = %s, hardware_specs = %s, paired_at = %s
             WHERE id = %s;
             """,
-            (new_machine["id"], json.dumps({"gpu": final_gpu, "cpu": final_cpu, "ram": final_ram}), now_iso, pairing["id"]),
+            (new_machine["id"], json.dumps({"gpu": final_gpu, "cpu": final_cpu, "ram": final_ram, "os": final_os}), now_iso, pairing["id"]),
         )
         conn.commit()
 
@@ -464,6 +482,67 @@ def complete_pairing(
         "status": "success",
         "message": f"Successfully paired gaming PC '{new_machine['name']}'!",
         "machine": dict(new_machine),
+    }
+
+
+@router.post("/pair/node")
+def pair_node_from_terminal(req: PairCompleteRequest):
+    """Pair a streaming PC running the terminal service using a valid 6-digit MFA keypair code."""
+    clean_code = req.code.strip().replace(" ", "").upper()
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT * FROM machine_pairings 
+            WHERE (code = %s OR REPLACE(code, '-', '') = REPLACE(%s, '-', ''))
+              AND status = 'pending';
+            """,
+            (clean_code, clean_code),
+        )
+        pairing = cursor.fetchone()
+        if not pairing:
+            raise HTTPException(status_code=400, detail="Invalid or expired pairing code. Please generate a code in the admin dashboard.")
+
+        if datetime.fromisoformat(pairing["expires_at"]) < now:
+            cursor.execute("UPDATE machine_pairings SET status = 'expired' WHERE id = %s;", (pairing["id"],))
+            conn.commit()
+            raise HTTPException(status_code=400, detail="Pairing code has expired. Please generate a code in the admin dashboard.")
+
+        final_name = req.name or pairing["target_name"] or "Gaming Rig Node"
+        final_gpu = req.gpu or "Dedicated Gaming GPU"
+        final_cpu = req.cpu or "High-Performance CPU"
+        final_ram = req.ram or "16GB RAM"
+        final_os = req.os or "Windows"
+        final_notes = req.notes or f"Paired via Streaming PC Terminal on {now.strftime('%Y-%m-%d %H:%M UTC')}"
+
+        cursor.execute(
+            """
+            INSERT INTO machines (name, gpu, cpu, ram, os, status, is_host, notes)
+            VALUES (%s, %s, %s, %s, %s, 'available', 0, %s)
+            RETURNING id, name, gpu, cpu, ram, os, status, is_host, notes;
+            """,
+            (final_name, final_gpu, final_cpu, final_ram, final_os, final_notes),
+        )
+        new_machine = cursor.fetchone()
+
+        cursor.execute(
+            """
+            UPDATE machine_pairings 
+            SET status = 'paired', machine_id = %s, hardware_specs = %s, paired_at = %s
+            WHERE id = %s;
+            """,
+            (new_machine["id"], json.dumps({"gpu": final_gpu, "cpu": final_cpu, "ram": final_ram, "os": final_os}), now_iso, pairing["id"]),
+        )
+        conn.commit()
+
+    return {
+        "status": "success",
+        "message": f"Successfully paired gaming PC '{new_machine['name']}'!",
+        "machine": dict(new_machine),
+        "node_id": new_machine["id"],
     }
 
 

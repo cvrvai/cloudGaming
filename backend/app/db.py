@@ -111,6 +111,7 @@ def init_db() -> None:
         );
         """)
         cursor.execute("ALTER TABLE machines ADD COLUMN IF NOT EXISTS os TEXT;")
+        cursor.execute("ALTER TABLE machines ADD COLUMN IF NOT EXISTS last_seen TEXT;")
 
         # 3. Games Catalog table (Central game metadata)
         cursor.execute("""
@@ -212,10 +213,8 @@ def init_db() -> None:
 
 def _seed_initial_data(conn: Any) -> None:
     from app.services.auth import hash_password
-    from app.utils.hardware import detect_host_hardware
 
     cursor = conn.cursor()
-    real_hw = detect_host_hardware()
     now_iso = datetime.now(timezone.utc).isoformat()
 
     # 1. Seed or Bootstrap Admin account if none exists
@@ -231,46 +230,8 @@ def _seed_initial_data(conn: Any) -> None:
             ("System Administrator", settings.bootstrap_admin_email, admin_hash, admin_salt, now_iso),
         )
 
-    # 2. Seed or sync Gaming Rigs with real host hardware (Remove mock rigs)
-    cursor.execute("DELETE FROM node_games WHERE node_id IN (SELECT id FROM machines WHERE is_host = 0);")
-    cursor.execute("DELETE FROM machines WHERE is_host = 0 AND name IN ('Cloud Rig 02', 'Cloud Rig 03');")
-    cursor.execute("SELECT COUNT(*) AS count FROM machines;")
-    row = cursor.fetchone()
-    if row["count"] == 0:
-        rigs = [
-            (
-                real_hw["name"],
-                real_hw["gpu"],
-                real_hw["cpu"],
-                real_hw["ram"],
-                real_hw.get("os", "Windows"),
-                "available",
-                1,
-                "Local Host Gaming Workstation - WebRTC Screen Streamer",
-            ),
-        ]
-        cursor.executemany(
-            """
-            INSERT INTO machines (name, gpu, cpu, ram, os, status, is_host, notes)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-            """,
-            rigs,
-        )
-    else:
-        cursor.execute(
-            """
-            UPDATE machines
-            SET name = %s, gpu = %s, cpu = %s, ram = %s, os = %s
-            WHERE is_host = 1;
-            """,
-            (
-                real_hw["name"],
-                real_hw["gpu"],
-                real_hw["cpu"],
-                real_hw["ram"],
-                real_hw.get("os", "Windows"),
-            ),
-        )
+    # 2. Remove legacy auto-seeded host PC so all gaming PCs are dynamically paired via terminal
+    cursor.execute("DELETE FROM machines WHERE is_host = 1 OR notes LIKE 'Local Host Gaming Workstation%';")
 
     conn.commit()
 

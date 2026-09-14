@@ -64,13 +64,10 @@ export default function FleetView({ onBookingSuccess }) {
             return (
               <div
                 key={machine.id}
-                className={`rig-card glass-panel ${machine.is_host === 1 ? 'host-rig' : ''}`}
+                className="rig-card glass-panel"
               >
                 <div className="rig-card-header">
                   <div className="rig-card-title-group">
-                    {machine.is_host === 1 && (
-                      <span className="host-tag-pill">LOCAL HOST PC</span>
-                    )}
                     <h3 className="rig-card-title">{machine.name}</h3>
                   </div>
                   <div

@@ -593,11 +593,11 @@ export default function AdminDashboard() {
                 {machines.map((m) => (
                   <div
                     key={m.id}
-                    className={`admin-pc-node-card glass-panel ${m.is_host === 1 ? 'host-card' : ''}`}
+                    className="admin-pc-node-card glass-panel"
                   >
                     <div className="pc-card-header">
-                      <span className={`pc-role-badge ${m.is_host === 1 ? 'host' : 'remote'}`}>
-                        {m.is_host === 1 ? 'Host Workstation' : `Node #${m.id}`}
+                      <span className="pc-role-badge remote">
+                        Node #{m.id}
                       </span>
                       <span className={`pc-status-pill ${m.status}`}>
                         <span className="pulse-dot" />
@@ -710,17 +710,15 @@ export default function AdminDashboard() {
                           </>
                         )}
                       </button>
-                      {m.is_host !== 1 && (
-                        <button
-                          className="btn-game-delete"
-                          style={{ padding: '0 16px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                          onClick={() => handleDeleteMachine(m.id, m.name)}
-                          title="Delete this gaming PC node"
-                        >
-                          <TrashIcon size={13} />
-                          <span>Delete</span>
-                        </button>
-                      )}
+                      <button
+                        className="btn-game-delete"
+                        style={{ padding: '0 16px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                        onClick={() => handleDeleteMachine(m.id, m.name)}
+                        title="Delete this gaming PC node"
+                      >
+                        <TrashIcon size={13} />
+                        <span>Delete</span>
+                      </button>
                     </div>
                   </div>
                 ))}

@@ -131,6 +131,28 @@ taskkill /PID <PID> /F
 | Phone can't open app | Same WiFi + use the Network URL Vite prints |
 | Stream laggy | Lower resolution/FPS in `backend/.env` |
 
+## Streaming PC Terminal Service (Multi-PC Setup)
+
+When deploying Frontend to Vercel and Backend to Netlify/Cloud, streaming PCs run as standalone terminal nodes:
+
+1. In the **Admin Dashboard** (`/admin`), click **+ Pair PC** and select **Generate Code**.
+   - A 6-digit keypair code (e.g. `123-456`) is created with a 10-minute validity window.
+2. On each gaming PC that will stream games, open a terminal and run:
+   ```powershell
+   python stream_node.py --api https://<your-backend-domain> --code 123-456
+   ```
+   Or run without flags to enter the URL and code interactively:
+   ```powershell
+   python stream_node.py
+   ```
+3. The script automatically:
+   - Queries and detects the PC's actual GPU, CPU, RAM, and OS.
+   - Registers the node with the backend database.
+   - Keeps the streaming service and heartbeat loop active in the terminal.
+   - Saves `.node_config.json` so you do not need to re-pair on subsequent runs.
+
+---
+
 ## Smooth streaming alternative: Sunshine + Moonlight
 
 If you need GPU-encoded, lowest-latency streaming, Sunshine (PC host) +
@@ -139,3 +161,4 @@ project's browser stream and controller overlay entirely.
 
 - Sunshine: https://github.com/LizardByte/Sunshine/releases
 - Moonlight: https://moonlight-stream.org/
+

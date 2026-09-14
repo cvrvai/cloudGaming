@@ -31,7 +31,19 @@ _challenges_lock = threading.Lock()
 
 def _cleanup_expired_challenges():
     now = datetime.now(timezone.utc)
-    expired = [cid for cid, c in _mfa_challenges.items() if c["expires_at"] < now]
+    expired = []
+    for cid, c in list(_mfa_challenges.items()):
+        exp = c.get("expires_at")
+        if not exp:
+            expired.append(cid)
+        elif isinstance(exp, datetime) and exp < now:
+            expired.append(cid)
+        elif isinstance(exp, str):
+            try:
+                if datetime.fromisoformat(exp.replace("Z", "+00:00")) < now:
+                    expired.append(cid)
+            except Exception:
+                expired.append(cid)
     for cid in expired:
         _mfa_challenges.pop(cid, None)
 
