@@ -547,12 +547,8 @@ export default function AdminDashboard() {
               </div>
 
               {games.length === 0 ? (
-                <div className="admin-empty-state glass-panel" style={{ textAlign: 'center', padding: '48px 24px', borderRadius: '12px' }}>
-                  <GamepadIcon size={40} style={{ opacity: 0.35, marginBottom: 12 }} />
-                  <h3 style={{ margin: '0 0 6px 0', fontSize: '1.1rem' }}>No Catalog Games</h3>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', maxWidth: 400, margin: '0 auto 16px auto' }}>
-                    Your catalog is currently empty. Click "Add Game to Catalog" to register your first game title.
-                  </p>
+                <div className="empty-bookings-box glass-panel">
+                  <p style={{ margin: '0 0 12px 0' }}>No catalog games.</p>
                   <button className="btn-primary" onClick={openAddGameModal} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                     <PlusIcon size={14} />
                     <span>Add Game</span>

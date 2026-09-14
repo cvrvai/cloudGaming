@@ -208,18 +208,15 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
             <p>Loading...</p>
           </div>
         ) : availableGames.length === 0 ? (
-          <div className="empty-catalog-state glass-panel" style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <GamepadIcon size={48} style={{ opacity: 0.35, marginBottom: 16 }} />
-            <h3 style={{ margin: '0 0 8px 0', fontSize: '1.2rem', fontWeight: 600 }}>No Games Installed</h3>
-            <p style={{ color: 'var(--text-secondary)', maxWidth: 460, margin: '0 auto', fontSize: '0.9rem', lineHeight: 1.5 }}>
-              There are currently no games installed on your Host PC. Configure and assign games in the Admin Console to start streaming.
-            </p>
+          <div className="empty-bookings-box glass-panel">
+            <p>No games available.</p>
           </div>
         ) : filteredGames.length === 0 ? (
-          <div className="empty-catalog-state glass-panel">
+          <div className="empty-bookings-box glass-panel">
             <p>No games found matching "{searchQuery}".</p>
             <button
               className="btn-secondary"
+              style={{ marginTop: '10px' }}
               onClick={() => {
                 if (onSearchChange) onSearchChange('');
                 setSelectedGenre('All');
