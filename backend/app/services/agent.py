@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from app.db import get_db
+from app.services.storage.save_manager import save_manager
 
 logger = logging.getLogger("agent")
 
@@ -86,6 +87,7 @@ class GamingPCAgent:
             return self.start_game(
                 game_id=payload.get("game_id"),
                 slug=payload.get("slug"),
+                user_id=payload.get("user_id"),
             )
         elif op_upper == "STOP_GAME":
             return self.stop_game()
@@ -104,6 +106,7 @@ class GamingPCAgent:
         self,
         game_id: Optional[int] = None,
         slug: Optional[str] = None,
+        user_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Look up administrator-configured executable for this node and launch it."""
         with self._lock:
@@ -189,6 +192,24 @@ class GamingPCAgent:
                 else:
                     self._terminate_active_process()
 
+            # Multi-Tenant User Save Isolation: mount player private save state
+            save_mount_info = None
+            if user_id:
+                save_dir = save_manager.resolve_game_save_dir(
+                    game_slug=config.get("slug"),
+                    configured_save_path=config.get("save_directory"),
+                )
+                if save_dir:
+                    try:
+                        save_mount_info = save_manager.mount_user_save(
+                            user_id=user_id,
+                            game_id=config["game_id"],
+                            target_save_dir=save_dir,
+                        )
+                        save_manager.start_auto_sync(interval_seconds=60)
+                    except Exception as exc:
+                        logger.warning("Failed to mount user save: %s", exc)
+
             # Build command argument list safely without shell=True
             cmd = [exe_path]
             if args_str:
@@ -221,35 +242,43 @@ class GamingPCAgent:
 
             self._active_game_info = {
                 "game_id": config["game_id"],
+                "user_id": user_id,
                 "title": config["title"],
                 "slug": config["slug"],
                 "executable_path": exe_path,
                 "pid": pid,
                 "simulated": simulated,
+                "save_mount": save_mount_info,
                 "started_at": datetime.now(timezone.utc).isoformat(),
             }
 
             return {
                 "status": "started",
                 "game_id": config["game_id"],
+                "user_id": user_id,
                 "title": config["title"],
                 "slug": config["slug"],
                 "pid": pid,
                 "simulated": simulated,
+                "save_mount": save_mount_info,
             }
 
     def stop_game(self) -> Dict[str, Any]:
-        """Terminate the active game process."""
+        """Terminate the active game process and archive user save state."""
         with self._lock:
             info = self._active_game_info
             if not self._active_process and not info:
                 return {"status": "no_active_game"}
 
             self._terminate_active_process()
+            time.sleep(1.0)  # Allow process to finish writing files to disk
+
+            archive_res = save_manager.unmount_session(clean_after=True)
             self._active_game_info = None
             return {
                 "status": "stopped",
                 "previous_game": info["title"] if info else None,
+                "save_archived": archive_res,
             }
 
     def _terminate_active_process(self) -> None:

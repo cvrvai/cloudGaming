@@ -67,7 +67,17 @@ function CloudKHPlatform() {
     }
   };
 
-  const handleSessionEnd = () => {
+  const handleSessionEnd = async () => {
+    try {
+      if (token) {
+        await fetch(`${API_BASE}/api/session/stop`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to notify session stop:', e);
+    }
     setActiveSession(null);
     setActiveTab('bookings');
   };

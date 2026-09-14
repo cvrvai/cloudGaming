@@ -86,7 +86,10 @@ def verify_session_access(
         from app.services.streaming.node_relay import node_relay
         if booking["is_host"] == 1:
             try:
-                agent_launch_info = host_agent.start_game(game_id=booking["game_id"])
+                agent_launch_info = host_agent.start_game(
+                    game_id=booking["game_id"],
+                    user_id=booking["user_id"],
+                )
             except Exception as e:
                 agent_launch_info = {"status": "warning", "error": str(e)}
         elif node_relay.is_node_connected(booking["machine_id"]):
@@ -96,7 +99,10 @@ def verify_session_access(
                     node_relay.forward_game_command(
                         booking["machine_id"],
                         "START_GAME",
-                        {"game_id": booking["game_id"]},
+                        {
+                            "game_id": booking["game_id"],
+                            "user_id": booking["user_id"],
+                        },
                     )
                 )
                 agent_launch_info = {"status": "command_dispatched_to_node", "node_id": booking["machine_id"]}
@@ -134,9 +140,16 @@ def verify_session_access(
 def stop_session(
     current_user: Dict = Depends(get_current_user),
 ):
-    """End active streaming session and terminate game process."""
-    host_agent.stop_game()
-    return {"status": "session_stopped"}
+    """End active streaming session, terminate game process, and archive saves."""
+    from app.services.streaming.node_relay import node_relay
+    host_res = host_agent.stop_game()
+
+    if node_relay.is_node_connected():
+        import asyncio
+        for node_id in list(node_relay._nodes.keys()):
+            asyncio.create_task(node_relay.forward_game_command(node_id, "STOP_GAME"))
+
+    return {"status": "session_stopped", "host": host_res}
 
 
 @router.post("/agent/command")
