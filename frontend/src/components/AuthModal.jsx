@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { MailIcon, LockIcon, UserIcon, EyeIcon, EyeOffIcon, ShieldCheckIcon, KeyIcon } from './Icons';
+import { MailIcon, LockIcon, UserIcon, EyeIcon, EyeOffIcon, ShieldCheckIcon, KeyIcon, XIcon, CheckIcon, AlertTriangleIcon } from './Icons';
 
 export default function AuthModal() {
   const { authModalOpen, setAuthModalOpen, authMode, setAuthMode, login, register, verifyMfa } = useAuth();
@@ -78,8 +78,8 @@ export default function AuthModal() {
         className={`modal-dialog glass-panel auth-modal-dialog ${mfaChallenge ? 'mfa-dialog' : ''}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <button className="modal-close-btn" onClick={handleClose}>
-          ✕
+        <button className="modal-close-btn" onClick={handleClose} aria-label="Close">
+          <XIcon size={16} />
         </button>
 
         {mfaChallenge ? (
@@ -110,8 +110,16 @@ export default function AuthModal() {
                         setTimeout(() => setCopiedSecret(false), 2000);
                       }
                     }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                   >
-                    {copiedSecret ? '✓ Copied' : 'Copy Key'}
+                    {copiedSecret ? (
+                      <>
+                        <CheckIcon size={12} />
+                        <span>Copied</span>
+                      </>
+                    ) : (
+                      'Copy Key'
+                    )}
                   </button>
                 </div>
                 <div className="mfa-secret-box">
@@ -120,7 +128,12 @@ export default function AuthModal() {
               </div>
             )}
 
-            {mfaError && <div className="auth-error-banner compact">⚠️ {mfaError}</div>}
+            {mfaError && (
+              <div className="auth-error-banner compact" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AlertTriangleIcon size={14} />
+                <span>{mfaError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleMfaSubmit} className="auth-form compact">
               <div className="form-group compact">
@@ -206,7 +219,12 @@ export default function AuthModal() {
               </div>
             </div>
 
-            {error && <div className="auth-error-banner">⚠️ {error}</div>}
+            {error && (
+              <div className="auth-error-banner" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangleIcon size={15} />
+                <span>{error}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="auth-form">
               {authMode === 'register' && (

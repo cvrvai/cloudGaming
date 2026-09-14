@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../config';
-import { CalendarIcon, ClockIcon, BoltIcon, RocketIcon, CheckCircleIcon, PlayIcon } from './Icons';
+import { CalendarIcon, ClockIcon, BoltIcon, RocketIcon, CheckCircleIcon, PlayIcon, XIcon, AlertTriangleIcon } from './Icons';
 
 export default function BookingModal({ game, machine, onClose, onBookingSuccess, onLaunchNow }) {
   const { token, user, openAuth } = useAuth();
@@ -263,7 +263,7 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
       const data = await res.json();
       if (!res.ok) {
         if (res.status === 409) {
-          throw new Error(`⚠️ Server Busy: ${data.detail || 'This time slot overlaps with another reservation.'}`);
+          throw new Error(data.detail || 'This time slot overlaps with another reservation.');
         }
         throw new Error(data.detail || 'Failed to complete game reservation.');
       }
@@ -280,7 +280,9 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-dialog glass-panel geforce-booking-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close-btn" onClick={onClose}>✕</button>
+        <button className="modal-close-btn" onClick={onClose} aria-label="Close">
+          <XIcon size={16} />
+        </button>
 
         {/* Cinematic Game Header */}
         <div className="modal-game-hero" style={{ backgroundImage: `url(${coverUrl})` }}>

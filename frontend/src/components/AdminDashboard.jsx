@@ -1,6 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../config';
+import {
+  RefreshIcon,
+  MonitorIcon,
+  GamepadIcon,
+  ClipboardListIcon,
+  PlusIcon,
+  EditIcon,
+  TrashIcon,
+  XIcon,
+  AlertTriangleIcon,
+  CheckIcon,
+} from './Icons';
 
 export default function AdminDashboard() {
   const { token, user } = useAuth();
@@ -312,8 +324,9 @@ export default function AdminDashboard() {
             Configure gaming PCs, manage installed game executables, and oversee platform sessions.
           </p>
         </div>
-        <button className="btn-secondary" onClick={fetchAllAdminData}>
-          🔄 Refresh
+        <button className="btn-secondary" onClick={fetchAllAdminData} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+          <RefreshIcon size={14} />
+          <span>Refresh</span>
         </button>
       </div>
 
@@ -346,20 +359,26 @@ export default function AdminDashboard() {
         <button
           className={`admin-subnav-btn ${adminTab === 'machines' ? 'active' : ''}`}
           onClick={() => setAdminTab('machines')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
-          🖥️ Gaming PCs ({machines.length})
+          <MonitorIcon size={16} />
+          <span>Gaming PCs ({machines.length})</span>
         </button>
         <button
           className={`admin-subnav-btn ${adminTab === 'games' ? 'active' : ''}`}
           onClick={() => setAdminTab('games')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
-          🎮 Game Catalog ({games.length})
+          <GamepadIcon size={16} />
+          <span>Game Catalog ({games.length})</span>
         </button>
         <button
           className={`admin-subnav-btn ${adminTab === 'bookings' ? 'active' : ''}`}
           onClick={() => setAdminTab('bookings')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
-          📋 Reservations ({bookings.length})
+          <ClipboardListIcon size={16} />
+          <span>Reservations ({bookings.length})</span>
         </button>
       </div>
 
@@ -409,8 +428,10 @@ export default function AdminDashboard() {
                         <button
                           className="btn-add-node-game"
                           onClick={() => openAddGameToNodeModal(m)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
                         >
-                          ➕ Add Game
+                          <PlusIcon size={12} />
+                          <span>Add Game</span>
                         </button>
                       </div>
 
@@ -435,14 +456,14 @@ export default function AdminDashboard() {
                                     onClick={() => openEditNodeGameModal(m, ng)}
                                     title="Edit configuration"
                                   >
-                                    ✏️
+                                    <EditIcon size={12} />
                                   </button>
                                   <button
                                     className="btn-node-game-action delete"
                                     onClick={() => handleRemoveNodeGame(m.id, ng.game_id, ng.title)}
                                     title="Unassign game"
                                   >
-                                    ✕
+                                    <XIcon size={12} />
                                   </button>
                                 </div>
                               </div>
@@ -471,25 +492,34 @@ export default function AdminDashboard() {
 
                     <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
                       <button
-                        style={{ flex: 1 }}
+                        style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                         className={`btn-toggle-maintenance ${m.status === 'maintenance' ? 'restore' : ''}`}
                         onClick={() => handleToggleMaintenance(m)}
                         disabled={updatingId === m.id}
                       >
-                        {updatingId === m.id
-                          ? 'Updating...'
-                          : m.status === 'maintenance'
-                          ? '✓ Restore to Available'
-                          : '⚠️ Put Under Maintenance'}
+                        {updatingId === m.id ? (
+                          'Updating...'
+                        ) : m.status === 'maintenance' ? (
+                          <>
+                            <CheckIcon size={14} />
+                            <span>Restore to Available</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangleIcon size={14} />
+                            <span>Put Under Maintenance</span>
+                          </>
+                        )}
                       </button>
                       {m.is_host !== 1 && (
                         <button
                           className="btn-game-delete"
-                          style={{ padding: '0 16px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', cursor: 'pointer', fontWeight: 600 }}
+                          style={{ padding: '0 16px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                           onClick={() => handleDeleteMachine(m.id, m.name)}
                           title="Delete this gaming PC node"
                         >
-                          🗑️ Delete
+                          <TrashIcon size={13} />
+                          <span>Delete</span>
                         </button>
                       )}
                     </div>
@@ -507,8 +537,9 @@ export default function AdminDashboard() {
                   <h2>Game Catalog</h2>
                   <p>Global catalog of titles available across the CloudKH platform.</p>
                 </div>
-                <button className="btn-primary btn-add-game" onClick={openAddGameModal}>
-                  ➕ Add Game to Catalog
+                <button className="btn-primary btn-add-game" onClick={openAddGameModal} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <PlusIcon size={14} />
+                  <span>Add Game to Catalog</span>
                 </button>
               </div>
 
@@ -614,8 +645,8 @@ export default function AdminDashboard() {
       {showNodeGameModal && selectedNode && (
         <div className="modal-backdrop" onClick={() => setShowNodeGameModal(false)}>
           <div className="modal-dialog glass-panel" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close-btn" onClick={() => setShowNodeGameModal(false)}>
-              ✕
+            <button className="modal-close-btn" onClick={() => setShowNodeGameModal(false)} aria-label="Close">
+              <XIcon size={16} />
             </button>
 
             <div className="auth-header">
@@ -625,7 +656,12 @@ export default function AdminDashboard() {
               </p>
             </div>
 
-            {nodeGameError && <div className="auth-error-banner">⚠️ {nodeGameError}</div>}
+            {nodeGameError && (
+              <div className="auth-error-banner" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangleIcon size={16} />
+                <span>{nodeGameError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSaveNodeGame} className="auth-form">
               <div className="form-group">
@@ -728,8 +764,8 @@ export default function AdminDashboard() {
       {showGameModal && (
         <div className="modal-backdrop" onClick={() => setShowGameModal(false)}>
           <div className="modal-dialog glass-panel" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close-btn" onClick={() => setShowGameModal(false)}>
-              ✕
+            <button className="modal-close-btn" onClick={() => setShowGameModal(false)} aria-label="Close">
+              <XIcon size={16} />
             </button>
 
             <div className="auth-header">
@@ -737,7 +773,12 @@ export default function AdminDashboard() {
               <p className="auth-subtitle">Configure game metadata and artwork.</p>
             </div>
 
-            {gameError && <div className="auth-error-banner">⚠️ {gameError}</div>}
+            {gameError && (
+              <div className="auth-error-banner" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangleIcon size={16} />
+                <span>{gameError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSaveGame} className="auth-form">
               <div className="form-group">

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import StreamHUD from './StreamHUD';
 import WebRTCPlayer from './WebRTCPlayer';
 import GamepadController from './GamepadController';
+import { AlertTriangleIcon, RefreshIcon, MouseIcon, GamepadIcon } from './Icons';
 
 export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, serverIP }) {
   const [gstreamerAvailable, setGstreamerAvailable] = useState(null); // null: checking, true: ok, false: offline
@@ -47,7 +48,9 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
           </div>
         ) : (
           <div className="stream-connecting-box glass-panel">
-            <div className="stream-offline-icon">⚠️</div>
+            <div className="stream-offline-icon">
+              <AlertTriangleIcon size={32} />
+            </div>
             <h3>Host Screen Capture Offline</h3>
             <p>
               The WebRTC streaming pipeline on <strong>{sessionData?.machine_name || 'Host PC'}</strong> is not currently running.
@@ -56,8 +59,9 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
               Ensure GStreamer and the host streamer service are started on the host PC.
             </p>
             <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-              <button className="btn-primary" onClick={checkGst}>
-                🔄 Retry Connection
+              <button className="btn-primary" onClick={checkGst} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <RefreshIcon size={14} />
+                <span>Retry Connection</span>
               </button>
               <button className="btn-secondary" onClick={onSessionEnd}>
                 Exit Stream
@@ -71,14 +75,18 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
         <button
           className={`stream-control-btn ${inputMode === 'desktop' ? 'active' : ''}`}
           onClick={() => setInputMode('desktop')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
-          🖱️ Keyboard & Mouse
+          <MouseIcon size={16} />
+          <span>Keyboard & Mouse</span>
         </button>
         <button
           className={`stream-control-btn ${inputMode === 'controller' ? 'active' : ''}`}
           onClick={() => setInputMode('controller')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
-          🎮 Virtual Gamepad
+          <GamepadIcon size={16} />
+          <span>Virtual Gamepad</span>
         </button>
       </div>
 

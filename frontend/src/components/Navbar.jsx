@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { GamepadIcon, CalendarIcon, SettingsIcon, SearchIcon, UserIcon } from './Icons';
+import { GamepadIcon, CalendarIcon, SettingsIcon, SearchIcon, UserIcon, XIcon } from './Icons';
 
 export default function Navbar({
   activeTab,
@@ -97,8 +97,9 @@ export default function Navbar({
                 className="navbar-clear-search"
                 onClick={() => onSearchChange && onSearchChange('')}
                 title="Clear search"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
-                ✕
+                <XIcon size={12} />
               </button>
             )}
           </div>

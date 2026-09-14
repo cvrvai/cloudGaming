@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../config';
-import { GamepadIcon, RocketIcon, CalendarIcon } from './Icons';
+import { GamepadIcon, RocketIcon, CalendarIcon, LockIcon, HistoryIcon } from './Icons';
 
 export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
   const { token, user, openAuth } = useAuth();
@@ -70,7 +70,9 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
   if (!user) {
     return (
       <div className="bookings-unauth-container glass-panel">
-        <div className="unauth-icon">🔒</div>
+        <div className="unauth-icon" style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+          <LockIcon size={44} />
+        </div>
         <h2>Sign In to View Bookings</h2>
         <button className="btn-primary" onClick={() => openAuth('login')}>
           Sign In
@@ -221,7 +223,10 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
       {/* 3. PAST SESSIONS */}
       {bookingsData.past.length > 0 && (
         <div className="bookings-section">
-          <h2 className="section-title past-title">📜 Past Sessions History</h2>
+          <h2 className="section-title past-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <HistoryIcon size={18} />
+            <span>Past Sessions History</span>
+          </h2>
           <div className="past-bookings-table glass-panel">
             <div className="past-table-header">
               <span>Game</span>

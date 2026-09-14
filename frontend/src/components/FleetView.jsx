@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { API_BASE } from '../config';
 import BookingModal from './BookingModal';
+import { GamepadIcon, CpuIcon, RamIcon, ClockIcon } from './Icons';
 
 export default function FleetView({ onBookingSuccess }) {
   const [machines, setMachines] = useState([]);
@@ -84,15 +85,21 @@ export default function FleetView({ onBookingSuccess }) {
 
                 <div className="rig-specs-box">
                   <div className="spec-row">
-                    <span className="spec-icon">🎮</span>
+                    <span className="spec-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      <GamepadIcon size={14} />
+                    </span>
                     <span className="spec-value">{machine.gpu}</span>
                   </div>
                   <div className="spec-row">
-                    <span className="spec-icon">⚡</span>
+                    <span className="spec-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      <CpuIcon size={14} />
+                    </span>
                     <span className="spec-value">{machine.cpu}</span>
                   </div>
                   <div className="spec-row">
-                    <span className="spec-icon">💾</span>
+                    <span className="spec-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      <RamIcon size={14} />
+                    </span>
                     <span className="spec-value">{machine.ram}</span>
                   </div>
                 </div>
@@ -114,8 +121,9 @@ export default function FleetView({ onBookingSuccess }) {
                           minute: '2-digit',
                         });
                         return (
-                          <span key={b.id} className="schedule-slot-tag">
-                            🕒 {s} - {e}
+                          <span key={b.id} className="schedule-slot-tag" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                            <ClockIcon size={12} />
+                            <span>{s} - {e}</span>
                           </span>
                         );
                       })}

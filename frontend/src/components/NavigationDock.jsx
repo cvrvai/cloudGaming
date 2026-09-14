@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SettingsIcon } from './Icons';
 
 const statusColor = (status) => {
     if (status === 'connected') return '#22c55e';
@@ -105,7 +106,7 @@ const NavigationDock = ({ status, onNavigate, onToggleMenu }) => {
             </IconButton>
 
             <IconButton label="Settings" onClick={() => onNavigate('settings')}>
-                <span aria-hidden="true">⚙</span>
+                <SettingsIcon size={16} />
             </IconButton>
 
             <IconButton label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} onClick={toggleFullscreen}>

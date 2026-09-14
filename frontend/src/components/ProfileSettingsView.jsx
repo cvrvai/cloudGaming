@@ -12,6 +12,8 @@ import {
   ShieldCheckIcon,
   EyeIcon,
   EyeOffIcon,
+  AlertTriangleIcon,
+  CheckIcon,
 } from './Icons';
 
 export default function ProfileSettingsView({ onNavigateToBookings, onNavigateToGames }) {
@@ -243,7 +245,12 @@ export default function ProfileSettingsView({ onNavigateToBookings, onNavigateTo
                 <CheckCircleIcon size={16} /> {profileSuccess}
               </div>
             )}
-            {profileError && <div className="profile-alert error">⚠️ {profileError}</div>}
+            {profileError && (
+              <div className="profile-alert error" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangleIcon size={16} />
+                <span>{profileError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSaveProfile} className="profile-form">
               <div className="profile-form-grid">
@@ -304,7 +311,12 @@ export default function ProfileSettingsView({ onNavigateToBookings, onNavigateTo
                 <CheckCircleIcon size={16} /> {pwSuccess}
               </div>
             )}
-            {pwError && <div className="profile-alert error">⚠️ {pwError}</div>}
+            {pwError && (
+              <div className="profile-alert error" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangleIcon size={16} />
+                <span>{pwError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleChangePassword} className="profile-form">
               <div className="profile-form-grid">
@@ -387,7 +399,10 @@ export default function ProfileSettingsView({ onNavigateToBookings, onNavigateTo
                   <p>Customize video resolution, latency, and input controller behavior for cloud play.</p>
                 </div>
                 {settingsSavedToast && (
-                  <span className="settings-saved-badge">✓ Auto-saved to device</span>
+                  <span className="settings-saved-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <CheckIcon size={12} />
+                    <span>Auto-saved to device</span>
+                  </span>
                 )}
               </div>
             </div>

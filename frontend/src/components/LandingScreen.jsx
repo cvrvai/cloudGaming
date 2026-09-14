@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { GamepadIcon, MouseIcon } from './Icons';
 
 const Dot = ({ state }) => (
     <span
@@ -118,7 +119,9 @@ export default function LandingScreen({ apiBase, serverIP, wsStatus, inputMode, 
                             className={`mode-card ${inputMode === 'gamepad' ? 'selected' : ''}`}
                             onClick={() => onInputModeChange('gamepad')}
                         >
-                            <span className="mode-card-icon" aria-hidden="true">🎮</span>
+                            <span className="mode-card-icon" aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                <GamepadIcon size={22} />
+                            </span>
                             <span>
                                 <strong>Controller</strong>
                                 <small>Sticks, D-pad and face buttons</small>
@@ -131,7 +134,9 @@ export default function LandingScreen({ apiBase, serverIP, wsStatus, inputMode, 
                             className={`mode-card ${inputMode === 'touchpad' ? 'selected' : ''}`}
                             onClick={() => onInputModeChange('touchpad')}
                         >
-                            <span className="mode-card-icon" aria-hidden="true">⌨</span>
+                            <span className="mode-card-icon" aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                <MouseIcon size={22} />
+                            </span>
                             <span>
                                 <strong>Desktop</strong>
                                 <small>Mouse and keyboard</small>

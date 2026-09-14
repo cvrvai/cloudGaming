@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ClockIcon, HourglassIcon } from './Icons';
 
 export default function StreamHUD({ sessionData, onSessionEnd }) {
   const [remainingSeconds, setRemainingSeconds] = useState(
@@ -38,7 +39,9 @@ export default function StreamHUD({ sessionData, onSessionEnd }) {
         </div>
 
         <div className="hud-timer-pill">
-          <span className="hud-timer-icon">⏳</span>
+          <span className="hud-timer-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
+            <ClockIcon size={14} />
+          </span>
           <span className="hud-time-val">{timeFormatted}</span>
           {isWarning && <span className="hud-warn-badge">Ending Soon</span>}
         </div>
@@ -52,7 +55,9 @@ export default function StreamHUD({ sessionData, onSessionEnd }) {
       {cutoffModalVisible && (
         <div className="cutoff-modal-backdrop">
           <div className="cutoff-modal-dialog glass-panel">
-            <div className="cutoff-icon">⌛</div>
+            <div className="cutoff-icon" style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px' }}>
+              <HourglassIcon size={38} />
+            </div>
             <h2>Session Time Concluded</h2>
             <p className="cutoff-message">
               Your reserved time slot on <strong>{sessionData?.machine_name}</strong> has reached its scheduled
