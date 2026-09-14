@@ -187,6 +187,23 @@ def init_db() -> None:
         ON node_games(game_id, status);
         """)
 
+        # 6. Machine Pairings table (Keypair codes for adding streaming PCs)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS machine_pairings (
+            id SERIAL PRIMARY KEY,
+            code TEXT UNIQUE NOT NULL,
+            admin_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            target_name TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            machine_id INTEGER REFERENCES machines(id) ON DELETE SET NULL,
+            hardware_specs JSONB,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            paired_at TEXT
+        );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_machine_pairings_code ON machine_pairings(code);")
+
         conn.commit()
         _seed_initial_data(conn)
 

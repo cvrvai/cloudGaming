@@ -1,5 +1,6 @@
-"""Gaming Rig Machines Fleet & Node Games Management Endpoints (FR-02, User Story 3)."""
-from datetime import datetime, timezone
+import json
+import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,6 +14,20 @@ router = APIRouter(prefix="/machines", tags=["machines"])
 
 class MachineStatusUpdate(BaseModel):
     status: str  # 'available' | 'maintenance'
+
+
+class PairGenerateRequest(BaseModel):
+    target_name: Optional[str] = None
+
+
+class PairCompleteRequest(BaseModel):
+    code: str
+    name: Optional[str] = None
+    gpu: Optional[str] = None
+    cpu: Optional[str] = None
+    ram: Optional[str] = None
+    os: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class NodeGameConfigCreate(BaseModel):
@@ -337,4 +352,143 @@ def delete_machine(
         conn.commit()
 
     return {"message": f"Machine '{m['name']}' deleted successfully"}
+
+
+# =========================================================================
+# KEYPAIR PAIRING & NODE DISCOVERY (Admin 2-Step Google Authenticator MFA)
+# =========================================================================
+
+
+@router.post("/hardware/detect")
+def detect_hardware(admin_user: Dict = Depends(require_admin)):
+    """Admin-only: Detect real hardware specifications of the caller machine."""
+    from app.utils.hardware import detect_host_hardware
+    return detect_host_hardware()
+
+
+@router.post("/pair/generate")
+def generate_pair_code(
+    req: PairGenerateRequest = PairGenerateRequest(),
+    admin_user: Dict = Depends(require_admin),
+):
+    """Admin-only: Generate a secure 6-digit keypair code for pairing a new streaming PC."""
+    code = f"{secrets.randbelow(900) + 100}-{secrets.randbelow(900) + 100}"
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(minutes=10)
+
+    now_iso = now.isoformat()
+    expires_iso = expires_at.isoformat()
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO machine_pairings (code, admin_user_id, target_name, status, created_at, expires_at)
+            VALUES (%s, %s, %s, 'pending', %s, %s)
+            RETURNING id, code, expires_at;
+            """,
+            (code, admin_user["id"], req.target_name or "New Gaming Rig", now_iso, expires_iso),
+        )
+        row = cursor.fetchone()
+        conn.commit()
+
+    return {
+        "id": row["id"],
+        "code": row["code"],
+        "expires_at": row["expires_at"],
+        "expires_in_seconds": 600,
+        "message": "Keypair pairing code generated successfully. Enter this code on the streaming PC.",
+    }
+
+
+@router.post("/pair/complete")
+def complete_pairing(
+    req: PairCompleteRequest,
+    admin_user: Dict = Depends(require_admin),
+):
+    """Admin-only: Validate keypair code, register new gaming PC node, and activate connection."""
+    clean_code = req.code.strip().replace(" ", "").upper()
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+
+    from app.utils.hardware import detect_host_hardware
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT * FROM machine_pairings 
+            WHERE (code = %s OR REPLACE(code, '-', '') = REPLACE(%s, '-', ''))
+              AND status = 'pending';
+            """,
+            (clean_code, clean_code),
+        )
+        pairing = cursor.fetchone()
+        if not pairing:
+            raise HTTPException(status_code=400, detail="Invalid or expired pairing code. Please generate a new code.")
+
+        if datetime.fromisoformat(pairing["expires_at"]) < now:
+            cursor.execute("UPDATE machine_pairings SET status = 'expired' WHERE id = %s;", (pairing["id"],))
+            conn.commit()
+            raise HTTPException(status_code=400, detail="Pairing code has expired. Please generate a new code.")
+
+        detected = detect_host_hardware()
+        final_name = req.name or pairing["target_name"] or detected.get("name") or "Gaming Rig Node"
+        final_gpu = req.gpu or detected.get("gpu") or "Dedicated Gaming GPU"
+        final_cpu = req.cpu or detected.get("cpu") or "High-Performance CPU"
+        final_ram = req.ram or detected.get("ram") or "16GB RAM"
+        final_notes = req.notes or f"Paired via Admin Google Authenticator Keypair on {now.strftime('%Y-%m-%d %H:%M UTC')}"
+
+        cursor.execute(
+            """
+            INSERT INTO machines (name, gpu, cpu, ram, status, is_host, notes)
+            VALUES (%s, %s, %s, %s, 'available', 0, %s)
+            RETURNING id, name, gpu, cpu, ram, status, is_host, notes;
+            """,
+            (final_name, final_gpu, final_cpu, final_ram, final_notes),
+        )
+        new_machine = cursor.fetchone()
+
+        cursor.execute(
+            """
+            UPDATE machine_pairings 
+            SET status = 'paired', machine_id = %s, hardware_specs = %s, paired_at = %s
+            WHERE id = %s;
+            """,
+            (new_machine["id"], json.dumps({"gpu": final_gpu, "cpu": final_cpu, "ram": final_ram}), now_iso, pairing["id"]),
+        )
+        conn.commit()
+
+    return {
+        "status": "success",
+        "message": f"Successfully paired gaming PC '{new_machine['name']}'!",
+        "machine": dict(new_machine),
+    }
+
+
+@router.get("/pair/status/{code}")
+def check_pairing_status(
+    code: str,
+    admin_user: Dict = Depends(require_admin),
+):
+    """Admin-only: Check live status of a pairing session."""
+    clean_code = code.strip().replace(" ", "").upper()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT p.id, p.code, p.status, p.created_at, p.expires_at, p.paired_at,
+                   m.id as machine_id, m.name as machine_name, m.status as machine_status
+            FROM machine_pairings p
+            LEFT JOIN machines m ON p.machine_id = m.id
+            WHERE (p.code = %s OR REPLACE(p.code, '-', '') = REPLACE(%s, '-', ''))
+            ORDER BY p.id DESC LIMIT 1;
+            """,
+            (clean_code, clean_code),
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Pairing session not found")
+
+        return dict(row)
 

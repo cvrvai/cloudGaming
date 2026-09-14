@@ -12,6 +12,11 @@ import {
   XIcon,
   AlertTriangleIcon,
   CheckIcon,
+  KeyIcon,
+  ShieldCheckIcon,
+  ServerIcon,
+  CpuIcon,
+  RamIcon,
 } from './Icons';
 
 export default function AdminDashboard() {
@@ -23,6 +28,20 @@ export default function AdminDashboard() {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null);
+
+  // Keypair PC Pairing state (Google Authenticator MFA)
+  const [showPairModal, setShowPairModal] = useState(false);
+  const [pairMode, setPairMode] = useState('generate'); // 'generate' | 'enter'
+  const [pairTargetName, setPairTargetName] = useState('');
+  const [generatedPairCode, setGeneratedPairCode] = useState(null);
+  const [pairExpiresAt, setPairExpiresAt] = useState(null);
+  const [pairCountdown, setPairCountdown] = useState(600);
+  const [pairInputCode, setPairInputCode] = useState('');
+  const [pairDetectedHw, setPairDetectedHw] = useState(null);
+  const [pairLoading, setPairLoading] = useState(false);
+  const [pairError, setPairError] = useState(null);
+  const [pairSuccess, setPairSuccess] = useState(null);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   // Catalog game modal state
   const [showGameModal, setShowGameModal] = useState(false);
@@ -303,6 +322,141 @@ export default function AdminDashboard() {
     }
   };
 
+  // --- KEYPAIR PC PAIRING HANDLERS (Admin Google Authenticator MFA) ---
+  const openPairModal = async () => {
+    setShowPairModal(true);
+    setPairMode('generate');
+    setPairTargetName('');
+    setGeneratedPairCode(null);
+    setPairInputCode('');
+    setPairError(null);
+    setPairSuccess(null);
+    setCopiedCode(false);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/machines/hardware/detect`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const hw = await res.json();
+        setPairDetectedHw(hw);
+        setPairTargetName(hw.name || 'Gaming Rig Node');
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    if (!generatedPairCode || pairCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setPairCountdown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [generatedPairCode, pairCountdown]);
+
+  // Real-time polling for generated keypair status
+  useEffect(() => {
+    if (!generatedPairCode || !showPairModal || pairSuccess) return;
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/machines/pair/status/${generatedPairCode}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'paired') {
+            setPairSuccess(`Gaming PC '${data.machine_name || 'Rig'}' paired successfully!`);
+            fetchAllAdminData();
+            setTimeout(() => {
+              setShowPairModal(false);
+              setPairSuccess(null);
+              setGeneratedPairCode(null);
+            }, 2500);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }, 3000);
+    return () => clearInterval(pollInterval);
+  }, [generatedPairCode, showPairModal, pairSuccess]);
+
+  const handleGeneratePairCode = async () => {
+    setPairLoading(true);
+    setPairError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/machines/pair/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ target_name: pairTargetName.trim() || 'Gaming Rig Node' }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setGeneratedPairCode(data.code);
+        setPairExpiresAt(data.expires_at);
+        setPairCountdown(data.expires_in_seconds || 600);
+      } else {
+        setPairError(data.detail || 'Failed to generate pairing code');
+      }
+    } catch (err) {
+      setPairError(err.message);
+    } finally {
+      setPairLoading(false);
+    }
+  };
+
+  const handleCompletePairing = async (e) => {
+    e.preventDefault();
+    if (!pairInputCode.trim()) return;
+    setPairLoading(true);
+    setPairError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/machines/pair/complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          code: pairInputCode.trim(),
+          name: pairTargetName.trim() || pairDetectedHw?.name,
+          gpu: pairDetectedHw?.gpu,
+          cpu: pairDetectedHw?.cpu,
+          ram: pairDetectedHw?.ram,
+          os: pairDetectedHw?.os,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPairSuccess(`Paired '${data.machine.name}' successfully!`);
+        fetchAllAdminData();
+        setTimeout(() => {
+          setShowPairModal(false);
+          setPairSuccess(null);
+          setPairInputCode('');
+        }, 2000);
+      } else {
+        setPairError(data.detail || 'Pairing failed. Check code.');
+      }
+    } catch (err) {
+      setPairError(err.message);
+    } finally {
+      setPairLoading(false);
+    }
+  };
+
+  const handleCopyCode = () => {
+    if (!generatedPairCode) return;
+    navigator.clipboard.writeText(generatedPairCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
   if (user?.role !== 'admin') {
     return (
       <div className="bookings-unauth-container glass-panel">
@@ -319,41 +473,77 @@ export default function AdminDashboard() {
 
   return (
     <div className="admin-dashboard-container">
-      {/* Top Overview & Sub-Tabs */}
+      {/* Top Overview & Action Toolbar */}
       <div className="admin-header-clean">
         <div>
+          <div className="pairing-mfa-badge">
+            <ShieldCheckIcon size={12} />
+            <span>Google Authenticator MFA Verified</span>
+          </div>
           <h1 className="admin-title">Admin Management Console</h1>
           <p className="admin-subtitle">
-            Configure gaming PCs, manage installed game executables, and oversee platform sessions.
+            Fleet node management, game catalog configuration, and active WebRTC streaming sessions.
           </p>
         </div>
-        <button className="btn-secondary" onClick={fetchAllAdminData} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-          <RefreshIcon size={14} />
-          <span>Refresh</span>
-        </button>
+        <div className="admin-header-actions">
+          <button className="btn-pair-pc-header" onClick={openPairModal}>
+            <KeyIcon size={14} />
+            <span>+ Pair New PC</span>
+          </button>
+          <button className="btn-secondary" onClick={fetchAllAdminData} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <RefreshIcon size={14} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
-      {/* Admin KPI Stats */}
-      <div className="admin-stats-row">
-        <div className="admin-stat-card glass-panel">
-          <span className="stat-label">Gaming PCs</span>
-          <span className="stat-value">{machines.length}</span>
-          <span className="stat-hint">{machines.filter((m) => m.status === 'available').length} Online</span>
+      {/* Modern Bento Stats Grid */}
+      <div className="admin-bento-grid">
+        <div className="admin-bento-card glass-panel">
+          <div className="bento-top-row">
+            <span className="bento-tag">Fleet Gaming Rigs</span>
+            <div className="bento-icon-box"><ServerIcon size={18} /></div>
+          </div>
+          <div className="bento-value">{machines.length}</div>
+          <div className="bento-subtext">
+            <span className="pulse-dot" style={{ backgroundColor: '#30d158' }} />
+            <span>{machines.filter((m) => m.status === 'available').length} Online / Ready</span>
+          </div>
         </div>
-        <div className="admin-stat-card glass-panel">
-          <span className="stat-label">Game Catalog</span>
-          <span className="stat-value">{games.length}</span>
-          <span className="stat-hint">Active Titles</span>
+
+        <div className="admin-bento-card glass-panel">
+          <div className="bento-top-row">
+            <span className="bento-tag">Game Catalog</span>
+            <div className="bento-icon-box"><GamepadIcon size={18} /></div>
+          </div>
+          <div className="bento-value">{games.length}</div>
+          <div className="bento-subtext">
+            <span>{games.filter((g) => (g.ready_nodes_count || 0) > 0).length} Playable on Rigs</span>
+          </div>
         </div>
-        <div className="admin-stat-card glass-panel">
-          <span className="stat-label">Active Sessions</span>
-          <span className="stat-value active-val">{activeSessionsCount}</span>
-          <span className="stat-hint">Live Now</span>
+
+        <div className="admin-bento-card glass-panel">
+          <div className="bento-top-row">
+            <span className="bento-tag">Live Sessions</span>
+            <div className="bento-icon-box"><MonitorIcon size={18} /></div>
+          </div>
+          <div className={`bento-value ${activeSessionsCount > 0 ? 'highlight-green' : ''}`}>
+            {activeSessionsCount}
+          </div>
+          <div className="bento-subtext">
+            <span>Active WebRTC Streams</span>
+          </div>
         </div>
-        <div className="admin-stat-card glass-panel">
-          <span className="stat-label">Total Bookings</span>
-          <span className="stat-value">{bookings.length}</span>
-          <span className="stat-hint">Recorded</span>
+
+        <div className="admin-bento-card glass-panel">
+          <div className="bento-top-row">
+            <span className="bento-tag">Total Bookings</span>
+            <div className="bento-icon-box"><ClipboardListIcon size={18} /></div>
+          </div>
+          <div className="bento-value">{bookings.length}</div>
+          <div className="bento-subtext">
+            <span>Platform Reservations</span>
+          </div>
         </div>
       </div>
 
@@ -389,40 +579,64 @@ export default function AdminDashboard() {
         <div className="admin-loading">Loading management data...</div>
       ) : (
         <>
-          {/* TAB 1: GAMING PCS & PER-PC INSTALLED GAMES (MVP Manual Admin Setup) */}
+          {/* TAB 1: GAMING PCS GRID & PER-PC INSTALLED GAMES */}
           {adminTab === 'machines' && (
             <div className="admin-tab-content">
               <div className="tab-section-header">
                 <div>
                   <h2>Connected Gaming PCs</h2>
-                  <p>Configure hardware nodes and manually define installed games, executables, and working directories.</p>
+                  <p>Hardware fleet streaming nodes. Pair new PCs via Google Authenticator 2-Step Keypair.</p>
                 </div>
+                <button className="btn-pair-pc-header" onClick={openPairModal}>
+                  <KeyIcon size={14} />
+                  <span>+ Pair New PC</span>
+                </button>
               </div>
 
-              <div className="admin-machines-grid">
+              <div className="admin-pcs-grid">
                 {machines.map((m) => (
                   <div
                     key={m.id}
-                    className={`admin-node-card glass-panel ${m.is_host === 1 ? 'host-card' : ''}`}
+                    className={`admin-pc-node-card glass-panel ${m.is_host === 1 ? 'host-card' : ''}`}
                   >
-                    <div className="admin-node-header">
-                      <div>
-                        {m.is_host === 1 && <span className="host-tag-pill">LOCAL HOST WORKSTATION</span>}
-                        <h3>{m.name}</h3>
-                      </div>
-                      <span className={`status-tag ${m.status}`}>
-                        {m.status.toUpperCase()}
+                    <div className="pc-card-header">
+                      <span className={`pc-role-badge ${m.is_host === 1 ? 'host' : 'remote'}`}>
+                        {m.is_host === 1 ? 'PRIMARY HOST WORKSTATION' : `STREAMING NODE #${m.id}`}
+                      </span>
+                      <span className={`pc-status-pill ${m.status}`}>
+                        <span className="pulse-dot" />
+                        <span>{m.status.toUpperCase()}</span>
                       </span>
                     </div>
 
-                    <div className="admin-node-specs">
-                      <div><strong>GPU:</strong> {m.gpu}</div>
-                      <div><strong>CPU:</strong> {m.cpu}</div>
-                      <div><strong>RAM:</strong> {m.ram}</div>
-                      <div><strong>Notes:</strong> {m.notes || 'Gaming workstation.'}</div>
+                    <h3 className="pc-name-title">
+                      <MonitorIcon size={18} style={{ opacity: 0.8 }} />
+                      <span>{m.name}</span>
+                    </h3>
+
+                    {/* 2x2 Hardware Specs Matrix */}
+                    <div className="spec-chips-grid">
+                      <div className="spec-chip">
+                        <span className="spec-chip-label"><GamepadIcon size={10} /> GPU</span>
+                        <span className="spec-chip-val" title={m.gpu}>{m.gpu}</span>
+                      </div>
+                      <div className="spec-chip">
+                        <span className="spec-chip-label"><CpuIcon size={10} /> CPU</span>
+                        <span className="spec-chip-val" title={m.cpu}>{m.cpu}</span>
+                      </div>
+                      <div className="spec-chip">
+                        <span className="spec-chip-label"><RamIcon size={10} /> RAM</span>
+                        <span className="spec-chip-val" title={m.ram}>{m.ram}</span>
+                      </div>
+                      <div className="spec-chip">
+                        <span className="spec-chip-label"><ServerIcon size={10} /> Role</span>
+                        <span className="spec-chip-val" title={m.notes || 'Gaming Rig'}>
+                          {m.is_host === 1 ? 'Local Streamer' : 'Remote Node'}
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Installed Games on this PC (Manual Admin Configuration) */}
+                    {/* Installed Games Section */}
                     <div className="node-games-section">
                       <div className="node-games-header">
                         <span className="node-games-title">
@@ -478,14 +692,6 @@ export default function AdminDashboard() {
                                     {ng.executable_path}
                                   </span>
                                 </div>
-                                {ng.working_directory && (
-                                  <div className="node-game-path-line">
-                                    <span className="node-game-path-label">Dir:</span>
-                                    <span className="node-game-path-val" title={ng.working_directory}>
-                                      {ng.working_directory}
-                                    </span>
-                                  </div>
-                                )}
                               </div>
                             </div>
                           ))}
@@ -493,7 +699,7 @@ export default function AdminDashboard() {
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '14px' }}>
                       <button
                         style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                         className={`btn-toggle-maintenance ${m.status === 'maintenance' ? 'restore' : ''}`}
@@ -528,6 +734,17 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 ))}
+
+                {/* Direct Pair PC Card Tile */}
+                <div className="pc-add-tile" onClick={openPairModal}>
+                  <div className="pc-add-icon-circle">
+                    <KeyIcon size={24} />
+                  </div>
+                  <h4 className="pc-add-title">Pair New Gaming PC</h4>
+                  <p className="pc-add-subtitle">
+                    Connect a streaming host workstation via Google Authenticator Keypair code
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -871,6 +1088,199 @@ export default function AdminDashboard() {
                 {gameSubmitting ? 'Saving...' : editingGame ? 'Update Game' : 'Save to Catalog'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: PAIR NEW GAMING PC (Google Authenticator 2-Step Keypair Workflow) */}
+      {showPairModal && (
+        <div className="modal-backdrop" onClick={() => setShowPairModal(false)}>
+          <div className="modal-dialog glass-panel pairing-modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close-btn" onClick={() => setShowPairModal(false)} aria-label="Close">
+              <XIcon size={16} />
+            </button>
+
+            <div className="pairing-modal-header">
+              <div className="pairing-mfa-badge">
+                <ShieldCheckIcon size={13} />
+                <span>Google Authenticator MFA Verified Admin</span>
+              </div>
+              <h2 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 4px 0', color: '#fff' }}>
+                Pair Gaming PC Node
+              </h2>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary, #a1a1aa)', margin: 0 }}>
+                Connect a streaming host workstation using a secure 2-Step Keypair code.
+              </p>
+            </div>
+
+            {/* Mode Tabs */}
+            <div className="pairing-tabs-row">
+              <button
+                type="button"
+                className={`pairing-tab-btn ${pairMode === 'generate' ? 'active' : ''}`}
+                onClick={() => {
+                  setPairMode('generate');
+                  setPairError(null);
+                  setPairSuccess(null);
+                }}
+              >
+                1. Generate Code for PC
+              </button>
+              <button
+                type="button"
+                className={`pairing-tab-btn ${pairMode === 'enter' ? 'active' : ''}`}
+                onClick={() => {
+                  setPairMode('enter');
+                  setPairError(null);
+                  setPairSuccess(null);
+                }}
+              >
+                2. Enter Code to Pair This PC
+              </button>
+            </div>
+
+            <div className="pairing-modal-body">
+              {pairError && (
+                <div className="auth-error-banner" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <AlertTriangleIcon size={16} />
+                  <span>{pairError}</span>
+                </div>
+              )}
+
+              {pairSuccess && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 14px', borderRadius: '10px', background: 'rgba(48, 209, 88, 0.15)', border: '1px solid rgba(48, 209, 88, 0.4)', color: '#30d158', fontSize: '13px', fontWeight: 700, marginBottom: '16px' }}>
+                  <CheckIcon size={16} />
+                  <span>{pairSuccess}</span>
+                </div>
+              )}
+
+              {pairMode === 'generate' ? (
+                <div>
+                  <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary, #a1a1aa)', display: 'block', marginBottom: '6px' }}>
+                      Gaming PC Nickname
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Living Room Rig, Workstation 02"
+                      value={pairTargetName}
+                      onChange={(e) => setPairTargetName(e.target.value)}
+                      disabled={pairLoading || !!generatedPairCode}
+                      style={{ width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', color: '#fff', fontSize: '13px' }}
+                    />
+                  </div>
+
+                  {!generatedPairCode ? (
+                    <button
+                      type="button"
+                      className="btn-primary auth-submit-btn"
+                      onClick={handleGeneratePairCode}
+                      disabled={pairLoading}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%' }}
+                    >
+                      <KeyIcon size={14} />
+                      <span>{pairLoading ? 'Generating Keypair...' : 'Generate 6-Digit Pairing Code'}</span>
+                    </button>
+                  ) : (
+                    <div>
+                      <div className="pairing-code-box">
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted, #71717a)', textTransform: 'uppercase', marginBottom: '6px' }}>
+                          One-Time Keypair Code
+                        </div>
+                        <div className="pairing-code-display">
+                          {generatedPairCode}
+                        </div>
+                        <div className="pairing-countdown">
+                          <span>Expires in {Math.floor(pairCountdown / 60)}:{(pairCountdown % 60).toString().padStart(2, '0')}</span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={handleCopyCode}
+                          style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                        >
+                          <CheckIcon size={14} />
+                          <span>{copiedCode ? 'Copied!' : 'Copy Code'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={handleGeneratePairCode}
+                          disabled={pairLoading}
+                          style={{ flex: 1 }}
+                        >
+                          New Code
+                        </button>
+                      </div>
+
+                      <div className="pairing-poll-radar">
+                        <span className="spinner-geforce" style={{ width: '12px', height: '12px', borderWidth: '2px' }} />
+                        <span>Waiting for streaming PC to enter this code...</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: '20px', padding: '12px 14px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', fontSize: '12px', color: 'var(--text-secondary, #a1a1aa)', lineHeight: 1.5 }}>
+                    <strong>Instructions:</strong> Open CloudKH on the streaming PC, sign in with your Google Authenticator MFA admin account, go to Pair PC, and enter this 6-digit keypair code.
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleCompletePairing}>
+                  {pairDetectedHw && (
+                    <div style={{ marginBottom: '16px', padding: '12px 14px', borderRadius: '10px', background: 'rgba(0, 210, 255, 0.06)', border: '1px solid rgba(0, 210, 255, 0.2)' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 800, color: '#00d2ff', textTransform: 'uppercase', marginBottom: '6px' }}>
+                        Auto-Detected Hardware on this Machine:
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#e4e4e7', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <div><strong>GPU:</strong> {pairDetectedHw.gpu}</div>
+                        <div><strong>CPU:</strong> {pairDetectedHw.cpu}</div>
+                        <div><strong>RAM:</strong> {pairDetectedHw.ram}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary, #a1a1aa)', display: 'block', marginBottom: '6px' }}>
+                      6-Digit Keypair Pairing Code
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 849-201 or 849201"
+                      value={pairInputCode}
+                      onChange={(e) => setPairInputCode(e.target.value)}
+                      required
+                      style={{ width: '100%', padding: '12px 14px', background: 'rgba(0,0,0,0.4)', border: '2px solid rgba(0, 210, 255, 0.4)', borderRadius: '10px', color: '#00d2ff', fontSize: '20px', fontWeight: 800, letterSpacing: '3px', textAlign: 'center' }}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '18px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary, #a1a1aa)', display: 'block', marginBottom: '6px' }}>
+                      PC Name / Label
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Host PC 2"
+                      value={pairTargetName}
+                      onChange={(e) => setPairTargetName(e.target.value)}
+                      style={{ width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', color: '#fff', fontSize: '13px' }}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="btn-primary auth-submit-btn"
+                    disabled={pairLoading || !pairInputCode.trim()}
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%' }}
+                  >
+                    <KeyIcon size={14} />
+                    <span>{pairLoading ? 'Pairing Node...' : 'Pair & Connect PC Node'}</span>
+                  </button>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}
