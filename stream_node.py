@@ -215,7 +215,7 @@ def main():
         api_base = args.api.strip()
         if not api_base:
             env_api = os.environ.get("CLOUDKH_API_URL", "").strip()
-            default_api = env_api or config.get("api_base") or "http://localhost:8000"
+            default_api = env_api or config.get("api_base") or "https://api.cloudkh.space"
             entered = input(f"Enter CloudKH Backend API URL [{default_api}]: ").strip()
             api_base = entered if entered else default_api
 
