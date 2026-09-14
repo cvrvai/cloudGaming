@@ -21,8 +21,10 @@ class Settings(BaseSettings):
     # Access-protected frontend domain when using a reverse tunnel.
     public_frontend_url: str = ""
 
-    # Database
+    # Database & Cache
     database_url: str = "postgresql://cloudkh:cloudkh_pass@127.0.0.1:5432/cloudkh"
+    # Optional Redis URL (e.g. Upstash rediss://default:...@singapore-...upstash.io:6379 or Render Redis)
+    redis_url: str = ""
 
     # Security & Authentication
     jwt_secret: str = "cloudkh-super-secure-jwt-secret-key-2026"
