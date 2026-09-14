@@ -4,13 +4,16 @@ import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
+import jwt
 import pyotp
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
 
+from app.core.config import settings
 from app.db import get_db
 from app.services.audit import record_audit_event
 from app.services.auth import (
+    JWT_ALGORITHM,
     create_access_token,
     decrypt_mfa_secret,
     encrypt_mfa_secret,
@@ -21,7 +24,7 @@ from app.services.auth import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# In-memory challenge store with thread-safety and 5-minute TTL
+# In-memory challenge store with thread-safety and 15-minute TTL (legacy fallback)
 _mfa_challenges: Dict[str, Dict[str, Any]] = {}
 _challenges_lock = threading.Lock()
 
@@ -162,7 +165,6 @@ def login(req: LoginRequest, request: Request):
         }
 
     # 2. Administrator accounts MUST complete two-step MFA verification
-    challenge_id = secrets.token_urlsafe(32)
     mfa_setup_required = not bool(user["mfa_enabled"])
     pending_secret = None
     provisioning_uri = None
@@ -172,17 +174,25 @@ def login(req: LoginRequest, request: Request):
         totp = pyotp.TOTP(pending_secret)
         provisioning_uri = totp.provisioning_uri(name=user["email"], issuer_name="CloudKH")
 
+    # Cryptographically sign the MFA challenge into a stateless token (survives restarts, 15m expiry)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+    challenge_payload = {
+        "type": "mfa_challenge",
+        "user_id": user["id"],
+        "email": user["email"],
+        "name": user["name"],
+        "role": user["role"],
+        "created_at": user["created_at"],
+        "mfa_setup_required": mfa_setup_required,
+        "pending_secret": pending_secret,
+        "exp": expires_at,
+    }
+    challenge_id = jwt.encode(challenge_payload, settings.jwt_secret, algorithm=JWT_ALGORITHM)
+
     with _challenges_lock:
         _cleanup_expired_challenges()
         _mfa_challenges[challenge_id] = {
-            "user_id": user["id"],
-            "email": user["email"],
-            "name": user["name"],
-            "role": user["role"],
-            "created_at": user["created_at"],
-            "mfa_setup_required": mfa_setup_required,
-            "pending_secret": pending_secret,
-            "expires_at": datetime.now(timezone.utc) + timedelta(minutes=5),
+            **challenge_payload,
             "failed_attempts": 0,
         }
 
@@ -202,38 +212,30 @@ def verify_mfa(req: MFAVerifyRequest, request: Request):
     client_ip = request.client.host if request.client else None
     now = datetime.now(timezone.utc)
 
-    with _challenges_lock:
-        _cleanup_expired_challenges()
-        challenge = _mfa_challenges.get(req.challenge_id)
+    challenge = None
+    # 1. Decode cryptographically signed challenge token
+    try:
+        payload = jwt.decode(req.challenge_id, settings.jwt_secret, algorithms=[JWT_ALGORITHM])
+        if payload.get("type") == "mfa_challenge":
+            challenge = payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Security challenge has expired. Please click 'Back to Sign In' and enter your password again.",
+        )
+    except Exception:
+        pass
+
+    # 2. Fallback to memory store if legacy token
+    if not challenge:
+        with _challenges_lock:
+            _cleanup_expired_challenges()
+            challenge = _mfa_challenges.get(req.challenge_id)
 
     if not challenge:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Security challenge has expired or is invalid. Please sign in again.",
-        )
-
-    if challenge["expires_at"] < now:
-        with _challenges_lock:
-            _mfa_challenges.pop(req.challenge_id, None)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Security challenge has expired. Please sign in again.",
-        )
-
-    if challenge["failed_attempts"] >= 5:
-        with _challenges_lock:
-            _mfa_challenges.pop(req.challenge_id, None)
-        record_audit_event(
-            action="MFA_BLOCKED",
-            actor_user_id=challenge["user_id"],
-            role="admin",
-            ip=client_ip,
-            result="BLOCKED",
-            details="Too many failed MFA verification attempts",
-        )
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many failed verification attempts. Please sign in again.",
+            detail="Security challenge has expired or is invalid. Please click 'Back to Sign In' and sign in again.",
         )
 
     code_clean = req.code.strip().replace(" ", "").replace("-", "")
@@ -259,13 +261,14 @@ def verify_mfa(req: MFAVerifyRequest, request: Request):
             detail="MFA secret could not be resolved.",
         )
 
-    # Verify code using RFC 6238 TOTP (allowing +/- 1 time step drift of 30s)
+    # Verify code using RFC 6238 TOTP (allowing +/- 2 time steps drift = 60s window for mobile clock variance)
     totp = pyotp.TOTP(totp_secret)
-    is_valid = totp.verify(code_clean, valid_window=1)
+    is_valid = totp.verify(code_clean, valid_window=2)
 
     if not is_valid:
         with _challenges_lock:
-            challenge["failed_attempts"] += 1
+            if req.challenge_id in _mfa_challenges:
+                _mfa_challenges[req.challenge_id]["failed_attempts"] = _mfa_challenges[req.challenge_id].get("failed_attempts", 0) + 1
         record_audit_event(
             action="MFA_FAILED",
             actor_user_id=challenge["user_id"],
