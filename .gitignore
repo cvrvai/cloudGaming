@@ -21,3 +21,4 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 backend/cloudkh.db
+.node_config.json
