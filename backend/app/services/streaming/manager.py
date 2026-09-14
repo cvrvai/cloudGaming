@@ -46,10 +46,12 @@ class StreamManager:
         height=None,
         fps=None,
         bitrate=None,
+        window_handle=None,
     ) -> dict:
         """Create a new peer for a browser offer and return the SDP answer.
 
         Optional per-stream quality overrides; None keeps the .env default.
+        Optional window_handle captures only the specified HWND via WGC.
         """
         if not GSTREAMER_AVAILABLE:
             raise RuntimeError(f"GStreamer not available: {self.unavailable_reason}")
@@ -74,8 +76,8 @@ class StreamManager:
 
         pc_id = str(uuid.uuid4())[:8]
         logger.info(
-            "[%s] Stream quality: %dx%d @ %dfps, %.1f Mbps",
-            pc_id, width, height, fps, bitrate / 1_000_000,
+            "[%s] Stream quality: %dx%d @ %dfps, %.1f Mbps (window_handle: %s)",
+            pc_id, width, height, fps, bitrate / 1_000_000, window_handle,
         )
         peer = GStreamerWebRTCPeer(
             pc_id=pc_id,
@@ -87,6 +89,7 @@ class StreamManager:
             capture_use_damage=settings.capture_use_damage,
             stun_server=settings.stun_server,
             on_closed=self._remove_peer,
+            window_handle=window_handle,
         )
         with self._lock:
             self._peers[pc_id] = peer

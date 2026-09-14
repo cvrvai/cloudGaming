@@ -223,6 +223,8 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
 
     host_agent.register_exit_callback(on_game_exit)
 
+    reconnect_delay = 3
+
     while True:
         hb_task = None
         try:
@@ -233,6 +235,7 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                 ws_url,
                 ping_interval=20,
                 ping_timeout=15,
+                open_timeout=30,
                 max_size=10 * 1024 * 1024,
             ) as ws:
                 active_ws = ws
@@ -278,14 +281,37 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                         print(f"\n[{ts}] [STREAM] Incoming session offer from browser client...")
 
                         # Privacy / Kiosk Protection: Strictly prohibit streaming Windows desktop
-                        # Wait up to 10 seconds for authorized game process to be actively running
+                        # Wait up to 15 seconds for authorized game process and its native window HWND
                         wait_sec = 0.0
-                        while not host_agent.is_game_running() and wait_sec < 10.0:
+                        game_hwnd = None
+                        print(f"[{ts}] [STREAM] Waiting for game window...")
+                        while wait_sec < 15.0:
+                            if host_agent.is_game_running():
+                                game_hwnd = host_agent.get_active_game_window_handle()
+                                if game_hwnd:
+                                    host_agent.bring_game_to_foreground(game_hwnd)
+                                    break
                             await asyncio.sleep(0.5)
                             wait_sec += 0.5
 
-                        if not host_agent.is_game_running():
+                        if not game_hwnd and not host_agent.is_game_running():
                             err_msg = "Streaming blocked: No authorized game is actively running on this PC. Windows desktop interface streaming is disabled."
+                            print(f"[{ts}] [!] {err_msg}")
+                            await ws.send(json.dumps({
+                                "type": "stream_error",
+                                "correlation_id": corr_id,
+                                "error": err_msg,
+                            }))
+                            continue
+
+                        if not game_hwnd:
+                            # If game is running but window handle couldn't be detected yet, try one more time
+                            game_hwnd = host_agent.get_active_game_window_handle()
+                            if game_hwnd:
+                                host_agent.bring_game_to_foreground(game_hwnd)
+
+                        if not game_hwnd:
+                            err_msg = "Streaming blocked: Game window not found or minimized. Windows desktop interface streaming is restricted."
                             print(f"[{ts}] [!] {err_msg}")
                             await ws.send(json.dumps({
                                 "type": "stream_error",
@@ -296,22 +322,26 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
 
                         # Ensure watchdog is actively monitoring process lifecycle
                         if host_agent.is_game_running() and not host_agent._watchdog_active:
-                            host_agent._start_process_watchdog("Metal Slug Attack Reloaded", 1)
+                            active_title = host_agent._active_game_info.get("title", "Game") if host_agent._active_game_info else "Game"
+                            active_id = host_agent._active_game_info.get("game_id", 1) if host_agent._active_game_info else 1
+                            host_agent._start_process_watchdog(active_title, active_id)
 
                         try:
+                            print(f"[{ts}] [STREAM] Locked onto game window HWND 0x{game_hwnd:x}. Initializing WGC exclusive capture...")
                             answer = await stream_manager.create_peer_answer(
                                 offer["sdp"],
                                 width=offer.get("width"),
                                 height=offer.get("height"),
                                 fps=offer.get("fps"),
                                 bitrate=offer.get("bitrate"),
+                                window_handle=game_hwnd,
                             )
                             await ws.send(json.dumps({
                                 "type": "stream_answer",
                                 "correlation_id": corr_id,
                                 "answer": answer,
                             }))
-                            print(f"[{ts}] [STREAM] WebRTC answer dispatched. DirectX 11 capture pipeline active at 60 FPS!")
+                            print(f"[{ts}] [STREAM] WebRTC answer dispatched. DirectX 11 WGC exclusive capture active at 60 FPS!")
                         except Exception as exc:
                             print(f"[{ts}] [!] Stream negotiation failed: {exc}")
                             await ws.send(json.dumps({

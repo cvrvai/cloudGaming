@@ -66,6 +66,7 @@ class GStreamerWebRTCPeer:
         capture_use_damage: bool,
         stun_server: str,
         on_closed=None,
+        window_handle: Optional[int] = None,
     ):
         self.pc_id = pc_id
         self.width = max(2, width - (width % 2))
@@ -76,6 +77,7 @@ class GStreamerWebRTCPeer:
         self.capture_use_damage = capture_use_damage
         self.stun_server = stun_server
         self.on_closed = on_closed
+        self.window_handle = window_handle
         self.pipeline: Optional["Gst.Pipeline"] = None
         self.webrtc: Optional["Gst.Element"] = None
         self._q_out: Optional["Gst.Element"] = None
@@ -88,11 +90,25 @@ class GStreamerWebRTCPeer:
     # ------------------------------------------------------------------
     def _pipeline_description_windows(self) -> str:
         leaky = "queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 leaky=downstream"
-        # Windows d3d11screencapturesrc uses 0-based monitor-index (0 is primary display).
-        # Convert 1-based index (e.g. default 1) to 0.
-        mon_idx = max(0, self.monitor_index - 1) if self.monitor_index > 0 else 0
+        if self.window_handle:
+            capture_elem = (
+                f"d3d11screencapturesrc capture-api=wgc "
+                f"window-handle={self.window_handle} "
+                f"window-capture-mode=client "
+                f"show-border=false"
+            )
+            logger.info(
+                "[%s] WebRTC using DirectX 11 Windows Graphics Capture (WGC) for window HWND 0x%x",
+                self.pc_id,
+                self.window_handle,
+            )
+        else:
+            mon_idx = max(0, self.monitor_index - 1) if self.monitor_index > 0 else 0
+            capture_elem = f"d3d11screencapturesrc monitor-index={mon_idx}"
+            logger.info("[%s] WebRTC using monitor capture (index %d)", self.pc_id, mon_idx)
+
         return (
-            f"d3d11screencapturesrc monitor-index={mon_idx} "
+            f"{capture_elem} "
             f"! {leaky} "
             f"! d3d11convert "
             f"! video/x-raw(memory:D3D11Memory),width={self.width},height={self.height},framerate={self.fps}/1,format=NV12 "
@@ -161,6 +177,15 @@ class GStreamerWebRTCPeer:
         if sys.platform.startswith("linux"):
             pipeline_str = self._pipeline_description_linux()
         else:
+            if sys.platform == "win32":
+                try:
+                    import ctypes
+                    user32 = ctypes.windll.user32
+                    hdesk = user32.OpenDesktopW("default", 0, False, 0x01FF)
+                    if hdesk:
+                        user32.SetThreadDesktop(hdesk)
+                except Exception:
+                    pass
             pipeline_str = self._pipeline_description_windows()
 
         pipeline = Gst.parse_launch(pipeline_str)

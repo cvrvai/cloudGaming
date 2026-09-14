@@ -142,6 +142,7 @@ class GamingPCAgent:
         self._authorized_game_exes: set = set()
         self._watchdog_active = False
         self._lock = threading.Lock()
+        self._load_authorized_game_exes()
 
     def register_exit_callback(self, callback) -> None:
         """Register a function to execute immediately when the game process terminates."""
@@ -153,7 +154,7 @@ class GamingPCAgent:
         try:
             with get_db() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT executable_path FROM node_games WHERE enabled = 1;")
+                cursor.execute("SELECT executable_path FROM node_games WHERE enabled IS TRUE;")
                 rows = cursor.fetchall()
                 for row in rows:
                     p = row.get("executable_path", "").strip()
@@ -420,24 +421,122 @@ class GamingPCAgent:
         t = threading.Thread(target=_watch, name=f"Watchdog-{title}", daemon=True)
         t.start()
 
+    def get_active_game_window_handle(self) -> Optional[int]:
+        """Find the native HWND for any authorized running game window on Windows.
+
+        Uses OpenDesktopW('default') and EnumDesktopWindows to reliably discover
+        windows on the interactive desktop, matching against authorized game exes,
+        and returning the window with the largest visible area.
+        """
+        if sys.platform != "win32":
+            return None
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+
+        hdesk = None
+        try:
+            hdesk = user32.OpenDesktopW("default", 0, False, 0x01FF)
+            if hdesk:
+                user32.SetThreadDesktop(hdesk)
+        except Exception:
+            pass
+
+        # Make sure authorized exes are loaded
+        if not self._authorized_game_exes:
+            self._load_authorized_game_exes()
+
+        target_exes_lower = {x.lower() for x in self._authorized_game_exes}
+        candidates = []
+
+        def enum_cb(hwnd, lparam):
+            if not user32.IsWindowVisible(hwnd):
+                return 1
+            rc = wintypes.RECT()
+            user32.GetWindowRect(hwnd, ctypes.byref(rc))
+            w = max(0, rc.right - rc.left)
+            h = max(0, rc.bottom - rc.top)
+            if w < 100 or h < 100:
+                return 1
+
+            pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            hproc = kernel32.OpenProcess(0x1000, False, pid.value)
+            if hproc:
+                buf = ctypes.create_unicode_buffer(512)
+                size = wintypes.DWORD(512)
+                if kernel32.QueryFullProcessImageNameW(hproc, 0, buf, ctypes.byref(size)):
+                    exe = Path(buf.value).name.lower()
+                    if exe in target_exes_lower:
+                        candidates.append((w * h, hwnd, exe, w, h))
+                kernel32.CloseHandle(hproc)
+            return 1
+
+        CMP = ctypes.WINFUNCTYPE(ctypes.c_int, wintypes.HWND, wintypes.LPARAM)
+        try:
+            user32.EnumDesktopWindows(hdesk if hdesk else 0, CMP(enum_cb), 0)
+        except Exception as exc:
+            logger.debug("[Agent] EnumDesktopWindows error: %s", exc)
+
+        if candidates:
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            chosen_hwnd = candidates[0][1]
+            logger.info(
+                "[Agent] Found active game window HWND: %s (0x%x, exe: %s, %dx%d)",
+                chosen_hwnd, chosen_hwnd, candidates[0][2], candidates[0][3], candidates[0][4]
+            )
+            return chosen_hwnd
+        return None
+
+    def bring_game_to_foreground(self, hwnd: Optional[int] = None) -> None:
+        """Bring the specified or active game window to the foreground and maximize it."""
+        if sys.platform != "win32":
+            return
+        if not hwnd:
+            hwnd = self.get_active_game_window_handle()
+        if not hwnd:
+            return
+
+        import ctypes
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+
+        try:
+            hdesk = user32.OpenDesktopW("default", 0, False, 0x01FF)
+            if hdesk:
+                user32.SetThreadDesktop(hdesk)
+
+            fg_hwnd = user32.GetForegroundWindow()
+            fg_tid = user32.GetWindowThreadProcessId(fg_hwnd, None) if fg_hwnd else 0
+            cur_tid = kernel32.GetCurrentThreadId()
+
+            if fg_tid and fg_tid != cur_tid:
+                user32.AttachThreadInput(cur_tid, fg_tid, True)
+
+            # SW_RESTORE = 9, SW_MAXIMIZE = 3
+            user32.ShowWindow(hwnd, 9)
+            user32.ShowWindow(hwnd, 3)
+            user32.SetForegroundWindow(hwnd)
+            user32.SetFocus(hwnd)
+
+            if fg_tid and fg_tid != cur_tid:
+                user32.AttachThreadInput(cur_tid, fg_tid, False)
+
+            logger.info("[Agent] Brought game window (HWND 0x%x) to foreground & maximized.", hwnd)
+        except Exception as e:
+            logger.debug("[Agent] Could not bring game window to foreground: %s", e)
+
     def _focus_game_window(self) -> None:
         """Bring the newly launched game window to foreground on Windows."""
-        for _ in range(8):
-            time.sleep(1.5)
-            try:
-                running = _get_running_process_names()
-                matched = self._authorized_game_exes & running
-                if matched:
-                    target_stem = next(iter(matched)).replace(".exe", "")
-                    cmd = (
-                        f"$p = Get-Process -Name '{target_stem}' -ErrorAction SilentlyContinue | Select-Object -First 1; "
-                        f"if ($p) {{ (New-Object -ComObject WScript.Shell).AppActivate($p.Id) }}"
-                    )
-                    subprocess.run(["powershell", "-NoProfile", "-Command", cmd], timeout=5, capture_output=True)
-                    logger.info("[Agent] Focused window for '%s'", target_stem)
-                    break
-            except Exception as e:
-                logger.debug("[Agent] Could not focus window: %s", e)
+        for _ in range(10):
+            time.sleep(1.0)
+            hwnd = self.get_active_game_window_handle()
+            if hwnd:
+                self.bring_game_to_foreground(hwnd)
+                logger.info("[Agent] Focused game window HWND 0x%x", hwnd)
+                break
 
     def _handle_process_exit(self, pid: int, title: str, game_id: int) -> None:
         """Invoked immediately when the game process terminates."""

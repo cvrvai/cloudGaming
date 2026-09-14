@@ -47,6 +47,9 @@ async def create_stream(offer: SdpOffer) -> dict:
                 status_code=403,
                 detail="Streaming blocked: No authorized game is actively running. Windows desktop interface streaming is disabled.",
             )
+        game_hwnd = host_agent.get_active_game_window_handle()
+        if game_hwnd:
+            host_agent.bring_game_to_foreground(game_hwnd)
         try:
             return await stream_manager.create_peer_answer(
                 offer.sdp,
@@ -54,6 +57,7 @@ async def create_stream(offer: SdpOffer) -> dict:
                 height=offer.height,
                 fps=offer.fps,
                 bitrate=offer.bitrate,
+                window_handle=game_hwnd,
             )
         except Exception as exc:
             logger.exception("Failed to negotiate local stream")
