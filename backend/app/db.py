@@ -237,8 +237,8 @@ def _seed_initial_data(conn: Any) -> None:
             ("System Administrator", settings.bootstrap_admin_email, admin_hash, admin_salt, now_iso),
         )
 
-    # 2. Remove legacy auto-seeded host PC so all gaming PCs are dynamically paired via terminal
-    cursor.execute("DELETE FROM machines WHERE is_host = 1 OR notes LIKE 'Local Host Gaming Workstation%';")
+    # 2. Clean up legacy hardcoded host workstation note if any exists
+    cursor.execute("DELETE FROM machines WHERE notes LIKE 'Local Host Gaming Workstation%';")
 
     conn.commit()
 
