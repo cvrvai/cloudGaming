@@ -2672,7 +2672,7 @@ input:-webkit-autofill:active {
 /* 2x2 Spec Chips Grid */
 .spec-chips-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1.35fr 1fr;
   gap: 6px;
   margin-bottom: 12px;
 }

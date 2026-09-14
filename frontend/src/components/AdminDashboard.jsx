@@ -617,12 +617,12 @@ export default function AdminDashboard() {
                         <span className="spec-chip-val" title={m.gpu}>{m.gpu}</span>
                       </div>
                       <div className="spec-chip">
-                        <span className="spec-chip-label"><CpuIcon size={10} /> CPU</span>
-                        <span className="spec-chip-val" title={m.cpu}>{formatCpu(m.cpu)}</span>
-                      </div>
-                      <div className="spec-chip">
                         <span className="spec-chip-label"><RamIcon size={10} /> RAM</span>
                         <span className="spec-chip-val" title={m.ram}>{formatRam(m.ram)}</span>
+                      </div>
+                      <div className="spec-chip">
+                        <span className="spec-chip-label"><CpuIcon size={10} /> CPU</span>
+                        <span className="spec-chip-val" title={m.cpu}>{formatCpu(m.cpu)}</span>
                       </div>
                       <div className="spec-chip">
                         <span className="spec-chip-label"><MonitorIcon size={10} /> OS</span>
