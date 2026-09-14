@@ -478,20 +478,17 @@ export default function AdminDashboard() {
         <div>
           <div className="pairing-mfa-badge">
             <ShieldCheckIcon size={12} />
-            <span>Google Authenticator MFA Verified</span>
+            <span>MFA Verified</span>
           </div>
-          <h1 className="admin-title">Admin Management Console</h1>
-          <p className="admin-subtitle">
-            Fleet node management, game catalog configuration, and active WebRTC streaming sessions.
-          </p>
+          <h1 className="admin-title">Admin Console</h1>
         </div>
         <div className="admin-header-actions">
           <button className="btn-pair-pc-header" onClick={openPairModal}>
             <KeyIcon size={14} />
-            <span>+ Pair New PC</span>
+            <span>+ Pair PC</span>
           </button>
-          <button className="btn-secondary" onClick={fetchAllAdminData} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-            <RefreshIcon size={14} />
+          <button className="btn-secondary" onClick={fetchAllAdminData} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <RefreshIcon size={13} />
             <span>Refresh</span>
           </button>
         </div>
@@ -501,49 +498,39 @@ export default function AdminDashboard() {
       <div className="admin-bento-grid">
         <div className="admin-bento-card glass-panel">
           <div className="bento-top-row">
-            <span className="bento-tag">Fleet Gaming Rigs</span>
-            <div className="bento-icon-box"><ServerIcon size={18} /></div>
+            <span className="bento-tag">Fleet Rigs</span>
+            <div className="bento-icon-box"><ServerIcon size={16} /></div>
           </div>
-          <div className="bento-value">{machines.length}</div>
-          <div className="bento-subtext">
-            <span className="pulse-dot" style={{ backgroundColor: '#30d158' }} />
-            <span>{machines.filter((m) => m.status === 'available').length} Online / Ready</span>
+          <div className="bento-value">
+            {machines.filter((m) => m.status === 'available').length}
+            <span className="bento-subval">/{machines.length}</span>
           </div>
         </div>
 
         <div className="admin-bento-card glass-panel">
           <div className="bento-top-row">
-            <span className="bento-tag">Game Catalog</span>
-            <div className="bento-icon-box"><GamepadIcon size={18} /></div>
+            <span className="bento-tag">Catalog Games</span>
+            <div className="bento-icon-box"><GamepadIcon size={16} /></div>
           </div>
           <div className="bento-value">{games.length}</div>
-          <div className="bento-subtext">
-            <span>{games.filter((g) => (g.ready_nodes_count || 0) > 0).length} Playable on Rigs</span>
-          </div>
         </div>
 
         <div className="admin-bento-card glass-panel">
           <div className="bento-top-row">
-            <span className="bento-tag">Live Sessions</span>
-            <div className="bento-icon-box"><MonitorIcon size={18} /></div>
+            <span className="bento-tag">Live Streams</span>
+            <div className="bento-icon-box"><MonitorIcon size={16} /></div>
           </div>
           <div className={`bento-value ${activeSessionsCount > 0 ? 'highlight-green' : ''}`}>
             {activeSessionsCount}
           </div>
-          <div className="bento-subtext">
-            <span>Active WebRTC Streams</span>
-          </div>
         </div>
 
         <div className="admin-bento-card glass-panel">
           <div className="bento-top-row">
-            <span className="bento-tag">Total Bookings</span>
-            <div className="bento-icon-box"><ClipboardListIcon size={18} /></div>
+            <span className="bento-tag">Reservations</span>
+            <div className="bento-icon-box"><ClipboardListIcon size={16} /></div>
           </div>
           <div className="bento-value">{bookings.length}</div>
-          <div className="bento-subtext">
-            <span>Platform Reservations</span>
-          </div>
         </div>
       </div>
 
@@ -583,14 +570,7 @@ export default function AdminDashboard() {
           {adminTab === 'machines' && (
             <div className="admin-tab-content">
               <div className="tab-section-header">
-                <div>
-                  <h2>Connected Gaming PCs</h2>
-                  <p>Hardware fleet streaming nodes. Pair new PCs via Google Authenticator 2-Step Keypair.</p>
-                </div>
-                <button className="btn-pair-pc-header" onClick={openPairModal}>
-                  <KeyIcon size={14} />
-                  <span>+ Pair New PC</span>
-                </button>
+                <h2>Connected Gaming PCs</h2>
               </div>
 
               <div className="admin-pcs-grid">
@@ -654,7 +634,7 @@ export default function AdminDashboard() {
 
                       {!m.installed_games || m.installed_games.length === 0 ? (
                         <div className="node-games-empty">
-                          No games configured on this PC yet. Click "+ Add Game" to assign one.
+                          No games assigned
                         </div>
                       ) : (
                         <div className="node-games-list">
@@ -738,12 +718,9 @@ export default function AdminDashboard() {
                 {/* Direct Pair PC Card Tile */}
                 <div className="pc-add-tile" onClick={openPairModal}>
                   <div className="pc-add-icon-circle">
-                    <KeyIcon size={24} />
+                    <KeyIcon size={20} />
                   </div>
-                  <h4 className="pc-add-title">Pair New Gaming PC</h4>
-                  <p className="pc-add-subtitle">
-                    Connect a streaming host workstation via Google Authenticator Keypair code
-                  </p>
+                  <h4 className="pc-add-title">+ Pair PC</h4>
                 </div>
               </div>
             </div>
@@ -753,13 +730,10 @@ export default function AdminDashboard() {
           {adminTab === 'games' && (
             <div className="admin-tab-content">
               <div className="tab-section-header">
-                <div>
-                  <h2>Game Catalog</h2>
-                  <p>Global catalog of titles available across the CloudKH platform.</p>
-                </div>
+                <h2>Game Catalog</h2>
                 <button className="btn-primary btn-add-game" onClick={openAddGameModal} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                   <PlusIcon size={14} />
-                  <span>Add Game to Catalog</span>
+                  <span>Add Game</span>
                 </button>
               </div>
 
@@ -817,10 +791,7 @@ export default function AdminDashboard() {
           {adminTab === 'bookings' && (
             <div className="admin-tab-content">
               <div className="tab-section-header">
-                <div>
-                  <h2>All System Reservations</h2>
-                  <p>Monitor scheduled sessions across all users with instant termination controls.</p>
-                </div>
+                <h2>Reservations</h2>
               </div>
 
               <div className="admin-bookings-table-wrapper glass-panel">
@@ -880,10 +851,7 @@ export default function AdminDashboard() {
             </button>
 
             <div className="auth-header">
-              <h2>{editingNodeGame ? 'Edit Game Configuration' : 'Add Game to PC'}</h2>
-              <p className="auth-subtitle">
-                Configure trusted executable and directory for <strong>{selectedNode.name}</strong>.
-              </p>
+              <h2>{editingNodeGame ? 'Edit Game' : 'Add Game to PC'}</h2>
             </div>
 
             {nodeGameError && (
@@ -991,8 +959,7 @@ export default function AdminDashboard() {
             </button>
 
             <div className="auth-header">
-              <h2>{editingGame ? 'Edit Catalog Game' : 'Add Game to Catalog'}</h2>
-              <p className="auth-subtitle">Configure game metadata and artwork.</p>
+              <h2>{editingGame ? 'Edit Game' : 'Add Game'}</h2>
             </div>
 
             {gameError && (
@@ -1102,15 +1069,12 @@ export default function AdminDashboard() {
 
             <div className="pairing-modal-header">
               <div className="pairing-mfa-badge">
-                <ShieldCheckIcon size={13} />
-                <span>Google Authenticator MFA Verified Admin</span>
+                <ShieldCheckIcon size={12} />
+                <span>MFA Verified</span>
               </div>
-              <h2 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 4px 0', color: '#fff' }}>
-                Pair Gaming PC Node
+              <h2 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: '#fff' }}>
+                Pair Gaming PC
               </h2>
-              <p style={{ fontSize: '12px', color: 'var(--text-secondary, #a1a1aa)', margin: 0 }}>
-                Connect a streaming host workstation using a secure 2-Step Keypair code.
-              </p>
             </div>
 
             {/* Mode Tabs */}
@@ -1124,7 +1088,7 @@ export default function AdminDashboard() {
                   setPairSuccess(null);
                 }}
               >
-                1. Generate Code for PC
+                Generate Code
               </button>
               <button
                 type="button"
@@ -1135,38 +1099,38 @@ export default function AdminDashboard() {
                   setPairSuccess(null);
                 }}
               >
-                2. Enter Code to Pair This PC
+                Enter Code
               </button>
             </div>
 
             <div className="pairing-modal-body">
               {pairError && (
-                <div className="auth-error-banner" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                <div className="auth-error-banner" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                   <AlertTriangleIcon size={16} />
                   <span>{pairError}</span>
                 </div>
               )}
 
               {pairSuccess && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 14px', borderRadius: '10px', background: 'rgba(48, 209, 88, 0.15)', border: '1px solid rgba(48, 209, 88, 0.4)', color: '#30d158', fontSize: '13px', fontWeight: 700, marginBottom: '16px' }}>
-                  <CheckIcon size={16} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', borderRadius: '8px', background: 'rgba(48, 209, 88, 0.15)', border: '1px solid rgba(48, 209, 88, 0.4)', color: '#30d158', fontSize: '12px', fontWeight: 700, marginBottom: '14px' }}>
+                  <CheckIcon size={15} />
                   <span>{pairSuccess}</span>
                 </div>
               )}
 
               {pairMode === 'generate' ? (
                 <div>
-                  <div className="form-group" style={{ marginBottom: '16px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary, #a1a1aa)', display: 'block', marginBottom: '6px' }}>
-                      Gaming PC Nickname
+                  <div className="form-group" style={{ marginBottom: '14px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary, #a1a1aa)', display: 'block', marginBottom: '5px' }}>
+                      PC Name
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Living Room Rig, Workstation 02"
+                      placeholder="e.g. Workstation 02"
                       value={pairTargetName}
                       onChange={(e) => setPairTargetName(e.target.value)}
                       disabled={pairLoading || !!generatedPairCode}
-                      style={{ width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', color: '#fff', fontSize: '13px' }}
+                      style={{ width: '100%', padding: '9px 12px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', color: '#fff', fontSize: '13px' }}
                     />
                   </div>
 
@@ -1176,17 +1140,14 @@ export default function AdminDashboard() {
                       className="btn-primary auth-submit-btn"
                       onClick={handleGeneratePairCode}
                       disabled={pairLoading}
-                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%' }}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '10px 16px' }}
                     >
                       <KeyIcon size={14} />
-                      <span>{pairLoading ? 'Generating Keypair...' : 'Generate 6-Digit Pairing Code'}</span>
+                      <span>{pairLoading ? 'Generating...' : 'Generate Code'}</span>
                     </button>
                   ) : (
                     <div>
                       <div className="pairing-code-box">
-                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted, #71717a)', textTransform: 'uppercase', marginBottom: '6px' }}>
-                          One-Time Keypair Code
-                        </div>
                         <div className="pairing-code-display">
                           {generatedPairCode}
                         </div>
@@ -1195,77 +1156,68 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
                         <button
                           type="button"
                           className="btn-secondary"
                           onClick={handleCopyCode}
-                          style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                          style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px 12px' }}
                         >
-                          <CheckIcon size={14} />
-                          <span>{copiedCode ? 'Copied!' : 'Copy Code'}</span>
+                          <CheckIcon size={13} />
+                          <span>{copiedCode ? 'Copied' : 'Copy'}</span>
                         </button>
                         <button
                           type="button"
                           className="btn-secondary"
                           onClick={handleGeneratePairCode}
                           disabled={pairLoading}
-                          style={{ flex: 1 }}
+                          style={{ flex: 1, padding: '8px 12px' }}
                         >
                           New Code
                         </button>
                       </div>
 
                       <div className="pairing-poll-radar">
-                        <span className="spinner-geforce" style={{ width: '12px', height: '12px', borderWidth: '2px' }} />
-                        <span>Waiting for streaming PC to enter this code...</span>
+                        <span className="spinner-geforce" style={{ width: '11px', height: '11px', borderWidth: '2px' }} />
+                        <span>Waiting for PC...</span>
                       </div>
                     </div>
                   )}
-
-                  <div style={{ marginTop: '20px', padding: '12px 14px', borderRadius: '10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', fontSize: '12px', color: 'var(--text-secondary, #a1a1aa)', lineHeight: 1.5 }}>
-                    <strong>Instructions:</strong> Open CloudKH on the streaming PC, sign in with your Google Authenticator MFA admin account, go to Pair PC, and enter this 6-digit keypair code.
-                  </div>
                 </div>
               ) : (
                 <form onSubmit={handleCompletePairing}>
                   {pairDetectedHw && (
-                    <div style={{ marginBottom: '16px', padding: '12px 14px', borderRadius: '10px', background: 'rgba(0, 210, 255, 0.06)', border: '1px solid rgba(0, 210, 255, 0.2)' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 800, color: '#00d2ff', textTransform: 'uppercase', marginBottom: '6px' }}>
-                        Auto-Detected Hardware on this Machine:
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#e4e4e7', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                        <div><strong>GPU:</strong> {pairDetectedHw.gpu}</div>
-                        <div><strong>CPU:</strong> {pairDetectedHw.cpu}</div>
-                        <div><strong>RAM:</strong> {pairDetectedHw.ram}</div>
-                      </div>
+                    <div className="detected-specs-pill-bar">
+                      <span className="detected-pill" title={pairDetectedHw.gpu}><GamepadIcon size={11} /> {pairDetectedHw.gpu}</span>
+                      <span className="detected-pill" title={pairDetectedHw.cpu}><CpuIcon size={11} /> {pairDetectedHw.cpu}</span>
+                      <span className="detected-pill" title={pairDetectedHw.ram}><RamIcon size={11} /> {pairDetectedHw.ram}</span>
                     </div>
                   )}
 
-                  <div className="form-group" style={{ marginBottom: '16px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary, #a1a1aa)', display: 'block', marginBottom: '6px' }}>
-                      6-Digit Keypair Pairing Code
+                  <div className="form-group" style={{ marginBottom: '14px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary, #a1a1aa)', display: 'block', marginBottom: '5px' }}>
+                      Pairing Code
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. 849-201 or 849201"
+                      placeholder="000-000"
                       value={pairInputCode}
                       onChange={(e) => setPairInputCode(e.target.value)}
                       required
-                      style={{ width: '100%', padding: '12px 14px', background: 'rgba(0,0,0,0.4)', border: '2px solid rgba(0, 210, 255, 0.4)', borderRadius: '10px', color: '#00d2ff', fontSize: '20px', fontWeight: 800, letterSpacing: '3px', textAlign: 'center' }}
+                      style={{ width: '100%', padding: '10px 12px', background: 'rgba(0,0,0,0.4)', border: '2px solid rgba(0, 210, 255, 0.4)', borderRadius: '10px', color: '#00d2ff', fontSize: '20px', fontWeight: 800, letterSpacing: '4px', textAlign: 'center' }}
                     />
                   </div>
 
-                  <div className="form-group" style={{ marginBottom: '18px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary, #a1a1aa)', display: 'block', marginBottom: '6px' }}>
-                      PC Name / Label
+                  <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary, #a1a1aa)', display: 'block', marginBottom: '5px' }}>
+                      PC Name
                     </label>
                     <input
                       type="text"
                       placeholder="e.g. Host PC 2"
                       value={pairTargetName}
                       onChange={(e) => setPairTargetName(e.target.value)}
-                      style={{ width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', color: '#fff', fontSize: '13px' }}
+                      style={{ width: '100%', padding: '9px 12px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', color: '#fff', fontSize: '13px' }}
                     />
                   </div>
 
@@ -1273,10 +1225,10 @@ export default function AdminDashboard() {
                     type="submit"
                     className="btn-primary auth-submit-btn"
                     disabled={pairLoading || !pairInputCode.trim()}
-                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', padding: '10px 16px' }}
                   >
                     <KeyIcon size={14} />
-                    <span>{pairLoading ? 'Pairing Node...' : 'Pair & Connect PC Node'}</span>
+                    <span>{pairLoading ? 'Pairing...' : 'Pair PC'}</span>
                   </button>
                 </form>
               )}
