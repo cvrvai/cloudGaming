@@ -279,9 +279,17 @@ class GStreamerWebRTCPeer:
             logger.warning("[%s] Could not set transceiver direction: %s", self.pc_id, exc)
 
         # 3. Start capture/encode before negotiating.
-        if self.pipeline.set_state(Gst.State.PLAYING) == Gst.StateChangeReturn.FAILURE:
+        ret = self.pipeline.set_state(Gst.State.PLAYING)
+        if ret == Gst.StateChangeReturn.FAILURE:
+            bus = self.pipeline.get_bus()
+            bus_err = ""
+            msg = bus.poll(Gst.MessageType.ERROR, 500000000)
+            if msg:
+                err, debug = msg.parse_error()
+                bus_err = f": {err.message} | debug: {debug}"
             self.pipeline.set_state(Gst.State.NULL)
-            raise RuntimeError("Failed to start pipeline (PLAYING)")
+            logger.error("[%s] Failed to start pipeline (PLAYING)%s", self.pc_id, bus_err)
+            raise RuntimeError(f"Failed to start pipeline (PLAYING){bus_err}")
         logger.info("[%s] Pipeline PLAYING, applying remote offer", self.pc_id)
 
         # 4. Apply remote description.
