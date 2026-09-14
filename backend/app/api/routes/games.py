@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.db import get_db
 from app.services.auth import get_current_user, require_admin
+from app.services.streaming.node_relay import node_relay
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -46,19 +47,40 @@ def list_games():
             """
             SELECT g.id, g.slug, g.title, g.title as name, g.genre, g.cover_url, g.cover_url as cover_image_url,
                    g.description, g.size_gb, g.enabled, g.created_at, g.updated_at,
-                   COUNT(ng.id) FILTER (WHERE ng.enabled = TRUE AND ng.status = 'ready') as ready_nodes_count
+                   COALESCE(
+                       json_agg(
+                           json_build_object(
+                               'node_id', ng.node_id,
+                               'enabled', ng.enabled,
+                               'status', ng.status,
+                               'machine_status', m.status
+                           )
+                       ) FILTER (WHERE ng.id IS NOT NULL), '[]'::json
+                   ) as node_installs
             FROM games g
             LEFT JOIN node_games ng ON g.id = ng.game_id
+            LEFT JOIN machines m ON ng.node_id = m.id
             GROUP BY g.id
             ORDER BY g.id DESC;
             """
         )
         games = [dict(row) for row in cursor.fetchall()]
 
-        # Format backward compatible fields
+        # Format backward compatible fields and calculate online nodes
         for g in games:
-            cnt = g["ready_nodes_count"]
-            g["installed_machines"] = f"{cnt} Gaming Rig{'s' if cnt != 1 else ''}" if cnt > 0 else "None yet"
+            installs = g.pop("node_installs", []) or []
+            total_nodes = len(installs)
+            ready_count = 0
+            for inst in installs:
+                nid = inst.get("node_id")
+                if inst.get("enabled") and inst.get("status") == "ready":
+                    # Only count as ready if the node WebSocket relay is actually connected or machine is marked available
+                    if (nid and node_relay.is_node_connected(nid)) or inst.get("machine_status") == "available":
+                        ready_count += 1
+            g["ready_nodes_count"] = ready_count
+            g["installed_machines_count"] = total_nodes
+            g["is_online"] = ready_count > 0
+            g["installed_machines"] = f"{total_nodes} Gaming Rig{'s' if total_nodes != 1 else ''}" if total_nodes > 0 else "None yet"
 
         return games
 

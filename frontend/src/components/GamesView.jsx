@@ -90,10 +90,14 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
 
             <div className="luna-hero-actions">
               <button
-                className="luna-hero-play-btn"
-                onClick={() => onSelectGame(activeHero)}
+                className={`luna-hero-play-btn ${activeHero.ready_nodes_count > 0 ? '' : 'disabled'}`}
+                style={activeHero.ready_nodes_count > 0 ? {} : { opacity: 0.6, cursor: 'not-allowed' }}
+                onClick={() => {
+                  if (activeHero.ready_nodes_count > 0) onSelectGame(activeHero);
+                }}
               >
-                <span className="play-triangle">▶</span> Play Now
+                <span className="play-triangle">{activeHero.ready_nodes_count > 0 ? '▶' : '⏸'}</span>
+                {activeHero.ready_nodes_count > 0 ? ' Play Now' : ' Host PC Offline'}
               </button>
             </div>
 
@@ -247,18 +251,38 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
                   <h3 className="poster-title">{game.title}</h3>
 
                   <div className="poster-footer-row">
-                    <span className="poster-stream-ready">
-                      <span className="mini-green-dot" /> Available
-                    </span>
-                    <button
-                      className="btn-tile-play"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectGame(game);
-                      }}
-                    >
-                      Play
-                    </button>
+                    {game.ready_nodes_count > 0 ? (
+                      <>
+                        <span className="poster-stream-ready">
+                          <span className="mini-green-dot" /> Available
+                        </span>
+                        <button
+                          className="btn-tile-play"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectGame(game);
+                          }}
+                        >
+                          Play
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="poster-stream-ready" style={{ color: '#94a3b8' }}>
+                          <span className="mini-gray-dot" /> Rig Offline
+                        </span>
+                        <button
+                          className="btn-tile-play disabled"
+                          title="Gaming rig is offline. Start stream_node.py on your host PC."
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectGame(game);
+                          }}
+                        >
+                          Offline
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
