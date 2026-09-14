@@ -685,7 +685,7 @@ export default function AdminDashboard() {
         <div className="admin-header-actions">
           <button className="btn-pair-pc-header" onClick={openPairModal}>
             <KeyIcon size={14} />
-            <span>+ Pair PC</span>
+            <span>Pair PC</span>
           </button>
           <button className="btn-secondary" onClick={fetchAllAdminData} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <RefreshIcon size={13} />
@@ -956,7 +956,7 @@ export default function AdminDashboard() {
                   <div className="pc-add-icon-circle">
                     <KeyIcon size={20} />
                   </div>
-                  <div className="pc-add-title">+ Pair PC</div>
+                  <div className="pc-add-title">Pair PC</div>
                   <span className="pc-add-badge">MFA Keypair</span>
                 </div>
               </div>
@@ -1108,7 +1108,7 @@ export default function AdminDashboard() {
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap' }}
                   >
                     <PlusIcon size={13} />
-                    <span>+ Add User</span>
+                    <span>Add User</span>
                   </button>
                 </div>
               </div>
@@ -1241,7 +1241,7 @@ export default function AdminDashboard() {
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                   >
                     <DownloadIcon size={14} />
-                    <span>{exportingCsv ? 'Exporting...' : '📥 Export Dataset (.CSV)'}</span>
+                    <span>{exportingCsv ? 'Exporting...' : 'Export Dataset (.CSV)'}</span>
                   </button>
                   <button
                     className="btn-secondary btn-compact"
@@ -1249,7 +1249,7 @@ export default function AdminDashboard() {
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                   >
                     <PlusIcon size={13} />
-                    <span>+ Log Test Run</span>
+                    <span>Log Test Run</span>
                   </button>
                 </div>
               </div>
@@ -1449,43 +1449,59 @@ export default function AdminDashboard() {
                   <tbody>
                     {dmaicRecords
                       .filter((r) => dmaicPhaseFilter === 'all' || r.phase === dmaicPhaseFilter)
-                      .map((r) => (
-                        <tr key={r.id}>
-                          <td><strong>{r.test_id}</strong></td>
-                          <td>
-                            <span className={`phase-badge-pill compact ${r.phase}`}>
-                              {r.phase === 'V1_Baseline' ? 'V1 Baseline' : 'V2 Improved'}
-                            </span>
-                          </td>
-                          <td><span className="user-name-text">{r.account_name}</span></td>
-                          <td><span className="text-muted-cell">{r.booking_slot || '—'}</span></td>
-                          <td>{r.waiting_time_mins}m</td>
-                          <td className={r.latency_ms > 100 ? 'text-defect' : ''}>
-                            {r.latency_ms}ms
-                          </td>
-                          <td>{r.fps}</td>
-                          <td>{r.disconnects_count}</td>
-                          <td>
-                            <span className={`status-pill-small compact ${r.completed ? 'confirmed' : 'cancelled'}`}>
-                              {r.completed ? 'PASS' : 'DEFECT'}
-                            </span>
-                          </td>
-                          <td>
-                            {r.failure_reason ? (
-                              <span className="failure-reason-pill compact">{r.failure_reason}</span>
-                            ) : (
-                              <span className="text-muted-cell">—</span>
-                            )}
-                          </td>
-                          <td>{r.pc_idle_time_mins}m</td>
-                          <td>{r.power_usage_watts}W</td>
-                          <td>
-                            <span className="text-muted-cell">
-                              {new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      .map((r) => {
+                        const accountDisplay = r.account_name || r.user_email || '—';
+                        const waitMins = r.waiting_time_minutes != null ? r.waiting_time_minutes : (r.waiting_time_mins != null ? r.waiting_time_mins : 0);
+                        const latency = r.avg_latency_ms != null ? r.avg_latency_ms : (r.latency_ms != null ? r.latency_ms : 0);
+                        const fps = r.avg_fps != null ? r.avg_fps : (r.fps != null ? r.fps : 60);
+                        const idleMins = r.pc_idle_minutes != null ? r.pc_idle_minutes : (r.pc_idle_time_mins != null ? r.pc_idle_time_mins : 0);
+                        const powerDisplay = r.power_kwh != null ? `${r.power_kwh} kWh` : (r.power_usage_watts != null ? `${r.power_usage_watts}W` : '0.28 kWh');
+
+                        return (
+                          <tr key={r.id}>
+                            <td><strong>{r.test_id}</strong></td>
+                            <td>
+                              <span className={`phase-badge-pill compact ${r.phase}`}>
+                                {r.phase === 'V1_Baseline' ? 'V1 Baseline' : 'V2 Improved'}
+                              </span>
+                            </td>
+                            <td><span className="user-name-text">{accountDisplay}</span></td>
+                            <td><span className="text-muted-cell">{r.booking_slot || '—'}</span></td>
+                            <td>{waitMins}m</td>
+                            <td className={latency > 100 ? 'text-defect' : ''}>
+                              {latency}ms
+                            </td>
+                            <td>{fps}</td>
+                            <td>{r.disconnects_count ?? 0}</td>
+                            <td>
+                              <span className={`status-pill-small compact ${r.completed ? 'confirmed' : 'cancelled'}`}>
+                                {r.completed ? 'PASS' : 'DEFECT'}
+                              </span>
+                            </td>
+                            <td>
+                              {r.failure_reason ? (
+                                <span className="failure-reason-pill compact">{r.failure_reason}</span>
+                              ) : (
+                                <span className="text-muted-cell">—</span>
+                              )}
+                            </td>
+                            <td>{idleMins}m</td>
+                            <td>{powerDisplay}</td>
+                            <td>
+                              <span className="text-muted-cell">
+                                {r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    {dmaicRecords.filter((r) => dmaicPhaseFilter === 'all' || r.phase === dmaicPhaseFilter).length === 0 && (
+                      <tr>
+                        <td colSpan={13} style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
+                          No experimental observation records yet. Click &quot;Log Test Run&quot; to add a trial or let sessions record telemetry.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

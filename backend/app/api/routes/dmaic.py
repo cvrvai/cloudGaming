@@ -1,4 +1,4 @@
-﻿"""Operations Research - Lean Six Sigma DMAIC CTQ Analytics & Telemetry Engine."""
+"""Operations Research - Lean Six Sigma DMAIC CTQ Analytics & Telemetry Engine."""
 import csv
 import io
 from datetime import datetime, timezone
@@ -169,16 +169,24 @@ def list_dmaic_records(
     admin_user: Dict = Depends(require_admin),
 ):
     """List all experimental test observations."""
+    phase_str = str(phase) if isinstance(phase, str) and phase != "all" else None
     with get_db() as conn:
         cursor = conn.cursor()
-        if phase and phase != "all":
+        if phase_str:
             cursor.execute(
                 "SELECT * FROM session_telemetry WHERE phase = %s ORDER BY id DESC;",
-                (phase,),
+                (phase_str,),
             )
         else:
             cursor.execute("SELECT * FROM session_telemetry ORDER BY id DESC;")
         rows = [dict(r) for r in cursor.fetchall()]
+        for r in rows:
+            r["account_name"] = r.get("user_email") or "Unknown"
+            r["waiting_time_mins"] = r.get("waiting_time_minutes") or 0.0
+            r["latency_ms"] = r.get("avg_latency_ms") or 0.0
+            r["fps"] = r.get("avg_fps") or 60.0
+            r["pc_idle_time_mins"] = r.get("pc_idle_minutes") or 0.0
+            r["power_usage_watts"] = round((r.get("power_kwh") or 0.28) * 1000, 0)
     return rows
 
 
@@ -246,12 +254,13 @@ def export_dmaic_dataset_csv(
     admin_user: Dict = Depends(require_admin),
 ):
     """Download the research dataset as a CSV file matching the team's presentation requirements."""
+    phase_str = str(phase) if isinstance(phase, str) and phase != "all" else None
     with get_db() as conn:
         cursor = conn.cursor()
-        if phase and phase != "all":
+        if phase_str:
             cursor.execute(
                 "SELECT * FROM session_telemetry WHERE phase = %s ORDER BY id ASC;",
-                (phase,),
+                (phase_str,),
             )
         else:
             cursor.execute("SELECT * FROM session_telemetry ORDER BY id ASC;")
