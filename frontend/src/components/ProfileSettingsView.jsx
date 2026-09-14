@@ -160,8 +160,8 @@ export default function ProfileSettingsView({ onNavigateToBookings, onNavigateTo
           <div className="profile-hero-info">
             <div className="profile-name-row">
               <h1 className="profile-display-name">{user.name}</h1>
-              <span className={`profile-role-badge role-${user.role || 'student'}`}>
-                {user.role === 'admin' ? 'ADMINISTRATOR' : 'STUDENT GAMER'}
+              <span className={`profile-role-badge role-${user.role || 'user'}`}>
+                {user.role === 'admin' ? 'ADMINISTRATOR' : 'PLAYER'}
               </span>
             </div>
             <p className="profile-email-text">{user.email}</p>
@@ -183,6 +183,12 @@ export default function ProfileSettingsView({ onNavigateToBookings, onNavigateTo
 
         {/* Quick Stats Grid */}
         <div className="profile-hero-stats">
+          {user.role !== 'admin' && (
+            <div className="profile-stat-box">
+              <span className="stat-label">DAILY ALLOWANCE</span>
+              <span className="stat-value" style={{ color: '#00d2ff' }}>2h / Day</span>
+            </div>
+          )}
           <div className="profile-stat-box">
             <span className="stat-label">TOTAL BOOKINGS</span>
             <span className="stat-value">{loadingStats ? '...' : stats?.total_bookings ?? 0}</span>

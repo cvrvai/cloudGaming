@@ -7196,5 +7196,201 @@ input:checked + .slider-round:before {
   padding: 1px 5px;
 }
 
+/* Quota UI Elements (2-Hour Daily Free Limit Tracking) */
+.nav-quota-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 210, 255, 0.12);
+  border: 1px solid rgba(0, 210, 255, 0.35);
+  border-radius: 20px;
+  padding: 4px 12px;
+  color: #00d2ff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
 
+.nav-quota-chip:hover {
+  background: rgba(0, 210, 255, 0.22);
+  border-color: #00d2ff;
+  box-shadow: 0 0 12px rgba(0, 210, 255, 0.3);
+}
 
+.nav-quota-icon {
+  font-size: 13px;
+}
+
+/* User Dropdown Quota Card */
+.dropdown-quota-card {
+  margin: 8px 4px 4px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+.dropdown-quota-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.dropdown-quota-badge {
+  color: #00d2ff;
+}
+
+.dropdown-quota-reset {
+  color: var(--text-3, #718096);
+  font-size: 9.5px;
+}
+
+.dropdown-quota-progress {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.dropdown-quota-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.dropdown-quota-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #e0e7ff;
+}
+
+.dropdown-quota-footer .quota-limit {
+  color: var(--text-3, #718096);
+  font-size: 10px;
+}
+
+/* Bookings Quota Banner in MyBookingsView */
+.bookings-quota-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 24px;
+  padding: 18px 24px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(32, 34, 76, 0.9) 0%, rgba(18, 22, 54, 0.95) 100%);
+  border: 1px solid rgba(0, 210, 255, 0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), inset 0 0 20px rgba(0, 210, 255, 0.05);
+}
+
+.quota-banner-left {
+  flex: 1;
+}
+
+.quota-banner-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.quota-pill-glow {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #00d2ff;
+  background: rgba(0, 210, 255, 0.15);
+  border: 1px solid rgba(0, 210, 255, 0.4);
+  border-radius: 20px;
+  padding: 2px 10px;
+}
+
+.quota-reset-pill {
+  font-size: 11px;
+  color: var(--text-3, #a5b4fc);
+}
+
+.quota-banner-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 6px 0;
+}
+
+.quota-banner-subtitle {
+  font-size: 13px;
+  color: #a5b4fc;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.quota-banner-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px 24px;
+  min-width: 140px;
+}
+
+.quota-metric-box {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.quota-metric-val {
+  font-size: 32px;
+  font-weight: 900;
+  color: #00ff88;
+  line-height: 1;
+}
+
+.quota-metric-val.low {
+  color: #ffb703;
+}
+
+.quota-metric-val.empty {
+  color: #ff5b52;
+}
+
+.quota-metric-unit {
+  font-size: 14px;
+  font-weight: 700;
+  color: #a5b4fc;
+}
+
+.quota-metric-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-3, #718096);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+@media (max-width: 768px) {
+  .bookings-quota-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .quota-banner-right {
+    width: 100%;
+    margin-top: 10px;
+  }
+}

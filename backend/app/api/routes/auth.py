@@ -81,6 +81,26 @@ def register(req: RegisterRequest, request: Request):
     name_clean = req.name.strip()
     client_ip = request.client.host if request.client else None
 
+    # Anti-Spam Protection: Limit to max 3 registrations per IP per 24 hours
+    if client_ip and client_ip not in ("127.0.0.1", "localhost", "testclient"):
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT COUNT(*) as count FROM audit_logs
+                WHERE action = 'USER_REGISTERED'
+                  AND ip = %s
+                  AND timestamp::timestamptz > (NOW() - INTERVAL '24 hours');
+                """,
+                (client_ip,),
+            )
+            reg_count = cursor.fetchone()["count"]
+            if reg_count >= 3:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Registration limit reached for this network (max 3 accounts per day). To maintain fair gaming rig capacity during beta testing, please sign in to your existing account.",
+                )
+
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM users WHERE email = %s;", (email_clean,))
@@ -105,6 +125,15 @@ def register(req: RegisterRequest, request: Request):
         )
         user_id = cursor.fetchone()["id"]
         conn.commit()
+
+    record_audit_event(
+        action="USER_REGISTERED",
+        actor_user_id=user_id,
+        role=role,
+        ip=client_ip,
+        result="SUCCESS",
+        details=f"New player registered: {email_clean}",
+    )
 
     token = create_access_token({"sub": user_id, "email": email_clean, "role": role, "mfa_verified": False})
     return {

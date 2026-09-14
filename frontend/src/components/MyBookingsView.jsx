@@ -6,6 +6,7 @@ import { GamepadIcon, RocketIcon, CalendarIcon, LockIcon, HistoryIcon } from './
 export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
   const { token, user, openAuth } = useAuth();
   const [bookingsData, setBookingsData] = useState({ active: [], upcoming: [], past: [] });
+  const [dailyQuota, setDailyQuota] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [cancellingId, setCancellingId] = useState(null);
@@ -17,6 +18,18 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const fetchQuota = async () => {
+    if (!token || !user || user.role === 'admin') return;
+    try {
+      const res = await fetch(`${API_BASE}/api/bookings/quota`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setDailyQuota(await res.json());
+    } catch (e) {
+      // ignore
+    }
+  };
 
   const fetchBookings = async () => {
     if (!token) {
@@ -42,9 +55,13 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
 
   useEffect(() => {
     fetchBookings();
-    const interval = setInterval(fetchBookings, 8000);
+    fetchQuota();
+    const interval = setInterval(() => {
+      fetchBookings();
+      fetchQuota();
+    }, 8000);
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, user]);
 
   const handleCancelBooking = async (bookingId, isActive = false) => {
     const confirmMsg = isActive
@@ -113,6 +130,32 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
       </div>
 
       {error && <div className="auth-error-banner">{error}</div>}
+
+      {/* 2-Hour Daily Free Quota Banner */}
+      {user.role !== 'admin' && (
+        <div className="bookings-quota-banner glass-panel">
+          <div className="quota-banner-left">
+            <div className="quota-banner-badge-row">
+              <span className="quota-pill-glow">⚡ Beta Free Daily Quota</span>
+              <span className="quota-reset-pill">Resets 12:00 AM Midnight (Cambodia Time / UTC+7)</span>
+            </div>
+            <h3 className="quota-banner-title">2 Hours Free Gaming per Day</h3>
+            <p className="quota-banner-subtitle">
+              You receive up to <strong>2 hours (120 minutes)</strong> of cloud gaming on our RTX 3050 rig daily.
+              Daily hours <strong>never roll over</strong> or accumulate (each calendar day starts fresh with 2 hours).
+            </p>
+          </div>
+          <div className="quota-banner-right">
+            <div className="quota-metric-box">
+              <span className={`quota-metric-val ${(dailyQuota?.remaining_minutes ?? 120) === 0 ? 'empty' : (dailyQuota?.remaining_minutes ?? 120) <= 30 ? 'low' : ''}`}>
+                {dailyQuota ? dailyQuota.remaining_minutes : 120}
+              </span>
+              <span className="quota-metric-unit">mins</span>
+            </div>
+            <span className="quota-metric-label">Remaining Today</span>
+          </div>
+        </div>
+      )}
 
       {/* 1. ACTIVE SESSIONS */}
       <div className="bookings-section">
