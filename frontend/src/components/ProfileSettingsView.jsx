@@ -374,36 +374,6 @@ export default function ProfileSettingsView({ onNavigateToBookings, onNavigateTo
                 </button>
               </div>
             </form>
-
-            {/* Cryptographic Protection Badges */}
-            <div className="security-badges-container">
-              <h4>Active Cryptographic Architecture</h4>
-              <div className="security-badges-grid">
-                <div className="sec-badge-card">
-                  <div className="sec-badge-icon">
-                    <ShieldCheckIcon size={20} />
-                  </div>
-                  <div className="sec-badge-info">
-                    <h5>Argon2id Hashing</h5>
-                    <p>RFC 9106 hardened key derivation resists GPU and ASIC cracking.</p>
-                  </div>
-                </div>
-
-                <div className="sec-badge-card">
-                  <div className="sec-badge-icon">
-                    <BoltIcon size={20} />
-                  </div>
-                  <div className="sec-badge-info">
-                    <h5>Two-Step TOTP MFA</h5>
-                    <p>
-                      {user.role === 'admin'
-                        ? 'Enforced on every sign-in with 5-minute ephemeral challenges.'
-                        : 'Administrator accounts enforce TOTP 6-digit verification codes.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         )}
 

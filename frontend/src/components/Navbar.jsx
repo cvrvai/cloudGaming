@@ -47,16 +47,6 @@ export default function Navbar({
               )}
             </button>
 
-            <button
-              className={`nav-tab-btn ${activeTab === 'profile' ? 'active' : ''}`}
-              onClick={() => (user ? onTabChange('profile') : openAuth('login'))}
-            >
-              <span className="nav-btn-icon">
-                <UserIcon size={16} />
-              </span>
-              <span>Profile & Settings</span>
-            </button>
-
             {user?.role === 'admin' && (
               <button
                 className={`nav-tab-btn ${activeTab === 'admin' ? 'active' : ''}`}
