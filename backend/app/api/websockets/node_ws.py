@@ -90,6 +90,35 @@ async def streaming_node_endpoint(websocket: WebSocket, node_id: int):
                 node_relay._node_meta[node_id] = specs
                 logger.info("Node #%d capabilities: %s", node_id, specs)
 
+                # Auto-upsert machine record so it never disappears from Fleet Rigs
+                try:
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT id FROM machines WHERE id = %s;", (node_id,))
+                        row = cursor.fetchone()
+                        if not row:
+                            name = specs.get("name") or f"Gaming PC (Node #{node_id})"
+                            gpu = specs.get("gpu", "Dedicated Gaming GPU")
+                            cpu = specs.get("cpu", "Multi-Core CPU")
+                            ram = specs.get("ram", "16GB RAM")
+                            os_str = specs.get("os", "Windows")
+                            cursor.execute(
+                                """
+                                INSERT INTO machines (id, name, gpu, cpu, ram, os, status, is_host, notes, last_seen)
+                                VALUES (%s, %s, %s, %s, %s, %s, 'available', 1, 'Auto-registered Gaming PC Node', %s);
+                                """,
+                                (node_id, name, gpu, cpu, ram, os_str, now_iso),
+                            )
+                        else:
+                            cursor.execute(
+                                "UPDATE machines SET status = 'available', last_seen = %s WHERE id = %s;",
+                                (now_iso, node_id),
+                            )
+                        conn.commit()
+                except Exception as db_exc:
+                    logger.warning("Failed to auto-upsert machine #%d: %s", node_id, db_exc)
+
     except WebSocketDisconnect:
         logger.info("Node #%d disconnected from streaming tunnel", node_id)
     except Exception as exc:

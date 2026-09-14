@@ -27,6 +27,9 @@ BACKEND_DIR = Path(__file__).resolve().parent / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+import functools
+print = functools.partial(print, flush=True)
+
 # Ensure GStreamer environment is configured before any gi imports
 try:
     import app.core.gst_env
@@ -215,6 +218,7 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                 await ws.send(json.dumps({
                     "type": "node_specs",
                     "specs": {
+                        "name": machine_name,
                         "gstreamer_available": stream_manager.available,
                         "gpu": hardware["gpu"],
                         "cpu": hardware["cpu"],
