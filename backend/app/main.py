@@ -28,6 +28,16 @@ logger = logging.getLogger("app")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # Reset machines that are not in maintenance to offline until their streaming nodes connect
+    try:
+        from app.db import get_db
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE machines SET status = 'offline' WHERE status != 'maintenance';")
+            conn.commit()
+    except Exception as exc:
+        logger.warning("Failed to reset machines status on startup: %s", exc)
+
     gamepad_service.start()
     if not stream_manager.available:
         logger.warning(

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.db import get_db
 from app.services.auth import get_current_user, require_admin
+from app.services.streaming.node_relay import node_relay
 
 router = APIRouter(prefix="/machines", tags=["machines"])
 
@@ -92,14 +93,19 @@ def list_machines():
             )
             m["installed_games"] = [dict(g) for g in cursor.fetchall()]
 
-            # Determine real-time occupancy status:
-            if m["status"] != "maintenance":
+            # Determine real-time occupancy and connection status:
+            is_connected = node_relay.is_node_connected(m["id"])
+            if m["status"] == "maintenance":
+                m["live_status"] = "maintenance"
+            elif not is_connected or m["status"] == "offline":
+                m["status"] = "offline"
+                m["live_status"] = "offline"
+            else:
                 is_currently_in_use = any(
                     b["start_time"] <= now_iso <= b["end_time"] for b in m["bookings"]
                 )
+                m["status"] = "available"
                 m["live_status"] = "busy" if is_currently_in_use else "available"
-            else:
-                m["live_status"] = "maintenance"
 
         return machines
 
@@ -139,6 +145,22 @@ def get_machine(machine_id: int):
             (machine_id,),
         )
         result["installed_games"] = [dict(g) for g in cursor.fetchall()]
+        
+        # Determine real-time occupancy and connection status:
+        is_connected = node_relay.is_node_connected(machine_id)
+        if result["status"] == "maintenance":
+            result["live_status"] = "maintenance"
+        elif not is_connected or result["status"] == "offline":
+            result["status"] = "offline"
+            result["live_status"] = "offline"
+        else:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            is_currently_in_use = any(
+                b["start_time"] <= now_iso <= b["end_time"] for b in result["bookings"]
+            )
+            result["status"] = "available"
+            result["live_status"] = "busy" if is_currently_in_use else "available"
+
         return result
 
 

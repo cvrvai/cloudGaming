@@ -2664,6 +2664,18 @@ input:-webkit-autofill:active {
   border: 1px solid rgba(234, 179, 8, 0.3);
 }
 
+.pc-status-pill.offline {
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.pc-status-pill.offline .pulse-dot {
+  background-color: #64748b;
+  box-shadow: none;
+  animation: none;
+}
+
 .pulse-dot {
   width: 6px;
   height: 6px;

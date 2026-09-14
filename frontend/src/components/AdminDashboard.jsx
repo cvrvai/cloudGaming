@@ -92,6 +92,8 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchAllAdminData();
+    const interval = setInterval(fetchAllAdminData, 4000);
+    return () => clearInterval(interval);
   }, [token]);
 
   const handleToggleMaintenance = async (machine) => {
@@ -518,7 +520,7 @@ export default function AdminDashboard() {
             <div className="bento-icon-box"><ServerIcon size={16} /></div>
           </div>
           <div className="bento-value">
-            {machines.filter((m) => m.status === 'available').length}
+            {machines.filter((m) => (m.live_status || m.status) === 'available').length}
             <span className="bento-subval">/{machines.length}</span>
           </div>
         </div>
@@ -599,9 +601,9 @@ export default function AdminDashboard() {
                       <span className="pc-role-badge remote">
                         Node #{m.id}
                       </span>
-                      <span className={`pc-status-pill ${m.status}`}>
+                      <span className={`pc-status-pill ${m.live_status || m.status}`}>
                         <span className="pulse-dot" />
-                        <span>{m.status.toUpperCase()}</span>
+                        <span>{(m.live_status || m.status).toUpperCase()}</span>
                       </span>
                     </div>
 

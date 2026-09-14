@@ -125,3 +125,14 @@ async def streaming_node_endpoint(websocket: WebSocket, node_id: int):
         logger.error("Node #%d tunnel error: %s", node_id, exc)
     finally:
         await node_relay.unregister_node(node_id)
+        try:
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE machines SET status = 'offline' WHERE id = %s AND status != 'maintenance';",
+                    (node_id,),
+                )
+                conn.commit()
+            logger.info("Marked node #%d as offline in DB", node_id)
+        except Exception as db_exc:
+            logger.warning("Failed to update status to offline for node #%d: %s", node_id, db_exc)
