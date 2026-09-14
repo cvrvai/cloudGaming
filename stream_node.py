@@ -211,7 +211,7 @@ def main():
 
     config = load_config()
 
-    if args.re_pair or not config.get("node_id") or not config.get("api_base"):
+    if bool(args.code) or args.re_pair or not config.get("node_id") or not config.get("api_base"):
         api_base = args.api.strip()
         if not api_base:
             env_api = os.environ.get("CLOUDKH_API_URL", "").strip()
