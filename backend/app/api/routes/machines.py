@@ -54,7 +54,7 @@ def list_machines():
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT id, name, gpu, cpu, ram, status, is_host, notes
+            SELECT id, name, gpu, cpu, ram, os, status, is_host, notes
             FROM machines
             ORDER BY id ASC;
             """
@@ -437,15 +437,16 @@ def complete_pairing(
         final_gpu = req.gpu or detected.get("gpu") or "Dedicated Gaming GPU"
         final_cpu = req.cpu or detected.get("cpu") or "High-Performance CPU"
         final_ram = req.ram or detected.get("ram") or "16GB RAM"
+        final_os = req.os or detected.get("os") or "Windows"
         final_notes = req.notes or f"Paired via Admin Google Authenticator Keypair on {now.strftime('%Y-%m-%d %H:%M UTC')}"
 
         cursor.execute(
             """
-            INSERT INTO machines (name, gpu, cpu, ram, status, is_host, notes)
-            VALUES (%s, %s, %s, %s, 'available', 0, %s)
-            RETURNING id, name, gpu, cpu, ram, status, is_host, notes;
+            INSERT INTO machines (name, gpu, cpu, ram, os, status, is_host, notes)
+            VALUES (%s, %s, %s, %s, %s, 'available', 0, %s)
+            RETURNING id, name, gpu, cpu, ram, os, status, is_host, notes;
             """,
-            (final_name, final_gpu, final_cpu, final_ram, final_notes),
+            (final_name, final_gpu, final_cpu, final_ram, final_os, final_notes),
         )
         new_machine = cursor.fetchone()
 

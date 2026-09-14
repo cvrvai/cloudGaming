@@ -106,9 +106,11 @@ def init_db() -> None:
             ram TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'available',
             is_host INTEGER NOT NULL DEFAULT 0,
-            notes TEXT
+            notes TEXT,
+            os TEXT
         );
         """)
+        cursor.execute("ALTER TABLE machines ADD COLUMN IF NOT EXISTS os TEXT;")
 
         # 3. Games Catalog table (Central game metadata)
         cursor.execute("""
@@ -240,7 +242,8 @@ def _seed_initial_data(conn: Any) -> None:
                 real_hw["name"],
                 real_hw["gpu"],
                 real_hw["cpu"],
-                f"{real_hw['ram']} ({real_hw['os']})",
+                real_hw["ram"],
+                real_hw.get("os", "Windows"),
                 "available",
                 1,
                 "Local Host Gaming Workstation - WebRTC Screen Streamer",
@@ -248,8 +251,8 @@ def _seed_initial_data(conn: Any) -> None:
         ]
         cursor.executemany(
             """
-            INSERT INTO machines (name, gpu, cpu, ram, status, is_host, notes)
-            VALUES (%s, %s, %s, %s, %s, %s, %s);
+            INSERT INTO machines (name, gpu, cpu, ram, os, status, is_host, notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
             """,
             rigs,
         )
@@ -257,14 +260,15 @@ def _seed_initial_data(conn: Any) -> None:
         cursor.execute(
             """
             UPDATE machines
-            SET name = %s, gpu = %s, cpu = %s, ram = %s
+            SET name = %s, gpu = %s, cpu = %s, ram = %s, os = %s
             WHERE is_host = 1;
             """,
             (
                 real_hw["name"],
                 real_hw["gpu"],
                 real_hw["cpu"],
-                f"{real_hw['ram']} ({real_hw['os']})",
+                real_hw["ram"],
+                real_hw.get("os", "Windows"),
             ),
         )
 

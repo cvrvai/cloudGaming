@@ -2755,6 +2755,19 @@ input:-webkit-autofill:active {
   margin: 0;
 }
 
+.pc-add-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #00d2ff;
+  background: rgba(0, 210, 255, 0.12);
+  border: 1px solid rgba(0, 210, 255, 0.25);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-top: 6px;
+  letter-spacing: 0.4px;
+}
+
 /* Keypair Pairing Modal */
 .pairing-modal-dialog {
   max-width: 420px;

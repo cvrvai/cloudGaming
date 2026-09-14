@@ -465,11 +465,27 @@ export default function AdminDashboard() {
       </div>
     );
   }
-
   const activeSessionsCount = bookings.filter((b) => {
     const nowIso = new Date().toISOString();
     return b.status === 'confirmed' && b.start_time <= nowIso && nowIso <= b.end_time;
   }).length;
+
+  const formatRam = (ram) => {
+    if (!ram) return '16 GB';
+    return ram.replace(/\s*\(.*?\)/g, '').trim();
+  };
+
+  const formatCpu = (cpu) => {
+    if (!cpu) return 'CPU';
+    return cpu.replace(/\([RTM]+\)/gi, '').replace(/\s+CPU\s+/i, ' ').replace(/\s+/g, ' ').trim();
+  };
+
+  const formatOs = (m) => {
+    if (m.os) return m.os.replace(/Microsoft\s+/i, '');
+    const match = m.ram?.match(/\((.*?)\)/);
+    if (match) return match[1].replace(/Microsoft\s+/i, '');
+    return 'Windows 11';
+  };
 
   return (
     <div className="admin-dashboard-container">
@@ -581,7 +597,7 @@ export default function AdminDashboard() {
                   >
                     <div className="pc-card-header">
                       <span className={`pc-role-badge ${m.is_host === 1 ? 'host' : 'remote'}`}>
-                        {m.is_host === 1 ? 'PRIMARY HOST WORKSTATION' : `STREAMING NODE #${m.id}`}
+                        {m.is_host === 1 ? 'Host Workstation' : `Node #${m.id}`}
                       </span>
                       <span className={`pc-status-pill ${m.status}`}>
                         <span className="pulse-dot" />
@@ -602,17 +618,15 @@ export default function AdminDashboard() {
                       </div>
                       <div className="spec-chip">
                         <span className="spec-chip-label"><CpuIcon size={10} /> CPU</span>
-                        <span className="spec-chip-val" title={m.cpu}>{m.cpu}</span>
+                        <span className="spec-chip-val" title={m.cpu}>{formatCpu(m.cpu)}</span>
                       </div>
                       <div className="spec-chip">
                         <span className="spec-chip-label"><RamIcon size={10} /> RAM</span>
-                        <span className="spec-chip-val" title={m.ram}>{m.ram}</span>
+                        <span className="spec-chip-val" title={m.ram}>{formatRam(m.ram)}</span>
                       </div>
                       <div className="spec-chip">
-                        <span className="spec-chip-label"><ServerIcon size={10} /> Role</span>
-                        <span className="spec-chip-val" title={m.notes || 'Gaming Rig'}>
-                          {m.is_host === 1 ? 'Local Streamer' : 'Remote Node'}
-                        </span>
+                        <span className="spec-chip-label"><MonitorIcon size={10} /> OS</span>
+                        <span className="spec-chip-val" title={formatOs(m)}>{formatOs(m)}</span>
                       </div>
                     </div>
 
@@ -632,11 +646,7 @@ export default function AdminDashboard() {
                         </button>
                       </div>
 
-                      {!m.installed_games || m.installed_games.length === 0 ? (
-                        <div className="node-games-empty">
-                          No games assigned
-                        </div>
-                      ) : (
+                      {m.installed_games && m.installed_games.length > 0 && (
                         <div className="node-games-list">
                           {m.installed_games.map((ng) => (
                             <div key={ng.id} className="node-game-card">
@@ -679,7 +689,7 @@ export default function AdminDashboard() {
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '14px' }}>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '12px' }}>
                       <button
                         style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                         className={`btn-toggle-maintenance ${m.status === 'maintenance' ? 'restore' : ''}`}
@@ -691,12 +701,12 @@ export default function AdminDashboard() {
                         ) : m.status === 'maintenance' ? (
                           <>
                             <CheckIcon size={14} />
-                            <span>Restore to Available</span>
+                            <span>Restore Available</span>
                           </>
                         ) : (
                           <>
                             <AlertTriangleIcon size={14} />
-                            <span>Put Under Maintenance</span>
+                            <span>Maintenance Mode</span>
                           </>
                         )}
                       </button>
@@ -720,7 +730,8 @@ export default function AdminDashboard() {
                   <div className="pc-add-icon-circle">
                     <KeyIcon size={20} />
                   </div>
-                  <h4 className="pc-add-title">+ Pair PC</h4>
+                  <div className="pc-add-title">+ Pair PC</div>
+                  <span className="pc-add-badge">MFA Keypair</span>
                 </div>
               </div>
             </div>
