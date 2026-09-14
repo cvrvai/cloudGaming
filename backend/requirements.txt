@@ -24,7 +24,7 @@ PyJWT>=2.8.0
 # Input control
 pynput>=1.7.0
 vgamepad>=0.1.0; sys_platform == "win32"   # requires ViGEmBus driver: https://github.com/ViGEm/ViGEmBus/releases
-python-uinput>=0.11.2; sys_platform == "linux"   # requires /dev/uinput access, see backend/README.md
+# python-uinput>=0.11.2; sys_platform == "linux"   # Optional: only if local Linux machine acts as streaming host
 
 # QR code for phone connection
 qrcode>=7.4.0
