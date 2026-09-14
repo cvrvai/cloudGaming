@@ -3,9 +3,12 @@ import { API_BASE } from '../config';
 import BookingModal from './BookingModal';
 import { GamepadIcon, CpuIcon, RamIcon, ClockIcon } from './Icons';
 
+// In-memory module cache: persists across tab/page swaps
+let cachedFleetMachines = null;
+
 export default function FleetView({ onBookingSuccess }) {
-  const [machines, setMachines] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [machines, setMachines] = useState(() => cachedFleetMachines || []);
+  const [loading, setLoading] = useState(() => !cachedFleetMachines);
   const [selectedMachine, setSelectedMachine] = useState(null);
 
   const fetchMachines = async () => {
@@ -13,6 +16,7 @@ export default function FleetView({ onBookingSuccess }) {
       const res = await fetch(`${API_BASE}/api/machines`);
       if (res.ok) {
         const data = await res.json();
+        cachedFleetMachines = data;
         setMachines(data);
       }
     } catch (err) {

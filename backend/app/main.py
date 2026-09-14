@@ -27,16 +27,16 @@ logger = logging.getLogger("app")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
-    # Reset machines that are not in maintenance to offline until their streaming nodes connect
+    # Initialize database if available, otherwise allow running in streaming-only mode
     try:
+        init_db()
         from app.db import get_db
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute("UPDATE machines SET status = 'offline' WHERE status != 'maintenance';")
             conn.commit()
     except Exception as exc:
-        logger.warning("Failed to reset machines status on startup: %s", exc)
+        logger.warning("Database unavailable (%s) - running in streaming-only mode.", exc)
 
     gamepad_service.start()
     if not stream_manager.available:
@@ -72,10 +72,25 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(title="Cloud Game Backend", version="1.0.0", lifespan=lifespan)
 
-    # Phone browser loads the frontend from the Vite dev server (different origin)
+    # Secure CORS: allow cloud production, local dev, and mobile devices on local network
+    from app.core.config import settings
+
+    allowed_origins = [
+        "https://cloudkh.space",
+        "https://www.cloudkh.space",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+    if settings.public_frontend_url:
+        clean_url = settings.public_frontend_url.strip().rstrip("/")
+        if clean_url and clean_url not in allowed_origins:
+            allowed_origins.append(clean_url)
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_origins,
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|.*\.cloudkh\.space|cloudkh\.space)(:\d+)?$",
+        allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )

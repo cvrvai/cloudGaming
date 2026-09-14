@@ -3,10 +3,11 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app.db import get_db
+from app.core.redis import cache_get, cache_set, cache_delete, check_rate_limit
 from app.services.auth import get_current_user, require_admin
 from app.services.streaming.node_relay import node_relay
 
@@ -49,65 +50,100 @@ class NodeGameConfigUpdate(BaseModel):
 
 
 @router.get("")
-def list_machines():
-    """List all campus gaming rigs with live availability, schedule blocks, and installed games."""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT id, name, gpu, cpu, ram, os, status, is_host, notes, last_seen
-            FROM machines
-            ORDER BY id ASC;
-            """
-        )
-        machines = [dict(row) for row in cursor.fetchall()]
+async def list_machines():
+    """List all campus gaming rigs with live availability, schedule blocks, and installed games.
+    
+    Optimized with Redis / high-speed in-memory cache and batch queries to prevent N+1 database roundtrips.
+    """
+    now_iso = datetime.now(timezone.utc).isoformat()
+    
+    # 1. Check high-speed Redis or memory cache for raw machine records
+    cached = await cache_get("machines:raw")
+    machines = None
+    if cached:
+        try:
+            machines = json.loads(cached)
+        except Exception:
+            machines = None
 
-        now_iso = datetime.now(timezone.utc).isoformat()
-        for m in machines:
-            # 1. Attach confirmed bookings
+    # 2. On cache miss: fetch machines, active bookings, and installed games in 3 batch queries
+    if machines is None:
+        with get_db() as conn:
+            cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT id, start_time, end_time, status
-                FROM bookings
-                WHERE machine_id = %s 
-                  AND status = 'confirmed'
-                  AND end_time >= %s
-                ORDER BY start_time ASC;
-                """,
-                (m["id"], now_iso),
-            )
-            m["bookings"] = [dict(b) for b in cursor.fetchall()]
-
-            # 2. Attach installed games on this node
-            cursor.execute(
+                SELECT id, name, gpu, cpu, ram, os, status, is_host, notes, last_seen
+                FROM machines
+                ORDER BY id ASC;
                 """
-                SELECT ng.id, ng.game_id, ng.executable_path, ng.working_directory,
-                       ng.launch_arguments, ng.enabled, ng.status,
-                       g.title, g.slug, g.genre, g.cover_url
-                FROM node_games ng
-                JOIN games g ON ng.game_id = g.id
-                WHERE ng.node_id = %s
-                ORDER BY g.title ASC;
-                """,
-                (m["id"],),
             )
-            m["installed_games"] = [dict(g) for g in cursor.fetchall()]
+            machines = [dict(row) for row in cursor.fetchall()]
 
-            # Determine real-time occupancy and connection status:
-            is_connected = node_relay.is_node_connected(m["id"])
-            if m["status"] == "maintenance":
-                m["live_status"] = "maintenance"
-            elif not is_connected:
-                m["status"] = "offline"
-                m["live_status"] = "offline"
-            else:
-                is_currently_in_use = any(
-                    b["start_time"] <= now_iso <= b["end_time"] for b in m["bookings"]
+            if machines:
+                machine_ids = tuple(m["id"] for m in machines)
+
+                # Batch query 1: All confirmed bookings for all machines in one query
+                cursor.execute(
+                    """
+                    SELECT id, machine_id, start_time, end_time, status
+                    FROM bookings
+                    WHERE machine_id IN %s 
+                      AND status = 'confirmed'
+                      AND end_time >= %s
+                    ORDER BY start_time ASC;
+                    """,
+                    (machine_ids, now_iso),
                 )
-                m["status"] = "available"
-                m["live_status"] = "busy" if is_currently_in_use else "available"
+                bookings_by_machine: Dict[int, list] = {m["id"]: [] for m in machines}
+                for b in cursor.fetchall():
+                    b_dict = dict(b)
+                    mid = b_dict.get("machine_id")
+                    if mid in bookings_by_machine:
+                        bookings_by_machine[mid].append(b_dict)
 
-        return machines
+                # Batch query 2: All installed games for all machines in one query
+                cursor.execute(
+                    """
+                    SELECT ng.id, ng.node_id, ng.game_id, ng.executable_path, ng.working_directory,
+                           ng.launch_arguments, ng.enabled, ng.status,
+                           g.title, g.slug, g.genre, g.cover_url
+                    FROM node_games ng
+                    JOIN games g ON ng.game_id = g.id
+                    WHERE ng.node_id IN %s
+                    ORDER BY g.title ASC;
+                    """,
+                    (machine_ids,),
+                )
+                games_by_machine: Dict[int, list] = {m["id"]: [] for m in machines}
+                for g in cursor.fetchall():
+                    g_dict = dict(g)
+                    nid = g_dict.get("node_id")
+                    if nid in games_by_machine:
+                        games_by_machine[nid].append(g_dict)
+
+                for m in machines:
+                    m["bookings"] = bookings_by_machine.get(m["id"], [])
+                    m["installed_games"] = games_by_machine.get(m["id"], [])
+
+            # Cache the assembled raw records for 10 seconds (or until invalidated on mutations)
+            await cache_set("machines:raw", json.dumps(machines, default=str), ttl_seconds=10)
+
+    # 3. Dynamic real-time connection status layer (always evaluated in-memory per request)
+    for m in machines:
+        is_connected = node_relay.is_node_connected(m["id"])
+        if m["status"] == "maintenance":
+            m["live_status"] = "maintenance"
+        elif not is_connected:
+            m["status"] = "offline"
+            m["live_status"] = "offline"
+        else:
+            is_currently_in_use = any(
+                b["start_time"] <= now_iso <= b["end_time"] for b in m.get("bookings", [])
+            )
+            m["status"] = "available"
+            m["live_status"] = "busy" if is_currently_in_use else "available"
+
+    return machines
 
 
 @router.get("/{machine_id}")
@@ -165,7 +201,7 @@ def get_machine(machine_id: int):
 
 
 @router.patch("/{machine_id}/status")
-def update_machine_status(
+async def update_machine_status(
     machine_id: int,
     req: MachineStatusUpdate,
     admin_user: Dict = Depends(require_admin),
@@ -181,6 +217,7 @@ def update_machine_status(
             raise HTTPException(status_code=404, detail="Machine not found")
         conn.commit()
 
+    await cache_delete("machines:raw")
     return {"message": f"Machine status updated to {req.status}"}
 
 
@@ -237,7 +274,7 @@ def get_machine_games(machine_id: int):
 
 
 @router.post("/{machine_id}/games", status_code=status.HTTP_201_CREATED)
-def assign_game_to_machine(
+async def assign_game_to_machine(
     machine_id: int,
     req: NodeGameConfigCreate,
     admin_user: Dict = Depends(require_admin),
@@ -294,6 +331,7 @@ def assign_game_to_machine(
         ng_id = cursor.fetchone()["id"]
         conn.commit()
 
+    await cache_delete("machines:raw")
     return {
         "id": ng_id,
         "node_id": machine_id,
@@ -309,7 +347,7 @@ def assign_game_to_machine(
 
 
 @router.put("/{machine_id}/games/{game_id}")
-def update_machine_game_config(
+async def update_machine_game_config(
     machine_id: int,
     game_id: int,
     req: NodeGameConfigUpdate,
@@ -356,11 +394,12 @@ def update_machine_game_config(
         )
         conn.commit()
 
+    await cache_delete("machines:raw")
     return {"message": "Game configuration updated successfully"}
 
 
 @router.delete("/{machine_id}/games/{game_id}")
-def remove_game_from_machine(
+async def remove_game_from_machine(
     machine_id: int,
     game_id: int,
     admin_user: Dict = Depends(require_admin),
@@ -376,11 +415,12 @@ def remove_game_from_machine(
             raise HTTPException(status_code=404, detail="Game assignment not found on this machine")
         conn.commit()
 
+    await cache_delete("machines:raw")
     return {"message": "Game unassigned from gaming PC successfully"}
 
 
 @router.delete("/{machine_id}")
-def delete_machine(
+async def delete_machine(
     machine_id: int,
     admin_user: Dict = Depends(require_admin),
 ):
@@ -394,6 +434,7 @@ def delete_machine(
         cursor.execute("DELETE FROM machines WHERE id = %s;", (machine_id,))
         conn.commit()
 
+    await cache_delete("machines:raw")
     return {"message": f"Machine '{m['name']}' deleted successfully"}
 
 
@@ -445,7 +486,7 @@ def generate_pair_code(
 
 
 @router.post("/pair/complete")
-def complete_pairing(
+async def complete_pairing(
     req: PairCompleteRequest,
     admin_user: Dict = Depends(require_admin),
 ):
@@ -500,6 +541,7 @@ def complete_pairing(
         )
         conn.commit()
 
+    await cache_delete("machines:raw")
     return {
         "status": "success",
         "message": f"Successfully paired gaming PC '{new_machine['name']}'!",
@@ -508,8 +550,20 @@ def complete_pairing(
 
 
 @router.post("/pair/node")
-def pair_node_from_terminal(req: PairCompleteRequest):
-    """Pair a streaming PC running the terminal service using a valid 6-digit MFA keypair code."""
+async def pair_node_from_terminal(req: PairCompleteRequest, request: Request):
+    """Pair a streaming PC running the terminal service using a valid 6-digit MFA keypair code.
+    
+    Protected against brute-force attacks via Token-Bucket rate limiting.
+    """
+    client_ip = request.client.host if request.client else None
+    if client_ip and client_ip not in ("127.0.0.1", "localhost", "testclient"):
+        allowed = await check_rate_limit(f"rate:pair_node:{client_ip}", max_requests=10, window_seconds=300)
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many pairing attempts. Please wait 5 minutes before trying again.",
+            )
+
     clean_code = req.code.strip().replace(" ", "").upper()
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
@@ -560,6 +614,7 @@ def pair_node_from_terminal(req: PairCompleteRequest):
         )
         conn.commit()
 
+    await cache_delete("machines:raw")
     return {
         "status": "success",
         "message": f"Successfully paired gaming PC '{new_machine['name']}'!",

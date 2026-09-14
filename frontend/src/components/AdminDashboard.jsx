@@ -23,14 +23,17 @@ import {
   UserIcon,
 } from './Icons';
 
+// In-memory module cache for instant admin tab/page navigation
+let cachedAdminData = null;
+
 export default function AdminDashboard() {
   const { token, user } = useAuth();
   const [adminTab, setAdminTab] = useState('machines'); // 'machines' | 'games' | 'bookings' | 'users' | 'dmaic'
   
-  const [machines, setMachines] = useState([]);
-  const [bookings, setBookings] = useState([]);
-  const [games, setGames] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [machines, setMachines] = useState(() => cachedAdminData?.machines || []);
+  const [bookings, setBookings] = useState(() => cachedAdminData?.bookings || []);
+  const [games, setGames] = useState(() => cachedAdminData?.games || []);
+  const [loading, setLoading] = useState(() => !cachedAdminData);
   const [updatingId, setUpdatingId] = useState(null);
 
   // Keypair PC Pairing state (Google Authenticator MFA)
@@ -74,7 +77,7 @@ export default function AdminDashboard() {
   const [nodeGameError, setNodeGameError] = useState(null);
 
   // Users state (Clear User Account Tracking & Visibility)
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState(() => cachedAdminData?.users || []);
   const [userSearch, setUserSearch] = useState('');
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [newUserName, setNewUserName] = useState('');
@@ -85,8 +88,8 @@ export default function AdminDashboard() {
   const [createUserSubmitting, setCreateUserSubmitting] = useState(false);
 
   // Operations Research - Lean Six Sigma DMAIC CTQ state
-  const [dmaicMetrics, setDmaicMetrics] = useState(null);
-  const [dmaicRecords, setDmaicRecords] = useState([]);
+  const [dmaicMetrics, setDmaicMetrics] = useState(() => cachedAdminData?.dmaicMetrics || null);
+  const [dmaicRecords, setDmaicRecords] = useState(() => cachedAdminData?.dmaicRecords || []);
   const [dmaicPhaseFilter, setDmaicPhaseFilter] = useState('all');
   const [showAddTestModal, setShowAddTestModal] = useState(false);
   const [newTestAccount, setNewTestAccount] = useState('');
@@ -116,15 +119,32 @@ export default function AdminDashboard() {
         fetch(`${API_BASE}/api/admin/dmaic/metrics`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${API_BASE}/api/admin/dmaic/records`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
-      if (mRes.ok) setMachines(await mRes.json());
-      if (bRes.ok) setBookings(await bRes.json());
+      const mData = mRes.ok ? await mRes.json() : (cachedAdminData?.machines || []);
+      const bData = bRes.ok ? await bRes.json() : (cachedAdminData?.bookings || []);
+      let gData = cachedAdminData?.games || [];
       if (gRes.ok) {
-        setGames(await gRes.json());
+        gData = await gRes.json();
+        setGames(gData);
         window.dispatchEvent(new Event('cloudkh-games-updated'));
       }
-      if (uRes.ok) setUsers(await uRes.json());
-      if (dMetricsRes.ok) setDmaicMetrics(await dMetricsRes.json());
-      if (dRecordsRes.ok) setDmaicRecords(await dRecordsRes.json());
+      const uData = uRes.ok ? await uRes.json() : (cachedAdminData?.users || []);
+      const dmData = dMetricsRes.ok ? await dMetricsRes.json() : (cachedAdminData?.dmaicMetrics || null);
+      const drData = dRecordsRes.ok ? await dRecordsRes.json() : (cachedAdminData?.dmaicRecords || []);
+
+      if (mRes.ok) setMachines(mData);
+      if (bRes.ok) setBookings(bData);
+      if (uRes.ok) setUsers(uData);
+      if (dMetricsRes.ok) setDmaicMetrics(dmData);
+      if (dRecordsRes.ok) setDmaicRecords(drData);
+
+      cachedAdminData = {
+        machines: mData,
+        bookings: bData,
+        games: gData,
+        users: uData,
+        dmaicMetrics: dmData,
+        dmaicRecords: drData,
+      };
     } catch (err) {
       console.error('Failed to load admin data:', err);
     } finally {
@@ -275,7 +295,26 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchAllAdminData();
     const interval = setInterval(fetchAllAdminData, 4000);
-    return () => clearInterval(interval);
+
+    // 30-minute security inactivity timeout for administrator session
+    let idleTimer;
+    const resetIdleTimer = () => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        console.warn('[Security] Admin session timed out due to 30 minutes of inactivity.');
+        window.location.reload();
+      }, 30 * 60 * 1000);
+    };
+
+    const userEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    userEvents.forEach((evt) => window.addEventListener(evt, resetIdleTimer, { passive: true }));
+    resetIdleTimer();
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(idleTimer);
+      userEvents.forEach((evt) => window.removeEventListener(evt, resetIdleTimer));
+    };
   }, [token]);
 
   const handleToggleMaintenance = async (machine) => {

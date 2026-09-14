@@ -26,7 +26,7 @@ async def create_booking(
 ):
     """Create a conflict-free reservation for a gaming PC (FR-03, FR-04, NFR-02)."""
     # 1. Anti-Spam Rate Limiter: Max 5 booking requests per minute per user
-    from app.core.redis import check_rate_limit, acquire_lock, release_lock, increment_dmaic_counter, record_dmaic_unique_user
+    from app.core.redis import check_rate_limit, acquire_lock, release_lock, increment_dmaic_counter, record_dmaic_unique_user, cache_delete
     allowed = await check_rate_limit(f"rate:booking:{current_user['id']}", max_requests=5, window_seconds=60)
     if not allowed:
         raise HTTPException(
@@ -116,6 +116,7 @@ async def create_booking(
         await increment_dmaic_counter("sessions:total")
         await increment_dmaic_counter(f"sessions:{datetime.now().strftime('%Y-%m-%d')}")
         await record_dmaic_unique_user(current_user["id"])
+        await cache_delete("machines:raw")
         return booking
     except BookingConflictError as exc:
         raise HTTPException(
@@ -254,6 +255,9 @@ async def cancel_booking(
                 (booking_id,),
             )
         conn.commit()
+
+    from app.core.redis import cache_delete
+    await cache_delete("machines:raw")
 
     # Stop game process and tear down capture pipeline for this booking
     try:
