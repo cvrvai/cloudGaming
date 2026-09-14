@@ -200,6 +200,7 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
     reconnect_delay = 3
 
     while True:
+        hb_task = None
         try:
             ts = datetime.now().strftime("%H:%M:%S")
             print(f"[{ts}] Connecting to CloudKH streaming relay...")
@@ -227,6 +228,15 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                     },
                 }))
 
+                async def send_heartbeats():
+                    try:
+                        while True:
+                            await asyncio.sleep(10)
+                            await ws.send(json.dumps({"type": "heartbeat"}))
+                    except (asyncio.CancelledError, Exception):
+                        pass
+
+                hb_task = asyncio.create_task(send_heartbeats())
                 async for raw_message in ws:
                     try:
                         msg = json.loads(raw_message)
@@ -334,9 +344,13 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                             }))
 
         except (websockets.exceptions.ConnectionClosedError, websockets.exceptions.ConnectionClosedOK) as exc:
+            if hb_task:
+                hb_task.cancel()
             ts = datetime.now().strftime("%H:%M:%S")
             print(f"\n[{ts}] [!] Tunnel disconnected: {exc}. Reconnecting in {reconnect_delay}s...")
         except Exception as exc:
+            if hb_task:
+                hb_task.cancel()
             ts = datetime.now().strftime("%H:%M:%S")
             print(f"\n[{ts}] [!] Tunnel connection error: {exc}. Reconnecting in {reconnect_delay}s...")
 
