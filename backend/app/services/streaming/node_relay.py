@@ -27,10 +27,38 @@ class NodeRelayManager:
         self._lock = asyncio.Lock()
 
     def is_node_connected(self, node_id: Optional[int] = None) -> bool:
-        """Check if a specific node or any node is connected."""
+        """Check if a specific node or any node is connected (in memory or via DB heartbeat)."""
         if node_id is not None:
-            return node_id in self._nodes
-        return len(self._nodes) > 0
+            if node_id in self._nodes:
+                return True
+        elif len(self._nodes) > 0:
+            return True
+
+        # Multi-process & multi-worker resilience: check recent DB heartbeat (<45s)
+        try:
+            from datetime import datetime, timezone
+            from app.db import get_db
+            now = datetime.now(timezone.utc)
+            with get_db() as conn:
+                cursor = conn.cursor()
+                if node_id is not None:
+                    cursor.execute("SELECT last_seen, status FROM machines WHERE id = %s;", (node_id,))
+                    row = cursor.fetchone()
+                    if row and row.get("last_seen"):
+                        ls_dt = datetime.fromisoformat(row["last_seen"].replace("Z", "+00:00"))
+                        if (now - ls_dt).total_seconds() < 45:
+                            return True
+                else:
+                    cursor.execute("SELECT last_seen, status FROM machines;")
+                    for r in cursor.fetchall():
+                        if r.get("last_seen"):
+                            ls_dt = datetime.fromisoformat(r["last_seen"].replace("Z", "+00:00"))
+                            if (now - ls_dt).total_seconds() < 45:
+                                return True
+        except Exception:
+            pass
+
+        return False
 
     def get_any_connected_node_id(self) -> Optional[int]:
         """Return first available connected node ID."""

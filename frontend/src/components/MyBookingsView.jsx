@@ -136,12 +136,12 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
         <div className="bookings-quota-banner glass-panel">
           <div className="quota-banner-left">
             <div className="quota-banner-badge-row">
-              <span className="quota-pill-glow">⚡ Beta Free Daily Quota</span>
+              <span className="quota-pill-glow">Beta Free Daily Quota</span>
               <span className="quota-reset-pill">Resets 12:00 AM Midnight (Cambodia Time / UTC+7)</span>
             </div>
             <h3 className="quota-banner-title">2 Hours Free Gaming per Day</h3>
             <p className="quota-banner-subtitle">
-              You receive up to <strong>2 hours (120 minutes)</strong> of cloud gaming on our RTX 3050 rig daily.
+              You receive up to <strong>2 hours (120 minutes)</strong> of cloud gaming on our cloud gaming rig daily.
               Daily hours <strong>never roll over</strong> or accumulate (each calendar day starts fresh with 2 hours).
             </p>
           </div>

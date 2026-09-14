@@ -55,7 +55,7 @@ def list_machines():
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT id, name, gpu, cpu, ram, os, status, is_host, notes
+            SELECT id, name, gpu, cpu, ram, os, status, is_host, notes, last_seen
             FROM machines
             ORDER BY id ASC;
             """
@@ -97,7 +97,7 @@ def list_machines():
             is_connected = node_relay.is_node_connected(m["id"])
             if m["status"] == "maintenance":
                 m["live_status"] = "maintenance"
-            elif not is_connected or m["status"] == "offline":
+            elif not is_connected:
                 m["status"] = "offline"
                 m["live_status"] = "offline"
             else:
@@ -150,7 +150,7 @@ def get_machine(machine_id: int):
         is_connected = node_relay.is_node_connected(machine_id)
         if result["status"] == "maintenance":
             result["live_status"] = "maintenance"
-        elif not is_connected or result["status"] == "offline":
+        elif not is_connected:
             result["status"] = "offline"
             result["live_status"] = "offline"
         else:

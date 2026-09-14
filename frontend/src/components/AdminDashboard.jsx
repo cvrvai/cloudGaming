@@ -671,6 +671,11 @@ export default function AdminDashboard() {
     return 'Windows 11';
   };
 
+  const streamingRigGpu = machines.find((m) => (m.live_status || m.status) === 'available')?.gpu
+    || machines[0]?.gpu
+    || dmaicMetrics?.dmaic_meta?.rig_gpu
+    || 'Gaming Rig';
+
   return (
     <div className="admin-dashboard-container">
       {/* Top Overview & Action Toolbar */}
@@ -699,7 +704,6 @@ export default function AdminDashboard() {
         <div className="admin-bento-card glass-panel">
           <div className="bento-top-row">
             <span className="bento-tag">Fleet Rigs</span>
-            <div className="bento-icon-box"><ServerIcon size={16} /></div>
           </div>
           <div className="bento-value">
             {machines.filter((m) => (m.live_status || m.status) === 'available').length}
@@ -710,7 +714,6 @@ export default function AdminDashboard() {
         <div className="admin-bento-card glass-panel">
           <div className="bento-top-row">
             <span className="bento-tag">Catalog Games</span>
-            <div className="bento-icon-box"><GamepadIcon size={16} /></div>
           </div>
           <div className="bento-value">{games.length}</div>
         </div>
@@ -718,7 +721,6 @@ export default function AdminDashboard() {
         <div className="admin-bento-card glass-panel">
           <div className="bento-top-row">
             <span className="bento-tag">Live Streams</span>
-            <div className="bento-icon-box"><MonitorIcon size={16} /></div>
           </div>
           <div className={`bento-value ${activeSessionsCount > 0 ? 'highlight-green' : ''}`}>
             {activeSessionsCount}
@@ -728,7 +730,6 @@ export default function AdminDashboard() {
         <div className="admin-bento-card glass-panel">
           <div className="bento-top-row">
             <span className="bento-tag">Reservations</span>
-            <div className="bento-icon-box"><ClipboardListIcon size={16} /></div>
           </div>
           <div className="bento-value">{bookings.length}</div>
         </div>
@@ -741,7 +742,6 @@ export default function AdminDashboard() {
         >
           <div className="bento-top-row">
             <span className="bento-tag">User Accounts</span>
-            <div className="bento-icon-box"><UsersIcon size={16} /></div>
           </div>
           <div className="bento-value">{users.length}</div>
         </div>
@@ -754,7 +754,6 @@ export default function AdminDashboard() {
         >
           <div className="bento-top-row">
             <span className="bento-tag">DMAIC Pass Rate</span>
-            <div className="bento-icon-box"><ChartIcon size={16} /></div>
           </div>
           <div className="bento-value highlight-green">
             {dmaicMetrics?.ctq4_completion_rate ? `${dmaicMetrics.ctq4_completion_rate.completion_rate_pct}%` : '---'}
@@ -1166,7 +1165,7 @@ export default function AdminDashboard() {
                           </td>
                           <td>
                             <span className="user-gaming-hours-pill" title="Tracked Gaming Duration for Sean CTQ 2">
-                              ⚡ {(u.gaming_hours || 0).toFixed(1)} hrs
+                              {(u.gaming_hours || 0).toFixed(1)} hrs
                             </span>
                           </td>
                           <td>
@@ -1226,11 +1225,11 @@ export default function AdminDashboard() {
                 <div className="dmaic-hero-content">
                   <div className="dmaic-badge-row compact">
                     <span className="dmaic-badge">Operations Research &bull; Lean Six Sigma DMAIC</span>
-                    <span className="dmaic-subbadge">CloudKH Single-PC MVP</span>
+                    <span className="dmaic-subbadge">CloudKH &bull; {streamingRigGpu}</span>
                   </div>
                   <h2 className="dmaic-hero-title compact">Voice of Customer (VOC) to Critical to Quality (CTQ) Telemetry</h2>
                   <p className="dmaic-hero-desc compact">
-                    Single RTX 3050 rig pilot tracking Queue Waiting Times, Network Latency, Rig Utilization &amp; Energy Waste, and Session Defect Rates.
+                    Single {streamingRigGpu} rig pilot tracking Queue Waiting Times, Network Latency, Rig Utilization &amp; Energy Waste, and Session Defect Rates.
                   </p>
                 </div>
                 <div className="dmaic-hero-actions compact">
@@ -1257,7 +1256,7 @@ export default function AdminDashboard() {
               {/* 4 Team Member CTQ Cards - Compact & Balanced */}
               <div className="dmaic-ctq-grid compact">
                 {/* CTQ 1: Latency & Frame Stability (Choonvai) */}
-                <div className="dmaic-ctq-card glass-panel compact ctq-border-choonvai">
+                <div className="dmaic-ctq-card glass-panel compact">
                   <div className="ctq-card-header compact">
                     <div className="ctq-owner-tag choonvai">CTQ 1 &bull; Choonvai</div>
                     <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq1_latency?.status === 'PASS' ? 'pass' : 'risk'}`}>
@@ -1291,7 +1290,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* CTQ 2: PC Utilization & Energy Waste (Sean Pheavyraksonya) */}
-                <div className="dmaic-ctq-card glass-panel compact ctq-border-sean">
+                <div className="dmaic-ctq-card glass-panel compact">
                   <div className="ctq-card-header compact">
                     <div className="ctq-owner-tag sean">CTQ 2 &bull; Sean Pheavyraksonya</div>
                     <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq2_utilization?.status === 'PASS' ? 'pass' : 'risk'}`}>
@@ -1325,7 +1324,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* CTQ 3: Booking Waiting Time & Capacity (Lim Hokann) */}
-                <div className="dmaic-ctq-card glass-panel compact ctq-border-hokann">
+                <div className="dmaic-ctq-card glass-panel compact">
                   <div className="ctq-card-header compact">
                     <div className="ctq-owner-tag hokann">CTQ 3 &bull; Lim Hokann</div>
                     <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq3_waiting_time?.status === 'PASS' ? 'pass' : 'risk'}`}>
@@ -1359,7 +1358,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* CTQ 4: Session Completion Rate (Hour) */}
-                <div className="dmaic-ctq-card glass-panel compact ctq-border-hour">
+                <div className="dmaic-ctq-card glass-panel compact">
                   <div className="ctq-card-header compact">
                     <div className="ctq-owner-tag hour">CTQ 4 &bull; Hour</div>
                     <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq4_completion_rate?.status === 'PASS' ? 'pass' : 'risk'}`}>

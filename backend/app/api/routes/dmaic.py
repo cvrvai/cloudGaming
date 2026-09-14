@@ -84,6 +84,18 @@ def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
         """)
         b_stats = dict(cursor.fetchone())
 
+        # Dynamic rig detection: read actual GPU from connected streaming rig
+        cursor.execute("""
+            SELECT id, name, gpu, cpu, ram, status
+            FROM machines
+            ORDER BY is_host DESC, id ASC
+            LIMIT 1;
+        """)
+        rig_row = cursor.fetchone()
+        rig_gpu = (dict(rig_row).get("gpu") if rig_row else None) or "Dedicated Gaming GPU"
+        rig_name = (dict(rig_row).get("name") if rig_row else None) or "Streaming PC"
+        rig_display = f"1x {rig_gpu} (1 User at a time)"
+
     total_sessions = t_stats["total_records"]
     completed = t_stats["completed_sessions"]
     failed = t_stats["failed_sessions"]
@@ -96,7 +108,7 @@ def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     latency_defect_rate = (latency_defects / total_sessions * 100.0) if total_sessions > 0 else 0.0
 
     # CTQ 2: PC Utilization & Energy Estimation
-    # RTX 3050 rig: ~280W under active load, ~45W when idle
+    # Active streaming rig dynamic estimation (~280W under active load, ~45W when idle)
     # Baseline: 16 hours operating day per single machine
     gaming_hours = round(completed * 1.0, 1) # 1 hour per session
     powered_hours = max(16.0, gaming_hours)
@@ -153,10 +165,12 @@ def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
             "failure_breakdown": failure_breakdown,
         },
         "dmaic_meta": {
-            "project_name": "CloudKH Single-PC Cloud Gaming MVP",
+            "project_name": "CloudKH Cloud Gaming MVP",
             "organization": "CloudKH",
             "methodology": "Lean Six Sigma DMAIC",
-            "hardware": "1x NVIDIA RTX 3050 Gaming Rig (1 User at a time)",
+            "hardware": rig_display,
+            "rig_name": rig_name,
+            "rig_gpu": rig_gpu,
             "phase": "Define / Measure (Baseline V1)",
             "server_time": now_iso,
         },

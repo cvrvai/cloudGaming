@@ -135,7 +135,6 @@ export default function Navbar({
                   onClick={() => onTabChange('bookings')}
                   title="Daily Free Beta Quota: 2 Hours maximum per day. Resets every midnight at 12:00 AM (UTC+7)."
                 >
-                  <span className="nav-quota-icon">⚡</span>
                   <span className="nav-quota-text">
                     {dailyQuota ? `${dailyQuota.remaining_minutes}m left today` : '2h left today'}
                   </span>
@@ -174,7 +173,7 @@ export default function Navbar({
                   {user.role !== 'admin' && (
                     <div className="dropdown-quota-card">
                       <div className="dropdown-quota-header">
-                        <span className="dropdown-quota-badge">⚡ Beta Daily Free Quota</span>
+                        <span className="dropdown-quota-badge">Beta Daily Free Quota</span>
                         <span className="dropdown-quota-reset">Resets 00:00 UTC+7</span>
                       </div>
                       <div className="dropdown-quota-progress">
