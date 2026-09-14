@@ -59,7 +59,76 @@ def _detect_local_node_id() -> int:
                         return int(data["node_id"])
             except Exception:
                 pass
-    return 1
+def _get_running_process_names() -> set:
+    """Return lowercase filenames of all currently running processes on Windows."""
+    if sys.platform != "win32":
+        return set()
+    import ctypes
+    from ctypes import wintypes
+
+    class PROCESSENTRY32(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.c_size_t),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", wintypes.LONG),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", ctypes.c_char * 260),
+        ]
+
+    names = set()
+    try:
+        hSnap = ctypes.windll.kernel32.CreateToolhelp32Snapshot(0x00000002, 0)
+        pe32 = PROCESSENTRY32()
+        pe32.dwSize = ctypes.sizeof(PROCESSENTRY32)
+        if ctypes.windll.kernel32.Process32First(hSnap, ctypes.byref(pe32)):
+            while True:
+                names.add(pe32.szExeFile.decode("utf-8", errors="ignore").lower())
+                if not ctypes.windll.kernel32.Process32Next(hSnap, ctypes.byref(pe32)):
+                    break
+        ctypes.windll.kernel32.CloseHandle(hSnap)
+    except Exception:
+        pass
+    return names
+
+
+def _resolve_game_executables_and_steam_appid(exe_path: str):
+    """Discover all related game executable names (including shipping binaries) and Steam AppID."""
+    p = Path(exe_path).resolve()
+    names = {p.name.lower()}
+    steam_appid = None
+
+    if p.parent.exists():
+        try:
+            for sub_exe in p.parent.glob("**/*.exe"):
+                sub_name = sub_exe.name.lower()
+                if not any(x in sub_name for x in ("setup", "redist", "prereq", "crash")):
+                    names.add(sub_name)
+        except Exception:
+            pass
+
+    for parent in p.parents:
+        if parent.name.lower() == "common" and parent.parent.name.lower() == "steamapps":
+            steamapps_dir = parent.parent
+            try:
+                game_folder = p.relative_to(parent).parts[0]
+                for acf in steamapps_dir.glob("appmanifest_*.acf"):
+                    text = acf.read_text(encoding="utf-8", errors="ignore")
+                    if game_folder.lower() in text.lower():
+                        import re
+                        m = re.search(r'"appid"\s+"(\d+)"', text, re.IGNORECASE)
+                        if m:
+                            steam_appid = m.group(1)
+                            break
+            except Exception:
+                pass
+            break
+
+    return names, steam_appid
 
 
 class GamingPCAgent:
@@ -70,6 +139,8 @@ class GamingPCAgent:
         self._active_process: Optional[subprocess.Popen] = None
         self._active_game_info: Optional[Dict[str, Any]] = None
         self._exit_callbacks = []
+        self._authorized_game_exes: set = set()
+        self._watchdog_active = False
         self._lock = threading.Lock()
 
     def register_exit_callback(self, callback) -> None:
@@ -77,11 +148,37 @@ class GamingPCAgent:
         if callback not in self._exit_callbacks:
             self._exit_callbacks.append(callback)
 
+    def _load_authorized_game_exes(self) -> None:
+        """Cache all configured game executables from DB."""
+        try:
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT executable_path FROM node_games WHERE enabled = 1;")
+                rows = cursor.fetchall()
+                for row in rows:
+                    p = row.get("executable_path", "").strip()
+                    if p:
+                        names, _ = _resolve_game_executables_and_steam_appid(p)
+                        self._authorized_game_exes.update(names)
+        except Exception as e:
+            logger.debug("Could not load authorized game exes from DB: %s", e)
+
     def is_game_running(self) -> bool:
-        """Check if an authorized game process is currently running."""
+        """Check if an authorized game process is currently running on the PC."""
         with self._lock:
-            if self._active_process:
-                return self._active_process.poll() is None
+            if self._active_process and self._active_process.poll() is None:
+                return True
+            if self._active_game_info and self._active_game_info.get("simulated"):
+                return True
+
+            running = _get_running_process_names()
+            if self._authorized_game_exes and (self._authorized_game_exes & running):
+                return True
+
+            self._load_authorized_game_exes()
+            if self._authorized_game_exes and (self._authorized_game_exes & running):
+                return True
+
             return False
 
     def dispatch(self, operation: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -230,6 +327,10 @@ class GamingPCAgent:
             if args_str:
                 cmd.extend(args_str.split())
 
+            # Resolve all executable names (including shipping binaries) and Steam AppID
+            exe_names, steam_appid = _resolve_game_executables_and_steam_appid(exe_path)
+            self._authorized_game_exes.update(exe_names)
+
             # Verify executable existence if local host
             exe_exists = Path(exe_path).is_file()
             pid = None
@@ -237,21 +338,28 @@ class GamingPCAgent:
 
             if exe_exists:
                 try:
-                    proc = subprocess.Popen(
-                        cmd,
-                        cwd=cwd if cwd and Path(cwd).is_dir() else None,
-                        shell=False,
-                    )
-                    self._active_process = proc
-                    pid = proc.pid
-                    logger.info("Launched game '%s' (PID %d): %s", config["title"], pid, exe_path)
+                    steam_exe = Path(r"C:\Program Files (x86)\Steam\steam.exe")
+                    if steam_appid and steam_exe.exists():
+                        logger.info("Launching Steam game via steam.exe -applaunch %s...", steam_appid)
+                        subprocess.Popen([str(steam_exe), "-applaunch", str(steam_appid)], shell=False)
+                        self._active_process = None
+                        pid = None
+                    else:
+                        proc = subprocess.Popen(
+                            cmd,
+                            cwd=cwd if cwd and Path(cwd).is_dir() else None,
+                            shell=False,
+                        )
+                        self._active_process = proc
+                        pid = proc.pid
+                        logger.info("Launched game '%s' (PID %s): %s", config["title"], pid, exe_path)
 
-                    # Start process watchdog thread to monitor process exit
-                    self._start_process_watchdog(proc, config["title"], config["game_id"])
+                    # Start robust process tree watchdog
+                    self._start_process_watchdog(config["title"], config["game_id"])
 
                     # Focus game window on Windows
                     if sys.platform == "win32":
-                        threading.Thread(target=self._focus_process_window, args=(pid,), daemon=True).start()
+                        threading.Thread(target=self._focus_game_window, daemon=True).start()
                 except Exception as e:
                     logger.warning("Failed to launch physical executable: %s", e)
                     simulated = True
@@ -285,41 +393,59 @@ class GamingPCAgent:
                 "save_mount": save_mount_info,
             }
 
-    def _start_process_watchdog(self, proc: subprocess.Popen, title: str, game_id: int) -> None:
-        """Monitor game process in background and instantly react on exit."""
-        def _watch():
-            logger.info("[Watchdog] Monitoring game '%s' (PID %d)", title, proc.pid)
-            try:
-                proc.wait()
-            except Exception as e:
-                logger.warning("[Watchdog] proc.wait() error: %s", e)
-            logger.info("[Watchdog] Game '%s' (PID %d) terminated (code: %s)", title, proc.pid, proc.returncode)
-            self._handle_process_exit(proc.pid, title, game_id)
+    def _start_process_watchdog(self, title: str, game_id: int) -> None:
+        """Monitor game process in background without killing early if launcher hands off."""
+        if self._watchdog_active:
+            return
+        self._watchdog_active = True
 
-        t = threading.Thread(target=_watch, name=f"Watchdog-PID{proc.pid}", daemon=True)
+        def _watch():
+            logger.info("[Watchdog] Monitoring game '%s' (waiting for process tree)...", title)
+            # Give game 4 seconds to bootstrap its main window / shipping process
+            time.sleep(4.0)
+
+            # Loop while any authorized game process is running
+            while True:
+                if not self.is_game_running():
+                    # Grace period to prevent false triggers during level loads or transitions
+                    time.sleep(2.5)
+                    if not self.is_game_running():
+                        break
+                time.sleep(1.0)
+
+            logger.info("[Watchdog] Game '%s' has stopped running. Triggering exit...", title)
+            self._watchdog_active = False
+            self._handle_process_exit(0, title, game_id)
+
+        t = threading.Thread(target=_watch, name=f"Watchdog-{title}", daemon=True)
         t.start()
 
-    def _focus_process_window(self, pid: int) -> None:
+    def _focus_game_window(self) -> None:
         """Bring the newly launched game window to foreground on Windows."""
-        time.sleep(1.5)  # Allow game window to initialize Win32 handle
-        try:
-            cmd = f"$w = New-Object -ComObject WScript.Shell; $w.AppActivate({pid})"
-            subprocess.run(["powershell", "-NoProfile", "-Command", cmd], timeout=5, capture_output=True)
-            logger.info("[Agent] Focused window for PID %d", pid)
-        except Exception as e:
-            logger.debug("[Agent] Could not focus window for PID %d: %s", pid, e)
+        for _ in range(8):
+            time.sleep(1.5)
+            try:
+                running = _get_running_process_names()
+                matched = self._authorized_game_exes & running
+                if matched:
+                    target_stem = next(iter(matched)).replace(".exe", "")
+                    cmd = (
+                        f"$p = Get-Process -Name '{target_stem}' -ErrorAction SilentlyContinue | Select-Object -First 1; "
+                        f"if ($p) {{ (New-Object -ComObject WScript.Shell).AppActivate($p.Id) }}"
+                    )
+                    subprocess.run(["powershell", "-NoProfile", "-Command", cmd], timeout=5, capture_output=True)
+                    logger.info("[Agent] Focused window for '%s'", target_stem)
+                    break
+            except Exception as e:
+                logger.debug("[Agent] Could not focus window: %s", e)
 
     def _handle_process_exit(self, pid: int, title: str, game_id: int) -> None:
         """Invoked immediately when the game process terminates."""
         with self._lock:
-            if not self._active_process and not self._active_game_info:
-                return
-            if self._active_process and self._active_process.pid != pid:
-                return
             self._active_process = None
             self._active_game_info = None
 
-        logger.info("[Agent] Game '%s' (PID %d) exited. Unmounting & archiving user saves...", title, pid)
+        logger.info("[Agent] Game '%s' exited. Unmounting & archiving user saves...", title)
         try:
             save_manager.unmount_session(clean_after=True)
         except Exception as exc:
@@ -335,11 +461,12 @@ class GamingPCAgent:
         """Terminate the active game process and archive user save state."""
         with self._lock:
             info = self._active_game_info
-            if not self._active_process and not info:
+            if not self._active_process and not info and not self.is_game_running():
                 return {"status": "no_active_game"}
 
             self._terminate_active_process()
             self._active_game_info = None
+            self._watchdog_active = False
 
         time.sleep(0.5)  # Allow process to finish writing files to disk
         archive_res = save_manager.unmount_session(clean_after=True)
@@ -368,6 +495,15 @@ class GamingPCAgent:
                 except Exception:
                     pass
             self._active_process = None
+
+        if sys.platform == "win32" and self._authorized_game_exes:
+            for exe in list(self._authorized_game_exes):
+                if exe.lower() in ("steam.exe", "steamwebhelper.exe", "steamservice.exe", "explorer.exe"):
+                    continue
+                try:
+                    subprocess.run(["taskkill", "/F", "/IM", exe, "/T"], capture_output=True, timeout=3)
+                except Exception:
+                    pass
 
     def get_status(self) -> Dict[str, Any]:
         """Return agent status including any currently running game."""

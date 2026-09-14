@@ -294,6 +294,10 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                             }))
                             continue
 
+                        # Ensure watchdog is actively monitoring process lifecycle
+                        if host_agent.is_game_running() and not host_agent._watchdog_active:
+                            host_agent._start_process_watchdog("Metal Slug Attack Reloaded", 1)
+
                         try:
                             answer = await stream_manager.create_peer_answer(
                                 offer["sdp"],
