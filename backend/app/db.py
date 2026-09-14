@@ -304,7 +304,7 @@ def create_booking_atomic(
                 for cand in available_candidates:
                     cursor.execute(
                         """
-                        SELECT id FROM bookings
+                        SELECT id, user_id FROM bookings
                         WHERE machine_id = %s
                           AND status = 'confirmed'
                           AND (start_time < %s)
@@ -312,9 +312,13 @@ def create_booking_atomic(
                         """,
                         (cand["id"], end_iso, start_iso),
                     )
-                    if not cursor.fetchone():
+                    overlapping = cursor.fetchone()
+                    if not overlapping:
                         allocated_machine_id = cand["id"]
                         break
+                    elif overlapping["user_id"] == user_id:
+                        cursor.execute("SELECT * FROM bookings WHERE id = %s;", (overlapping["id"],))
+                        return dict(cursor.fetchone())
 
                 if not allocated_machine_id:
                     raise BookingConflictError("All gaming servers capable of running this title are fully booked for this time slot.")
@@ -344,7 +348,7 @@ def create_booking_atomic(
             # 2. Check for overlapping confirmed reservations on the allocated machine
             cursor.execute(
                 """
-                SELECT id, start_time, end_time 
+                SELECT id, user_id, start_time, end_time 
                 FROM bookings 
                 WHERE machine_id = %s 
                   AND status = 'confirmed' 
@@ -355,6 +359,12 @@ def create_booking_atomic(
             )
             conflicting = cursor.fetchall()
             if conflicting:
+                # If the reservation already belongs to the current user, return the active booking to resume session
+                user_existing = next((r for r in conflicting if r["user_id"] == user_id), None)
+                if user_existing:
+                    cursor.execute("SELECT * FROM bookings WHERE id = %s;", (user_existing["id"],))
+                    return dict(cursor.fetchone())
+
                 conflict_details = [
                     f"Booking #{row['id']} ({row['start_time']} to {row['end_time']})"
                     for row in conflicting
