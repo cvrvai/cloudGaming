@@ -2489,12 +2489,14 @@ input:-webkit-autofill:active {
 }
 
 .stream-canvas-wrapper {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
+  z-index: 1;
 }
 
 .simulation-canvas-box {
@@ -7379,3 +7381,67 @@ input:checked + .slider-round:before {
     margin-top: 10px;
   }
 }
+
+/* Compact Minimal Quota Strip */
+.bookings-quota-banner.compact-strip {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 8px 14px !important;
+  margin-bottom: 16px !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none !important;
+  gap: 8px !important;
+}
+
+.bookings-quota-banner.compact-strip .quota-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: unset;
+}
+
+.bookings-quota-banner.compact-strip .quota-banner-right {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  min-width: unset;
+  width: auto;
+  margin-top: 0 !important;
+}
+
+.bookings-quota-banner.compact-strip .quota-metric-box {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.bookings-quota-banner.compact-strip .quota-metric-val {
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.bookings-quota-banner.compact-strip .quota-metric-unit {
+  font-size: 12px;
+  color: var(--text-3, #94a3b8);
+}
+
+@media (max-width: 768px) {
+  .bookings-quota-banner.compact-strip {
+    flex-direction: row !important;
+    align-items: center !important;
+    padding: 8px 12px !important;
+  }
+  .bookings-quota-banner.compact-strip .quota-banner-right {
+    margin-top: 0 !important;
+    width: auto !important;
+  }
+}
+

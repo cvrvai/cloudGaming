@@ -57,7 +57,7 @@ async def create_stream(offer: SdpOffer) -> dict:
                 height=offer.height,
                 fps=offer.fps,
                 bitrate=offer.bitrate,
-                window_handle=game_hwnd,
+                window_handle=None,
             )
         except Exception as exc:
             logger.exception("Failed to negotiate local stream")

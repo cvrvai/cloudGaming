@@ -48,6 +48,17 @@ export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = tr
         pc.ontrack = (event) => {
             if (videoRef.current) {
                 videoRef.current.srcObject = event.streams[0];
+                videoRef.current.muted = true;
+                videoRef.current.defaultMuted = true;
+                videoRef.current.playsInline = true;
+                videoRef.current.setAttribute('playsinline', '');
+                videoRef.current.setAttribute('webkit-playsinline', '');
+                const playPromise = videoRef.current.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch((err) => {
+                        console.warn('[WebRTC] autoplay promise rejected:', err);
+                    });
+                }
             }
             setStatus('connected');
 
@@ -145,6 +156,23 @@ export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = tr
         };
     }, [connect, cleanup]);
 
+    // iOS Safari / Chrome user interaction fallback to unblock autoplay if restricted
+    useEffect(() => {
+        const resumePlayback = () => {
+            if (videoRef.current && videoRef.current.paused) {
+                videoRef.current.play().catch(() => {});
+            }
+        };
+        window.addEventListener('touchstart', resumePlayback, { passive: true });
+        window.addEventListener('pointerdown', resumePlayback, { passive: true });
+        window.addEventListener('click', resumePlayback, { passive: true });
+        return () => {
+            window.removeEventListener('touchstart', resumePlayback);
+            window.removeEventListener('pointerdown', resumePlayback);
+            window.removeEventListener('click', resumePlayback);
+        };
+    }, []);
+
     return (
         <div style={{ position: 'absolute', inset: 0, background: '#000' }}>
             <video
@@ -152,6 +180,9 @@ export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = tr
                 autoPlay
                 playsInline
                 muted
+                onLoadedMetadata={() => {
+                    videoRef.current?.play().catch(() => {});
+                }}
                 // A remote desktop must show every edge of the host display.
                 // `cover` cropped taskbars and sidebars whenever the local
                 // browser and host monitor had different aspect ratios.

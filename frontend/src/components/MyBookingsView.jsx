@@ -131,28 +131,20 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
 
       {error && <div className="auth-error-banner">{error}</div>}
 
-      {/* 2-Hour Daily Free Quota Banner */}
+      {/* Compact Minimal Quota Strip */}
       {user.role !== 'admin' && (
-        <div className="bookings-quota-banner glass-panel">
+        <div className="bookings-quota-banner glass-panel compact-strip">
           <div className="quota-banner-left">
-            <div className="quota-banner-badge-row">
-              <span className="quota-pill-glow">Beta Free Daily Quota</span>
-              <span className="quota-reset-pill">Resets 12:00 AM Midnight (Cambodia Time / UTC+7)</span>
-            </div>
-            <h3 className="quota-banner-title">2 Hours Free Gaming per Day</h3>
-            <p className="quota-banner-subtitle">
-              You receive up to <strong>2 hours (120 minutes)</strong> of cloud gaming on our cloud gaming rig daily.
-              Daily hours <strong>never roll over</strong> or accumulate (each calendar day starts fresh with 2 hours).
-            </p>
+            <span className="quota-pill-glow">Daily Quota</span>
+            <span className="quota-reset-pill">Resets 00:00 UTC+7</span>
           </div>
           <div className="quota-banner-right">
             <div className="quota-metric-box">
               <span className={`quota-metric-val ${(dailyQuota?.remaining_minutes ?? 120) === 0 ? 'empty' : (dailyQuota?.remaining_minutes ?? 120) <= 30 ? 'low' : ''}`}>
                 {dailyQuota ? dailyQuota.remaining_minutes : 120}
               </span>
-              <span className="quota-metric-unit">mins</span>
+              <span className="quota-metric-unit">/ 120 mins left</span>
             </div>
-            <span className="quota-metric-label">Remaining Today</span>
           </div>
         </div>
       )}

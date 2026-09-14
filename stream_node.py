@@ -327,21 +327,22 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                             host_agent._start_process_watchdog(active_title, active_id)
 
                         try:
-                            print(f"[{ts}] [STREAM] Locked onto game window HWND 0x{game_hwnd:x}. Initializing WGC exclusive capture...")
+                            hwnd_str = f"0x{game_hwnd:x}" if game_hwnd else "auto"
+                            print(f"[{ts}] [STREAM] Game confirmed running (HWND: {hwnd_str}). Initializing DirectX 11 desktop capture...")
                             answer = await stream_manager.create_peer_answer(
                                 offer["sdp"],
                                 width=offer.get("width"),
                                 height=offer.get("height"),
                                 fps=offer.get("fps"),
                                 bitrate=offer.get("bitrate"),
-                                window_handle=game_hwnd,
+                                window_handle=None,
                             )
                             await ws.send(json.dumps({
                                 "type": "stream_answer",
                                 "correlation_id": corr_id,
                                 "answer": answer,
                             }))
-                            print(f"[{ts}] [STREAM] WebRTC answer dispatched. DirectX 11 WGC exclusive capture active at 60 FPS!")
+                            print(f"[{ts}] [STREAM] WebRTC answer dispatched. DirectX 11 capture active at 60 FPS!")
                         except Exception as exc:
                             print(f"[{ts}] [!] Stream negotiation failed: {exc}")
                             await ws.send(json.dumps({
