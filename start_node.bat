@@ -8,12 +8,16 @@ echo ============================================================
 echo.
 
 if exist "backend\.venv\Scripts\python.exe" (
-    echo [*] Starting CloudKH Node Daemon...
-    backend\.venv\Scripts\python.exe -u stream_node.py
+    if exist ".node_config.json" (
+        echo [*] Starting CloudKH Node Daemon...
+        backend\.venv\Scripts\python.exe -u stream_node.py
+    ) else (
+        echo [*] Node configuration missing. Running setup...
+        call setup_node.bat
+    )
 ) else (
-    echo [!] Python virtualenv not found in backend\.venv
-    pause
-    exit /b 1
+    echo [*] Python virtual environment not found. Running initial setup...
+    call setup_node.bat
 )
 
 pause

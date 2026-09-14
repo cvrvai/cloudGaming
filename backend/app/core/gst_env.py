@@ -43,6 +43,11 @@ def configure_gstreamer_env() -> None:
         os.environ.setdefault("GST_PLUGIN_SYSTEM_PATH_1_0", plugin_path)
         os.environ.setdefault("GST_PLUGIN_PATH_1_0", plugin_path)
 
+    # Auto-inject GStreamer's site-packages so 'import gi' works without manual .pth creation
+    gi_site_packages = os.path.join(gst_root, "lib", "site-packages")
+    if os.path.isdir(gi_site_packages) and gi_site_packages not in sys.path:
+        sys.path.insert(0, gi_site_packages)
+
     if sys.platform == "win32" and hasattr(os, "add_dll_directory"):
         try:
             os.add_dll_directory(gst_bin)
