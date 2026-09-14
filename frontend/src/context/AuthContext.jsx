@@ -58,6 +58,27 @@ export function AuthProvider({ children }) {
     if (!res.ok) {
       throw new Error(data.detail || 'Login failed');
     }
+    // If backend requires 2-step MFA, return challenge payload without closing modal
+    if (data.status === 'mfa_required') {
+      return data;
+    }
+    localStorage.setItem('cloudkh_token', data.access_token);
+    setToken(data.access_token);
+    setUser(data.user);
+    setAuthModalOpen(false);
+    return data.user;
+  };
+
+  const verifyMfa = async (challengeId, code) => {
+    const res = await fetch(`${API_BASE}/api/auth/mfa/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ challenge_id: challengeId, code }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || 'MFA verification failed');
+    }
     localStorage.setItem('cloudkh_token', data.access_token);
     setToken(data.access_token);
     setUser(data.user);

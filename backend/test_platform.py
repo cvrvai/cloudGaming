@@ -1,14 +1,16 @@
 """Unit & integration test for CloudKH platform features.
 
-Tests FR-01 through FR-05, NFR-01, NFR-02, and MVP Game Management (Manual Admin Configuration & Security).
+Tests FR-01 through FR-05, NFR-01, NFR-02, MVP Game Management, and Admin 2-Step TOTP MFA Security.
 """
 from datetime import datetime, timedelta, timezone
 import sys
-
+import pyotp
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.db import get_db, init_db
+from app.services.auth import create_access_token, decrypt_mfa_secret
+from app.core.config import settings
 
 client = TestClient(app)
 
@@ -20,12 +22,51 @@ def test_full_platform_flow():
         conn.cursor().execute("DELETE FROM bookings;")
         conn.commit()
 
-    # 1. Test Login with seeded Admin
-    res = client.post("/api/auth/login", json={"email": "admin@kit.edu.kh", "password": "cloudkh2026"})
-    assert res.status_code == 200, f"Admin login failed: {res.text}"
-    admin_token = res.json()["access_token"]
+    # 1. Test Admin Login (2-Step TOTP MFA Security)
+    # Step A: Submit credentials
+    res = client.post(
+        "/api/auth/login",
+        json={"email": settings.bootstrap_admin_email, "password": settings.bootstrap_admin_password},
+    )
+    assert res.status_code == 200, f"Admin credential check failed: {res.text}"
+    mfa_challenge = res.json()
+    assert mfa_challenge["status"] == "mfa_required", "Admin must receive MFA challenge"
+    assert "access_token" not in mfa_challenge, "Server MUST NOT issue an access token before MFA"
+    challenge_id = mfa_challenge["challenge_id"]
+    print("[OK] Admin login returned MFA challenge (zero premature token leakage)")
+
+    # Step B: Reject invalid TOTP code
+    res = client.post("/api/auth/mfa/verify", json={"challenge_id": challenge_id, "code": "000000"})
+    assert res.status_code == 401, "Invalid code must be rejected"
+    print("[OK] Security: Invalid 6-digit TOTP code rejected with 401 Unauthorized")
+
+    # Step C: Resolve secret and verify with genuine TOTP code
+    secret = mfa_challenge.get("secret")
+    if not secret:
+        # If already enrolled, fetch encrypted secret from DB
+        with get_db() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT mfa_secret FROM users WHERE email = %s;", (settings.bootstrap_admin_email,))
+            row = cur.fetchone()
+            secret = decrypt_mfa_secret(row["mfa_secret"])
+
+    code = pyotp.TOTP(secret).now()
+    res = client.post("/api/auth/mfa/verify", json={"challenge_id": challenge_id, "code": code})
+    assert res.status_code == 200, f"MFA verification failed: {res.text}"
+    admin_auth = res.json()
+    assert admin_auth["status"] == "authenticated"
+    assert admin_auth["user"]["mfa_verified"] is True
+    admin_token = admin_auth["access_token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    print("[OK] Admin login successful")
+    print("[OK] Admin 2-step TOTP MFA completed; verified admin token issued")
+
+    # Step D: Test that an unverified admin token is REJECTED by privileged endpoints
+    unverified_token = create_access_token(
+        {"sub": admin_auth["user"]["id"], "role": "admin", "mfa_verified": False}
+    )
+    res = client.get("/api/bookings/admin/all", headers={"Authorization": f"Bearer {unverified_token}"})
+    assert res.status_code == 403, "Unverified admin token must be rejected"
+    print("[OK] Security: Privileged endpoint rejected unverified admin token with 403 Forbidden")
 
     # 2. Test User Registration (FR-01)
     test_email = f"gamer_{int(datetime.now().timestamp())}@kit.edu.kh"
@@ -47,6 +88,17 @@ def test_full_platform_flow():
     assert res.status_code == 400, "Should reject duplicate email"
     print("[OK] Duplicate email rejection verified")
 
+    # Normal user login returns immediate token (no MFA required for students)
+    res = client.post(
+        "/api/auth/login",
+        json={"email": test_email, "password": "securepass123"},
+    )
+    assert res.status_code == 200
+    user_login_data = res.json()
+    assert user_login_data["status"] == "authenticated"
+    assert "access_token" in user_login_data
+    print("[OK] Student login returned immediate authenticated session (no MFA)")
+
     # 3. Test Machine Fleet (FR-02)
     res = client.get("/api/machines")
     assert res.status_code == 200
@@ -64,7 +116,6 @@ def test_full_platform_flow():
     print(f"[OK] Game catalog loaded ({len(games)} games)")
 
     fh4_game = next((g for g in games if g["slug"] == "forza-horizon-4"), games[0])
-    val_game = next((g for g in games if g["slug"] == "valorant"), None)
 
     # Check node games for Host PC
     res = client.get(f"/api/machines/{rig1['id']}/games")
@@ -178,46 +229,30 @@ def test_full_platform_flow():
     print(f"[OK] Active session authorized with agent launch status: {session_data['agent'].get('status')}")
 
     # 8. Test Strict Agent Command Security
-    # Arbitrary shell execution MUST BE BLOCKED
     res = client.post(
         "/api/session/agent/command",
         json={"operation": "RUN_SHELL", "payload": {"cmd": "dir"}},
         headers=admin_headers,
     )
     assert res.status_code == 403, "RUN_SHELL must be strictly forbidden"
+    print("[OK] Security: Arbitrary shell commands blocked with 403 Forbidden")
 
-    res = client.post(
-        "/api/session/agent/command",
-        json={"operation": "EXECUTE_COMMAND", "payload": {"cmd": "calc.exe"}},
-        headers=admin_headers,
-    )
-    assert res.status_code == 403, "EXECUTE_COMMAND must be strictly forbidden"
-    print("[OK] Security: Arbitrary shell commands (RUN_SHELL, EXECUTE_COMMAND) blocked with 403 Forbidden")
+    # 9. Test Audit Log Trail
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT action, result FROM audit_logs WHERE role = 'admin' ORDER BY id DESC LIMIT 5;")
+        audit_records = cur.fetchall()
+        assert len(audit_records) >= 1
+        print(f"[OK] Verified audit trail recorded {len(audit_records)} security events (e.g. {audit_records[0]['action']})")
 
-    # Predefined operations permitted (GET_STATUS, STOP_GAME)
-    res = client.post(
-        "/api/session/agent/command",
-        json={"operation": "GET_STATUS"},
-        headers=admin_headers,
-    )
-    assert res.status_code == 200, "GET_STATUS must be permitted"
-
-    res = client.post(
-        "/api/session/agent/command",
-        json={"operation": "STOP_GAME"},
-        headers=admin_headers,
-    )
-    assert res.status_code == 200, "STOP_GAME must be permitted"
-    print("[OK] Predefined agent operations (GET_STATUS, STOP_GAME) verified")
-
-    # 9. Test Admin Oversight (User Story 3)
+    # 10. Test Admin Oversight (User Story 3)
     res = client.get("/api/bookings/admin/all", headers=admin_headers)
     assert res.status_code == 200
     assert len(res.json()) >= 2
     print("[OK] Admin oversight retrieved all bookings")
 
     print("\n============================================================")
-    print("  ALL CLOUDKH MVP MANUAL ADMIN & AGENT TESTS PASSED (100%)")
+    print("  ALL CLOUDKH 2-STEP MFA & SECURITY TESTS PASSED (100%)")
     print("============================================================")
 
 

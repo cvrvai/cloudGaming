@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql://cloudkh:cloudkh_pass@127.0.0.1:5432/cloudkh"
 
+    # Security & Authentication
+    jwt_secret: str = "cloudkh-super-secure-jwt-secret-key-2026"
+    mfa_encryption_key: str = "cloudkh-mfa-encryption-key-2026-super-secret"
+    bootstrap_admin_email: str = "choonvai@cloudkh.space"
+    bootstrap_admin_password: str = "cloudkh2026"
+
     # Video stream
     target_fps: int = 60
     video_width: int = 854

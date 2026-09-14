@@ -61,9 +61,40 @@ def init_db() -> None:
             password_hash TEXT NOT NULL,
             salt TEXT NOT NULL,
             role TEXT NOT NULL DEFAULT 'student',
+            mfa_enabled BOOLEAN DEFAULT FALSE,
+            mfa_secret TEXT,
+            last_login_at TEXT,
             created_at TEXT NOT NULL
         );
         """)
+
+        for col_def in [
+            ("mfa_enabled", "BOOLEAN DEFAULT FALSE"),
+            ("mfa_secret", "TEXT"),
+            ("last_login_at", "TEXT"),
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_def[0]} {col_def[1]};")
+            except Exception:
+                pass
+
+        # Audit Logs table (Security & Admin Operations)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id SERIAL PRIMARY KEY,
+            timestamp TEXT NOT NULL,
+            actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            role TEXT,
+            action TEXT NOT NULL,
+            target_type TEXT,
+            target_id TEXT,
+            ip TEXT,
+            result TEXT NOT NULL,
+            details TEXT
+        );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action, timestamp);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_user_id);")
 
         # 2. Machines (Gaming Rigs) table
         cursor.execute("""
@@ -168,26 +199,29 @@ def _seed_initial_data(conn: Any) -> None:
     real_hw = detect_host_hardware()
     now_iso = datetime.now(timezone.utc).isoformat()
 
-    # 1. Seed Admin and Demo accounts if none exist
-    cursor.execute("SELECT COUNT(*) AS count FROM users;")
-    row = cursor.fetchone()
-    if row["count"] == 0:
-        admin_hash, admin_salt = hash_password("cloudkh2026")
+    # 1. Seed or Bootstrap Admin account if none exists
+    cursor.execute("SELECT id FROM users WHERE email = %s;", (settings.bootstrap_admin_email,))
+    admin_row = cursor.fetchone()
+    if not admin_row:
+        admin_hash, admin_salt = hash_password(settings.bootstrap_admin_password)
         cursor.execute(
             """
-            INSERT INTO users (name, email, password_hash, salt, role, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s);
+            INSERT INTO users (name, email, password_hash, salt, role, mfa_enabled, created_at)
+            VALUES (%s, %s, %s, %s, 'admin', FALSE, %s);
             """,
-            ("System Administrator", "admin@kit.edu.kh", admin_hash, admin_salt, "admin", now_iso),
+            ("System Administrator", settings.bootstrap_admin_email, admin_hash, admin_salt, now_iso),
         )
 
+    # 2. Seed Student Demo account if none exists
+    cursor.execute("SELECT id FROM users WHERE email = 'gamer@cloudkh.com' LIMIT 1;")
+    if not cursor.fetchone():
         user_hash, user_salt = hash_password("user123456")
         cursor.execute(
             """
-            INSERT INTO users (name, email, password_hash, salt, role, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s);
+            INSERT INTO users (name, email, password_hash, salt, role, mfa_enabled, created_at)
+            VALUES (%s, %s, %s, %s, 'student', FALSE, %s);
             """,
-            ("Cloud Gamer", "gamer@cloudkh.com", user_hash, user_salt, "user", now_iso),
+            ("Cloud Gamer", "gamer@cloudkh.com", user_hash, user_salt, now_iso),
         )
 
     # 2. Seed or sync Gaming Rigs with real host hardware

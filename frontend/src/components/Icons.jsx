@@ -278,3 +278,42 @@ export function EyeOffIcon({ className = "icon-svg", size = 16 }) {
     </svg>
   );
 }
+
+export function ShieldCheckIcon({ className = "icon-svg", size = 18 }) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <polyline points="9 12 11 14 15 10" />
+    </svg>
+  );
+}
+
+export function KeyIcon({ className = "icon-svg", size = 16 }) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 2l-2 2m-1.5 1.5L14 9l-1.5-1.5-2 2L12 11l-3 3-2.5-.5L5 15l-3 3 4 4 3-3 1.5-1.5-.5-2.5 3-3 1.5 1.5 2-2L15 10l3.5-3.5" />
+      <circle cx="7.5" cy="16.5" r="1.5" />
+    </svg>
+  );
+}
+
