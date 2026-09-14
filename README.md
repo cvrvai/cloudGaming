@@ -28,11 +28,15 @@ controller** (touch joysticks + buttons, emulated via ViGEmBus).
 
 | Folder | Stack | Docs |
 |---|---|---|
-| [backend/](backend/) | Python 3.9, FastAPI, GStreamer webrtcbin, vgamepad | [backend/README.md](backend/README.md) |
+| [backend/](backend/) | Python 3.9/3.10, FastAPI, GStreamer webrtcbin, vgamepad | [backend/README.md](backend/README.md) |
 | [frontend/](frontend/) | React 19, Vite 7, native WebRTC | [frontend/README.md](frontend/README.md) |
 | [site/](site/) | Static public CloudKH landing site | [site/README.md](site/README.md) |
+| **Streaming Node** | Outbound WebSocket relay, DirectX 11 capture | [NODE_AGENT_GUIDE.md](NODE_AGENT_GUIDE.md) |
 
-## Quick start
+## 🤖 Remote Gaming PC Node Setup (For AI Agents & Developers)
+
+If setting up another gaming PC or running with an AI coding assistant (Cursor, Antigravity, Claude Code, etc.):
+👉 **Read [NODE_AGENT_GUIDE.md](NODE_AGENT_GUIDE.md)** for automated environment setup, pairing with `https://cloudkh.space`, game registration, and background daemon execution.
 
 One-time setup (GStreamer, ViGEmBus, venv, npm install): see
 [backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md).
