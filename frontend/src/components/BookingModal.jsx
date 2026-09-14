@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../config';
-import { CalendarIcon, ClockIcon, BoltIcon, RocketIcon, CheckCircleIcon, PlayIcon, XIcon, AlertTriangleIcon } from './Icons';
+import { CalendarIcon, ClockIcon, BoltIcon, RocketIcon, CheckCircleIcon, PlayIcon, XIcon, AlertTriangleIcon, UserIcon } from './Icons';
 
 export default function BookingModal({ game, machine, onClose, onBookingSuccess, onLaunchNow }) {
   const { token, user, openAuth } = useAuth();
@@ -77,7 +77,9 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
         const [y, m] = scheduleDate.split('-').map(Number);
         setViewYear(y);
         setViewMonth(m - 1);
-      } catch {}
+      } catch (e) {
+        console.debug('Failed to parse schedule date:', e);
+      }
     }
     setShowCalendarDrawer((prev) => !prev);
   };
@@ -236,11 +238,11 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
   const title = game?.title || machine?.name || 'Cloud Session';
   const coverUrl = game?.cover_url || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=80';
   const genre = game?.genre || 'Cloud Rig Session';
-  const sizeGb = game?.size_gb || 45;
 
   const handleBookSession = async (e) => {
     if (e) e.preventDefault();
     if (!user) {
+      if (onClose) onClose();
       openAuth('login');
       return;
     }
@@ -395,11 +397,15 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                 <ClockIcon size={13} />
                 <span>Beta Free Quota: 2 Hours / Day</span>
               </div>
-              {dailyQuota && (
+              {dailyQuota ? (
                 <span style={{ color: dailyQuota.remaining_minutes > 0 ? '#4ade80' : '#ff5b52', fontWeight: 800 }}>
                   {dailyQuota.remaining_minutes} mins left
                 </span>
-              )}
+              ) : !user ? (
+                <span style={{ color: '#94a3b8', fontSize: '10.5px' }}>
+                  Sign in required
+                </span>
+              ) : null}
             </div>
 
             <form onSubmit={handleBookSession} className="booking-modal-form">
@@ -625,6 +631,10 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                 >
                   {submitting ? (
                     'Allocating Rig...'
+                  ) : !user ? (
+                    <>
+                      <UserIcon size={14} /> {mode === 'instant' ? 'Sign In to Play' : 'Sign In to Reserve'}
+                    </>
                   ) : mode === 'instant' ? (
                     <>
                       <PlayIcon size={14} /> Start Play
