@@ -27,6 +27,7 @@ export default function GamepadController({
     onInputPacketSent,
     sensitivity = 20,
     onOpenSettings,
+    nodeId,
 }) {
     const inputSequenceRef = useRef(0);
     const activeControls = visibleControls || visible || {
@@ -71,11 +72,15 @@ export default function GamepadController({
 
         socket.send(JSON.stringify({
             ...data,
+            node_id: nodeId,
             sequence,
             clientTimestamp: sentAt
         }));
         onInputPacketSent?.(sequence, sentAt, socket.bufferedAmount, true);
-    }, [wsRef, onInputPacketSent]);
+        if (data.type === 'button' && data.pressed && typeof navigator !== 'undefined' && navigator.vibrate) {
+            try { navigator.vibrate(12); } catch {}
+        }
+    }, [wsRef, onInputPacketSent, nodeId]);
 
     // Left stick - Movement
     const handleLeftStickMove = useCallback(({ x, y }) => {

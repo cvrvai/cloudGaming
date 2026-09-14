@@ -2399,18 +2399,28 @@ input:-webkit-autofill:active {
 .stream-control-btn {
   background: transparent;
   border: none;
-  color: var(--text-2);
+  color: var(--text-2, rgba(255, 255, 255, 0.7));
   font-size: 12px;
   font-weight: 700;
-  padding: 6px 14px;
-  border-radius: 16px;
+  padding: 8px 16px;
+  border-radius: 20px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+
+.stream-control-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .stream-control-btn.active {
-  background: #5ea2ff;
-  color: #fff;
+  background: #00f0ff;
+  color: #000;
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.4);
 }
 
 /* =========================================================

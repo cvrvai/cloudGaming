@@ -82,12 +82,26 @@ def verify_session_access(
 
     # Trigger trusted host agent to start game if this machine is host and a game was reserved
     agent_launch_info = None
-    if booking["game_id"] and booking["is_host"] == 1:
-        try:
-            agent_launch_info = host_agent.start_game(game_id=booking["game_id"])
-        except Exception as e:
-            # Log error but allow session verification to succeed
-            agent_launch_info = {"status": "warning", "error": str(e)}
+    if booking["game_id"]:
+        from app.services.streaming.node_relay import node_relay
+        if booking["is_host"] == 1:
+            try:
+                agent_launch_info = host_agent.start_game(game_id=booking["game_id"])
+            except Exception as e:
+                agent_launch_info = {"status": "warning", "error": str(e)}
+        elif node_relay.is_node_connected(booking["machine_id"]):
+            try:
+                import asyncio
+                asyncio.create_task(
+                    node_relay.forward_game_command(
+                        booking["machine_id"],
+                        "START_GAME",
+                        {"game_id": booking["game_id"]},
+                    )
+                )
+                agent_launch_info = {"status": "command_dispatched_to_node", "node_id": booking["machine_id"]}
+            except Exception as e:
+                agent_launch_info = {"status": "warning", "error": str(e)}
 
     # Issue temporary session launch token
     session_token = create_access_token(
@@ -102,6 +116,7 @@ def verify_session_access(
     return {
         "status": "authorized",
         "booking_id": booking["id"],
+        "machine_id": booking["machine_id"],
         "machine_name": booking["machine_name"],
         "is_host": bool(booking["is_host"]),
         "gpu": booking["gpu"],

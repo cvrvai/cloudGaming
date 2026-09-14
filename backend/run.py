@@ -8,6 +8,7 @@ if hasattr(sys.stderr, "reconfigure"):
 
 import uvicorn
 
+import app.core.gst_env
 from app.core.config import settings
 from app.utils.network import get_local_ip, print_qr_ascii
 

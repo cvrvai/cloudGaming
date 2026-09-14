@@ -18,16 +18,37 @@ def configure_gstreamer_env() -> None:
         return
     _configured = True
 
-    gst_bin = settings.gstreamer_bin
-    if not gst_bin or not os.path.isdir(gst_bin):
+    candidates = [
+        settings.gstreamer_bin,
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\gstreamer\1.0\msvc_x86_64\bin"),
+        r"C:\Program Files\gstreamer\1.0\msvc_x86_64\bin",
+        r"C:\gstreamer\1.0\msvc_x86_64\bin",
+    ]
+    gst_bin = None
+    for cand in candidates:
+        if cand and os.path.isdir(cand):
+            gst_bin = cand
+            break
+
+    if not gst_bin:
         return
 
     os.environ.setdefault("PYGI_DLL_DIRS", gst_bin)
     if gst_bin not in os.environ.get("PATH", ""):
         os.environ["PATH"] = gst_bin + os.pathsep + os.environ.get("PATH", "")
 
+    gst_root = os.path.dirname(gst_bin)
+    plugin_path = os.path.join(gst_root, "lib", "gstreamer-1.0")
+    if os.path.isdir(plugin_path):
+        os.environ.setdefault("GST_PLUGIN_SYSTEM_PATH_1_0", plugin_path)
+        os.environ.setdefault("GST_PLUGIN_PATH_1_0", plugin_path)
+
     if sys.platform == "win32" and hasattr(os, "add_dll_directory"):
         try:
             os.add_dll_directory(gst_bin)
         except OSError:
             pass
+
+
+# Automatically configure environment upon import
+configure_gstreamer_env()

@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.services.streaming.manager import stream_manager
+from app.services.streaming.node_relay import node_relay
 
 logger = logging.getLogger("api.stream")
 
@@ -24,6 +25,8 @@ class SdpOffer(BaseModel):
     height: Optional[int] = None
     fps: Optional[int] = None
     bitrate: Optional[int] = None
+    node_id: Optional[int] = None
+    machine_id: Optional[int] = None
 
 
 class SdpAnswer(BaseModel):
@@ -36,20 +39,39 @@ async def create_stream(offer: SdpOffer) -> dict:
     if offer.type != "offer" or not offer.sdp:
         raise HTTPException(status_code=400, detail="Invalid SDP offer")
 
-    if not stream_manager.available:
-        raise HTTPException(
-            status_code=503,
-            detail=f"GStreamer WebRTC not available: {stream_manager.unavailable_reason}",
-        )
+    # 1. Standalone Host Mode: If this backend process has GStreamer (running on Gaming PC)
+    if stream_manager.available:
+        try:
+            return await stream_manager.create_peer_answer(
+                offer.sdp,
+                width=offer.width,
+                height=offer.height,
+                fps=offer.fps,
+                bitrate=offer.bitrate,
+            )
+        except Exception as exc:
+            logger.exception("Failed to negotiate local stream")
+            raise HTTPException(status_code=500, detail=str(exc))
 
-    try:
-        return await stream_manager.create_peer_answer(
-            offer.sdp,
-            width=offer.width,
-            height=offer.height,
-            fps=offer.fps,
-            bitrate=offer.bitrate,
-        )
-    except Exception as exc:
-        logger.exception("Failed to negotiate stream")
-        raise HTTPException(status_code=500, detail=str(exc))
+    # 2. Cloud Relay Mode: Backend is running on Cloud (Render) - forward offer to connected gaming PC node
+    target_node_id = offer.node_id or offer.machine_id or node_relay.get_any_connected_node_id()
+    if target_node_id and node_relay.is_node_connected(target_node_id):
+        try:
+            answer = await node_relay.relay_offer(
+                target_node_id,
+                offer.sdp,
+                width=offer.width,
+                height=offer.height,
+                fps=offer.fps,
+                bitrate=offer.bitrate,
+            )
+            return answer
+        except Exception as exc:
+            logger.exception("Failed to negotiate relayed stream with node #%s", target_node_id)
+            raise HTTPException(status_code=500, detail=f"Node streaming negotiation failed: {exc}")
+
+    # Neither local capture nor a connected node is available
+    raise HTTPException(
+        status_code=503,
+        detail="No gaming PC streaming node is currently online. Please start stream_node.py on your gaming PC.",
+    )

@@ -2,15 +2,34 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import StreamHUD from './StreamHUD';
 import WebRTCPlayer from './WebRTCPlayer';
 import GamepadController from './GamepadController';
-import { AlertTriangleIcon, RefreshIcon, MouseIcon, GamepadIcon, CheckIcon } from './Icons';
+import { AlertTriangleIcon, RefreshIcon, MouseIcon, GamepadIcon, CheckIcon, MaximizeIcon, MinimizeIcon } from './Icons';
 import { INPUT_WS_URL } from '../config';
 
 export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, serverIP }) {
   const [gstreamerAvailable, setGstreamerAvailable] = useState(null); // null: checking, true: ok, false: offline
   const [inputMode, setInputMode] = useState('desktop'); // desktop | controller
   const [wsConnected, setWsConnected] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const containerRef = useRef(null);
   const wsRef = useRef(null);
   const keySequenceRef = useRef(0);
+
+  // Fullscreen state listener
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
 
   // Maintain persistent WebSocket connection to input service
   useEffect(() => {
@@ -42,10 +61,16 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
     };
 
     connect();
+
     return () => {
       cancelled = true;
-      clearTimeout(timer);
-      if (ws) ws.close();
+      if (timer) clearTimeout(timer);
+      if (ws) {
+        try {
+          ws.close();
+        } catch {}
+      }
+      wsRef.current = null;
     };
   }, []);
 
@@ -65,6 +90,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
         type: 'key',
         key: e.code || e.key,
         pressed,
+        node_id: sessionData?.machine_id,
         sequence: ++keySequenceRef.current,
         clientTimestamp: performance.now(),
       }));
@@ -80,11 +106,12 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [inputMode]);
+  }, [inputMode, sessionData]);
 
   const checkGst = async () => {
     try {
-      const res = await fetch(`${apiBase}/api/system/info`);
+      const q = sessionData?.machine_id ? `?machine_id=${sessionData.machine_id}` : '';
+      const res = await fetch(`${apiBase}/api/system/info${q}`);
       if (res.ok) {
         const data = await res.json();
         setGstreamerAvailable(!!data.gstreamer_available);
@@ -98,12 +125,12 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
 
   useEffect(() => {
     checkGst();
-    const interval = setInterval(checkGst, 6000);
+    const interval = setInterval(checkGst, 4000);
     return () => clearInterval(interval);
-  }, [apiBase]);
+  }, [apiBase, sessionData]);
 
   return (
-    <div className="cloud-stream-player-container">
+    <div className="cloud-stream-player-container" ref={containerRef}>
       <StreamHUD sessionData={sessionData} onSessionEnd={onSessionEnd} />
 
       <div className="stream-canvas-wrapper">
@@ -111,6 +138,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
           <WebRTCPlayer
             serverIP={serverIP}
             apiBase={apiBase}
+            machineId={sessionData?.machine_id}
             quality="auto"
             showStats={true}
           />
@@ -130,7 +158,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
               The WebRTC streaming pipeline on <strong>{sessionData?.machine_name || 'Host PC'}</strong> is waiting for the GStreamer screen capture service.
             </p>
             <p className="stream-offline-hint" style={{ fontSize: '0.82rem', background: 'rgba(255,255,255,0.05)', padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-              Ensure GStreamer runtime is installed and the streaming service is active on the gaming rig.
+              Run <code>python stream_node.py</code> on your Gaming PC to connect the streaming service.
             </p>
             <div style={{ display: 'flex', gap: '12px', marginTop: '20px', justifyContent: 'center' }}>
               <button className="btn-primary" onClick={checkGst} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}>
@@ -162,11 +190,21 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
           <GamepadIcon size={16} />
           <span>Virtual Gamepad</span>
         </button>
+        <button
+          className="stream-control-btn"
+          onClick={toggleFullscreen}
+          title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+        >
+          {isFullscreen ? <MinimizeIcon size={16} /> : <MaximizeIcon size={16} />}
+          <span>{isFullscreen ? 'Exit Full' : 'Fullscreen'}</span>
+        </button>
       </div>
 
       {inputMode === 'controller' && (
         <GamepadController
           wsRef={wsRef}
+          nodeId={sessionData?.machine_id}
           serverStatus={wsConnected ? 'connected' : 'connecting'}
           controllerMode="xinput"
           inputMode="controller"

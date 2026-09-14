@@ -13,6 +13,7 @@ import time
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.services.input.gamepad import gamepad_service
+from app.services.streaming.node_relay import node_relay
 
 logger = logging.getLogger("ws.input")
 
@@ -104,6 +105,12 @@ async def input_websocket(websocket: WebSocket) -> None:
                 await websocket.send_text(
                     json.dumps({"type": "sensitivity", "value": applied})
                 )
+
+            # Forward input to remote gaming PC node if connected
+            if node_relay.is_node_connected():
+                node_id = data.get("node_id") or node_relay.get_any_connected_node_id()
+                if node_id:
+                    await node_relay.forward_input(node_id, data)
 
             if isinstance(sequence, int):
                 await websocket.send_text(

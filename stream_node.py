@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """CloudKH Streaming PC Node Service (Terminal Client)
 
-Run this script on each gaming PC in the terminal to pair it with the CloudKH backend
-and stream games to remote players.
+Run this script on each gaming PC to pair it with the CloudKH backend
+and stream games to remote players via DirectX 11 screen capture and WebRTC.
 
 Usage:
     python stream_node.py
-    python stream_node.py --api https://cloudkh-backend.netlify.app --code 123-456
+    python stream_node.py --api https://api.cloudkh.space --code 123-456
     python stream_node.py --re-pair
 """
 import argparse
+import asyncio
 import json
 import os
 import platform
@@ -20,6 +21,17 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Add backend directory to sys.path so app packages can be imported
+BACKEND_DIR = Path(__file__).resolve().parent / "backend"
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+# Ensure GStreamer environment is configured before any gi imports
+try:
+    import app.core.gst_env
+except ImportError:
+    pass
 
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -40,7 +52,6 @@ def detect_local_hardware() -> dict:
     os_name = f"{platform.system()} {platform.release()}"
 
     if sys.platform == "win32":
-        # Query Windows GPU
         try:
             cmd = "Get-CimInstance Win32_VideoController | Where-Object { $_.Name -notmatch 'Virtual|Basic|Citrix|RDP' } | Select-Object -ExpandProperty Name"
             res = subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True, text=True, timeout=5)
@@ -50,7 +61,6 @@ def detect_local_hardware() -> dict:
         except Exception:
             pass
 
-        # Query Windows CPU
         try:
             cmd = "Get-CimInstance Win32_Processor | Select-Object -ExpandProperty Name"
             res = subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True, text=True, timeout=5)
@@ -60,7 +70,6 @@ def detect_local_hardware() -> dict:
         except Exception:
             pass
 
-        # Query Windows RAM
         try:
             cmd = "Get-CimInstance Win32_ComputerSystem | Select-Object -ExpandProperty TotalPhysicalMemory"
             res = subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True, text=True, timeout=5)
@@ -71,34 +80,12 @@ def detect_local_hardware() -> dict:
         except Exception:
             pass
 
-        # Query Windows OS
         try:
             cmd = "Get-CimInstance Win32_OperatingSystem | Select-Object -ExpandProperty Caption"
             res = subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True, text=True, timeout=5)
             lines = [l.strip() for l in res.stdout.strip().splitlines() if l.strip()]
             if lines:
                 os_name = lines[0]
-        except Exception:
-            pass
-    elif sys.platform.startswith("linux"):
-        # Query Linux CPU
-        try:
-            with open("/proc/cpuinfo") as f:
-                for line in f:
-                    if "model name" in line:
-                        cpu_name = line.split(":", 1)[1].strip()
-                        break
-        except Exception:
-            pass
-
-        # Query Linux RAM
-        try:
-            with open("/proc/meminfo") as f:
-                for line in f:
-                    if "MemTotal:" in line:
-                        kb = int(line.split()[1])
-                        ram_str = f"{round(kb / 1024 / 1024)}GB RAM"
-                        break
         except Exception:
             pass
 
@@ -112,7 +99,6 @@ def detect_local_hardware() -> dict:
 
 
 def post_json(url: str, payload: dict) -> dict:
-    """Send JSON POST request using standard library."""
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         url,
@@ -143,7 +129,6 @@ def save_config(cfg: dict) -> None:
 
 
 def pair_pc(api_base: str, pair_code: str, custom_name: str = "") -> dict:
-    """Perform keypair handshake with CloudKH backend."""
     api_base = api_base.rstrip("/")
     specs = detect_local_hardware()
     if custom_name:
@@ -183,29 +168,181 @@ def pair_pc(api_base: str, pair_code: str, custom_name: str = "") -> dict:
         raise RuntimeError(f"Network error: Failed to reach backend at {api_base} ({e.reason})")
 
 
-def run_node_service(api_base: str, node_id: int, machine_name: str) -> None:
-    """Run persistent streaming daemon and heartbeat loop."""
-    print("\n" + "=" * 60)
+async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -> None:
+    """Maintain outbound WebSocket tunnel to CloudKH cloud for WebRTC signaling and input."""
+    import websockets
+    from app.services.streaming.manager import stream_manager
+    from app.services.agent import host_agent
+    from app.services.input.gamepad import gamepad_service
+
+    # Start local virtual gamepad / keyboard emulator service
+    gamepad_service.start()
+
+    ws_url = api_base.replace("https://", "wss://").replace("http://", "ws://").rstrip("/") + f"/ws/node/{node_id}"
+    hardware = detect_local_hardware()
+
+    print("\n" + "=" * 62)
     print("  CloudKH Gaming PC Streaming Service")
-    print("=" * 60)
+    print("=" * 62)
     print(f"  Node ID:     #{node_id}")
     print(f"  Node Name:   {machine_name}")
+    print(f"  GPU:         {hardware['gpu']}")
     print(f"  Backend:     {api_base}")
-    print("  Status:      ONLINE & READY FOR SESSIONS")
-    print("=" * 60)
-    print("\n[*] Service active. Press Ctrl+C to disconnect and stop.\n")
+    print(f"  Tunnel:      {ws_url}")
+    print(f"  GStreamer:   {'READY (DirectX 11 Capture)' if stream_manager.available else 'OFFLINE'}")
+    print(f"  Status:      ONLINE & READY FOR SESSIONS")
+    print("=" * 62)
+    print("\n[*] Streaming daemon active. Press Ctrl+C to stop.\n")
 
-    heartbeat_url = f"{api_base.rstrip('/')}/api/machines/{node_id}/heartbeat"
+    reconnect_delay = 3
 
     while True:
         try:
-            post_json(heartbeat_url, {})
             ts = datetime.now().strftime("%H:%M:%S")
-            sys.stdout.write(f"\r[{ts}] Heartbeat OK | Node #{node_id} online")
-            sys.stdout.flush()
-        except Exception:
-            pass
-        time.sleep(20)
+            print(f"[{ts}] Connecting to CloudKH streaming relay...")
+
+            async with websockets.connect(
+                ws_url,
+                ping_interval=20,
+                ping_timeout=15,
+                max_size=10 * 1024 * 1024,
+            ) as ws:
+                reconnect_delay = 3
+                ts = datetime.now().strftime("%H:%M:%S")
+                print(f"[{ts}] [OK] Connected to CloudKH Cloud Relay. Ready for player sessions.")
+
+                # Announce node capabilities
+                await ws.send(json.dumps({
+                    "type": "node_specs",
+                    "specs": {
+                        "gstreamer_available": stream_manager.available,
+                        "gpu": hardware["gpu"],
+                        "cpu": hardware["cpu"],
+                        "ram": hardware["ram"],
+                        "os": hardware["os"],
+                    },
+                }))
+
+                async for raw_message in ws:
+                    try:
+                        msg = json.loads(raw_message)
+                    except Exception:
+                        continue
+
+                    msg_type = msg.get("type")
+
+                    # Handle WebRTC SDP Offer from browser
+                    if msg_type == "stream_offer":
+                        corr_id = msg.get("correlation_id")
+                        offer = msg.get("offer", {})
+                        ts = datetime.now().strftime("%H:%M:%S")
+                        print(f"\n[{ts}] [STREAM] Incoming session offer from browser client...")
+
+                        try:
+                            answer = await stream_manager.create_peer_answer(
+                                offer["sdp"],
+                                width=offer.get("width"),
+                                height=offer.get("height"),
+                                fps=offer.get("fps"),
+                                bitrate=offer.get("bitrate"),
+                            )
+                            await ws.send(json.dumps({
+                                "type": "stream_answer",
+                                "correlation_id": corr_id,
+                                "answer": answer,
+                            }))
+                            print(f"[{ts}] [STREAM] WebRTC answer dispatched. DirectX 11 capture pipeline active at 60 FPS!")
+                        except Exception as exc:
+                            print(f"[{ts}] [!] Stream negotiation failed: {exc}")
+                            await ws.send(json.dumps({
+                                "type": "stream_error",
+                                "correlation_id": corr_id,
+                                "error": str(exc),
+                            }))
+
+                    # Handle real-time gamepad and keyboard input
+                    elif msg_type == "input":
+                        payload = msg.get("payload", {})
+                        inp = payload.get("type")
+                        if inp == "key":
+                            gamepad_service.handle_key(
+                                payload.get("key", ""),
+                                bool(payload.get("pressed", False)),
+                            )
+                        elif inp == "button":
+                            gamepad_service.handle_button(
+                                payload.get("button", ""),
+                                bool(payload.get("pressed", False)),
+                            )
+                        elif inp == "left_stick":
+                            gamepad_service.handle_left_stick(
+                                float(payload.get("x", 0)),
+                                float(payload.get("y", 0)),
+                            )
+                        elif inp == "right_stick":
+                            gamepad_service.handle_right_stick(
+                                float(payload.get("x", 0)),
+                                float(payload.get("y", 0)),
+                            )
+                        elif inp == "dpad":
+                            gamepad_service.handle_dpad(
+                                payload.get("direction", ""),
+                                bool(payload.get("pressed", False)),
+                            )
+                        elif inp == "mouse_move":
+                            gamepad_service.handle_mouse_move(
+                                payload.get("dx", 0),
+                                payload.get("dy", 0),
+                            )
+                        elif inp == "mouse_abs":
+                            gamepad_service.handle_mouse_absolute(
+                                payload.get("x", 0),
+                                payload.get("y", 0),
+                            )
+                        elif inp == "mouse_button":
+                            gamepad_service.handle_mouse_button(
+                                payload.get("button", "left"),
+                                bool(payload.get("pressed", False)),
+                            )
+
+                    # Handle game execution command from gatekeeper
+                    elif msg_type == "agent_command":
+                        corr_id = msg.get("correlation_id")
+                        op = msg.get("operation")
+                        cmd_payload = msg.get("payload", {})
+                        ts = datetime.now().strftime("%H:%M:%S")
+                        print(f"\n[{ts}] [AGENT] Executing operation: {op}")
+
+                        try:
+                            res = host_agent.dispatch(op, cmd_payload)
+                            await ws.send(json.dumps({
+                                "type": "command_result",
+                                "correlation_id": corr_id,
+                                "result": res,
+                            }))
+                            print(f"[{ts}] [AGENT] Result: {res.get('status')}")
+                        except Exception as exc:
+                            print(f"[{ts}] [AGENT] Error: {exc}")
+                            await ws.send(json.dumps({
+                                "type": "command_result",
+                                "correlation_id": corr_id,
+                                "error": str(exc),
+                            }))
+
+        except (websockets.exceptions.ConnectionClosedError, websockets.exceptions.ConnectionClosedOK) as exc:
+            ts = datetime.now().strftime("%H:%M:%S")
+            print(f"\n[{ts}] [!] Tunnel disconnected: {exc}. Reconnecting in {reconnect_delay}s...")
+        except Exception as exc:
+            ts = datetime.now().strftime("%H:%M:%S")
+            print(f"\n[{ts}] [!] Tunnel connection error: {exc}. Reconnecting in {reconnect_delay}s...")
+
+        await asyncio.sleep(reconnect_delay)
+        reconnect_delay = min(30, reconnect_delay * 1.5)
+
+
+def run_node_service(api_base: str, node_id: int, machine_name: str) -> None:
+    """Run persistent streaming daemon and tunnel loop."""
+    asyncio.run(run_streaming_tunnel(api_base, node_id, machine_name))
 
 
 def main():

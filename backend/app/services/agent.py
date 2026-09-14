@@ -37,11 +37,33 @@ FORBIDDEN_OPERATIONS = {
 }
 
 
+def _detect_local_node_id() -> int:
+    env_id = os.environ.get("NODE_ID")
+    if env_id and env_id.isdigit():
+        return int(env_id)
+    candidates = [
+        Path(".node_config.json"),
+        Path(__file__).resolve().parents[3] / ".node_config.json",
+        Path(__file__).resolve().parents[2] / ".node_config.json",
+    ]
+    for p in candidates:
+        if p.exists():
+            try:
+                import json
+                with open(p, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if data.get("node_id"):
+                        return int(data["node_id"])
+            except Exception:
+                pass
+    return 1
+
+
 class GamingPCAgent:
     """Agent running on the host / gaming node to manage game lifecycles."""
 
-    def __init__(self, node_id: int = 1):
-        self.node_id = node_id
+    def __init__(self, node_id: Optional[int] = None):
+        self.node_id = node_id if node_id is not None else _detect_local_node_id()
         self._active_process: Optional[subprocess.Popen] = None
         self._active_game_info: Optional[Dict[str, Any]] = None
         self._lock = threading.Lock()
@@ -116,6 +138,34 @@ class GamingPCAgent:
                     raise ValueError("Either game_id or slug is required to start a game.")
 
                 config = cursor.fetchone()
+
+                if not config:
+                    # Fallback: Query any active node_game matching game_id / slug
+                    if game_id:
+                        cursor.execute(
+                            """
+                            SELECT ng.id, ng.node_id, ng.game_id, ng.executable_path,
+                                   ng.working_directory, ng.launch_arguments, ng.enabled, ng.status,
+                                   g.title, g.slug
+                            FROM node_games ng
+                            JOIN games g ON ng.game_id = g.id
+                            WHERE ng.game_id = %s LIMIT 1;
+                            """,
+                            (game_id,),
+                        )
+                    elif slug:
+                        cursor.execute(
+                            """
+                            SELECT ng.id, ng.node_id, ng.game_id, ng.executable_path,
+                                   ng.working_directory, ng.launch_arguments, ng.enabled, ng.status,
+                                   g.title, g.slug
+                            FROM node_games ng
+                            JOIN games g ON ng.game_id = g.id
+                            WHERE g.slug = %s LIMIT 1;
+                            """,
+                            (slug,),
+                        )
+                    config = cursor.fetchone()
 
             if not config:
                 raise ValueError("Game is not configured on this gaming PC by administrator.")

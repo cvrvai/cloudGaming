@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 from app.api.websockets.input import router as input_ws_router
+from app.api.websockets.node_ws import router as node_ws_router
 from app.db import init_db
 from app.services.input.gamepad import gamepad_service
 from app.services.streaming.manager import stream_manager
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
 
     app.include_router(api_router)
     app.include_router(input_ws_router)
+    app.include_router(node_ws_router)
     return app
 
 

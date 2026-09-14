@@ -51,7 +51,7 @@ def ensure_gstreamer_initialized() -> bool:
     if not GSTREAMER_AVAILABLE:
         return False
     if not Gst.is_initialized():
-        Gst.init(None)
+        Gst.init([])
     return True
 
 
@@ -91,17 +91,27 @@ def check_plugins() -> Dict:
         "all_required_present": False,
     }
 
-    gst_inspect = _find_gst_inspect()
-    if not gst_inspect:
-        report["import_error"] = report["import_error"] or "gst-inspect-1.0 not found"
+    if not GSTREAMER_AVAILABLE:
         return report
+
+    ensure_gstreamer_initialized()
 
     all_present = True
     for element in REQUIRED_ELEMENTS:
-        found, info = _inspect_element(gst_inspect, element)
-        report["elements"][element] = {"available": found, "info": info}
-        if not found:
-            all_present = False
+        factory = Gst.ElementFactory.find(element)
+        if factory:
+            long_name = factory.get_metadata("long-name") or element
+            report["elements"][element] = {"available": True, "info": f"Factory: {long_name}"}
+        else:
+            gst_inspect = _find_gst_inspect()
+            if gst_inspect:
+                found, info = _inspect_element(gst_inspect, element)
+                report["elements"][element] = {"available": found, "info": info}
+                if not found:
+                    all_present = False
+            else:
+                report["elements"][element] = {"available": False, "info": "Element factory not found"}
+                all_present = False
 
     report["all_required_present"] = all_present
     return report

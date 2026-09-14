@@ -9,7 +9,7 @@ import { getQualityParams } from '../quality';
  * H264 track. Auto-reconnects when the connection drops, and renegotiates
  * automatically when the selected quality preset changes.
  */
-export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = true, stunServer = 'stun:stun.l.google.com:19302' }) {
+export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = true, stunServer = 'stun:stun.l.google.com:19302', machineId }) {
     const videoRef = useRef(null);
     const pcRef = useRef(null);
     const retryTimerRef = useRef(null);
@@ -110,6 +110,7 @@ export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = tr
                 body: JSON.stringify({
                     sdp: pc.localDescription.sdp,
                     type: pc.localDescription.type,
+                    machine_id: machineId,
                     ...(getQualityParams(quality) || {}),
                 }),
             });
