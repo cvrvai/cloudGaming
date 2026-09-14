@@ -52,7 +52,7 @@ class RegisterRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=50)
     email: EmailStr
     password: str = Field(..., min_length=6, max_length=100)
-    role: Optional[str] = "student"
+    role: Optional[str] = "user"
 
 
 class LoginRequest(BaseModel):
@@ -76,7 +76,7 @@ class ChangePasswordRequest(BaseModel):
 
 @router.post("/register")
 def register(req: RegisterRequest, request: Request):
-    """Register a new student account (FR-01)."""
+    """Register a new player/user account (FR-01)."""
     email_clean = req.email.lower().strip()
     name_clean = req.name.strip()
     client_ip = request.client.host if request.client else None
@@ -92,7 +92,8 @@ def register(req: RegisterRequest, request: Request):
 
         password_hash, salt = hash_password(req.password)
         now_iso = datetime.now(timezone.utc).isoformat()
-        role = "admin" if req.role == "admin" else "student"
+        # Security Policy: Public registration always creates 'user' role
+        role = "user"
 
         cursor.execute(
             """
@@ -470,7 +471,7 @@ def get_user_stats(current_user: Dict = Depends(get_current_user)):
         "total_bookings": total_bookings,
         "active_bookings": active_bookings,
         "completed_bookings": completed_bookings,
-        "role": current_user.get("role", "student"),
+        "role": current_user.get("role", "user"),
         "mfa_enabled": current_user.get("mfa_enabled", False),
         "created_at": current_user.get("created_at"),
     }

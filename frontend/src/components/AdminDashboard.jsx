@@ -80,7 +80,7 @@ export default function AdminDashboard() {
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
-  const [newUserRole, setNewUserRole] = useState('student');
+  const [newUserRole, setNewUserRole] = useState('user');
   const [createUserError, setCreateUserError] = useState(null);
   const [createUserSubmitting, setCreateUserSubmitting] = useState(false);
 
@@ -197,7 +197,7 @@ export default function AdminDashboard() {
       setNewUserName('');
       setNewUserEmail('');
       setNewUserPassword('');
-      setNewUserRole('student');
+      setNewUserRole('user');
       fetchAllAdminData();
     } catch (err) {
       setCreateUserError(err.message);
@@ -1160,7 +1160,6 @@ export default function AdminDashboard() {
                               value={u.role}
                               onChange={(e) => handleRoleChange(u.id, e.target.value)}
                             >
-                              <option value="student">Student</option>
                               <option value="user">User</option>
                               <option value="admin">Admin</option>
                             </select>
@@ -1954,8 +1953,7 @@ export default function AdminDashboard() {
                   value={newUserRole}
                   onChange={(e) => setNewUserRole(e.target.value)}
                 >
-                  <option value="student">Student (Standard User)</option>
-                  <option value="user">User</option>
+                  <option value="user">User (Standard Player)</option>
                   <option value="admin">Administrator</option>
                 </select>
               </div>

@@ -15,11 +15,11 @@ class CreateUserRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=50)
     email: EmailStr
     password: str = Field(..., min_length=6, max_length=100)
-    role: Optional[str] = "student"
+    role: Optional[str] = "user"
 
 
 class UpdateRoleRequest(BaseModel):
-    role: str = Field(..., description="Role: admin, student, or user")
+    role: str = Field(..., description="Role: admin or user")
 
 
 @router.get("", response_model=List[Dict[str, Any]])
@@ -68,9 +68,16 @@ def create_user_account(
     req: CreateUserRequest,
     admin_user: Dict = Depends(require_admin),
 ):
-    """Admin endpoint to provision user/student test accounts for DMAIC simulation."""
+    """Admin endpoint to provision user accounts for DMAIC testing."""
     email_clean = req.email.lower().strip()
     name_clean = req.name.strip()
+    requested_role = req.role.lower().strip() if req.role else "user"
+
+    if requested_role not in ("admin", "user"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Role must be one of: 'admin', 'user'.",
+        )
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -81,9 +88,17 @@ def create_user_account(
                 detail=f"An account with email '{email_clean}' already exists.",
             )
 
+        # Invariant: Only 1 administrator account can exist in the system
+        if requested_role == "admin":
+            cursor.execute("SELECT COUNT(*) as admin_count FROM users WHERE role = 'admin';")
+            if cursor.fetchone()["admin_count"] >= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Security policy: Only 1 administrator account can exist in the system.",
+                )
+
         password_hash, salt = hash_password(req.password)
         now_iso = datetime.now(timezone.utc).isoformat()
-        role = "admin" if req.role == "admin" else "student"
 
         cursor.execute(
             """
@@ -91,7 +106,7 @@ def create_user_account(
             VALUES (%s, %s, %s, %s, %s, FALSE, %s)
             RETURNING id, name, email, role, created_at;
             """,
-            (name_clean, email_clean, password_hash, salt, role, now_iso),
+            (name_clean, email_clean, password_hash, salt, requested_role, now_iso),
         )
         new_user = dict(cursor.fetchone())
         conn.commit()
@@ -105,11 +120,12 @@ def update_user_role(
     req: UpdateRoleRequest,
     admin_user: Dict = Depends(require_admin),
 ):
-    """Update role for a user account."""
-    if req.role not in ("admin", "student", "user"):
+    """Update role for a user account (admin or user only)."""
+    new_role = req.role.lower().strip()
+    if new_role not in ("admin", "user"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Role must be one of: 'admin', 'student', 'user'.",
+            detail="Role must be one of: 'admin', 'user'.",
         )
 
     with get_db() as conn:
@@ -119,9 +135,19 @@ def update_user_role(
         if not target:
             raise HTTPException(status_code=404, detail="User not found.")
 
+        # Invariant: Only 1 administrator account can exist in the system
+        if new_role == "admin":
+            cursor.execute("SELECT id, email FROM users WHERE role = 'admin' AND id != %s;", (user_id,))
+            existing_admin = cursor.fetchone()
+            if existing_admin:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Security policy: Only 1 administrator account can exist in the system ({existing_admin['email']} is currently the admin). Demote them first.",
+                )
+
         cursor.execute(
             "UPDATE users SET role = %s WHERE id = %s RETURNING id, name, email, role;",
-            (req.role, user_id),
+            (new_role, user_id),
         )
         updated = dict(cursor.fetchone())
         conn.commit()
@@ -134,7 +160,7 @@ def delete_user_account(
     user_id: int,
     admin_user: Dict = Depends(require_admin),
 ):
-    """Delete a user account."""
+    """Delete a user account and cascade delete all associated bookings and telemetry."""
     if user_id == admin_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -148,7 +174,13 @@ def delete_user_account(
         if not target:
             raise HTTPException(status_code=404, detail="User not found.")
 
+        # Cleanly delete foreign key relations
+        cursor.execute("DELETE FROM session_telemetry WHERE user_id = %s;", (user_id,))
+        cursor.execute("DELETE FROM bookings WHERE user_id = %s;", (user_id,))
+        cursor.execute("UPDATE audit_logs SET actor_user_id = NULL WHERE actor_user_id = %s;", (user_id,))
+        cursor.execute("UPDATE machine_pairings SET admin_user_id = NULL WHERE admin_user_id = %s;", (user_id,))
+
         cursor.execute("DELETE FROM users WHERE id = %s;", (user_id,))
         conn.commit()
 
-    return {"message": f"User account '{target['email']}' deleted successfully."}
+    return {"message": f"User account '{target['email']}' and all associated bookings were deleted successfully."}

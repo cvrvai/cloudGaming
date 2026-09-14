@@ -52,6 +52,35 @@ def create_booking(
             detail="Reservation duration cannot exceed 8 hours per slot.",
         )
 
+    # 2-Hour Daily Free Quota Gatekeeper for Beta Testing (Lean Six Sigma policy)
+    if current_user.get("role") != "admin":
+        if duration_minutes > 120:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Maximum reservation duration is 2 hours (120 minutes) per session during beta testing.",
+            )
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (end_time::timestamptz - start_time::timestamptz)) / 60.0), 0) as booked_minutes
+                FROM bookings
+                WHERE user_id = %s
+                  AND status = 'confirmed'
+                  AND (start_time::timestamptz AT TIME ZONE 'Asia/Phnom_Penh')::date = (%s::timestamptz AT TIME ZONE 'Asia/Phnom_Penh')::date;
+                """,
+                (current_user["id"], start_dt.isoformat()),
+            )
+            booked_minutes = float(cursor.fetchone()["booked_minutes"] or 0)
+            remaining_minutes = max(0, 120 - int(booked_minutes))
+
+            if booked_minutes + duration_minutes > 120:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Daily 2-hour free quota reached: You already have {int(booked_minutes)} minutes booked for this date ({remaining_minutes} mins remaining). Requested: {int(duration_minutes)} mins.",
+                )
+
     # Normalize ISO strings
     start_iso = start_dt.isoformat()
     end_iso = end_dt.isoformat()
@@ -76,6 +105,39 @@ def create_booking(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         )
+
+
+@router.get("/quota")
+def get_daily_quota(
+    date: Optional[str] = None,
+    current_user: Dict = Depends(get_current_user),
+):
+    """Return user's remaining free daily quota (120 mins limit) for a given date."""
+    now = datetime.now(timezone.utc)
+    target_iso = date if date else now.isoformat()
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (end_time::timestamptz - start_time::timestamptz)) / 60.0), 0) as booked_minutes
+            FROM bookings
+            WHERE user_id = %s
+              AND status = 'confirmed'
+              AND (start_time::timestamptz AT TIME ZONE 'Asia/Phnom_Penh')::date = (%s::timestamptz AT TIME ZONE 'Asia/Phnom_Penh')::date;
+            """,
+            (current_user["id"], target_iso),
+        )
+        booked_minutes = int(float(cursor.fetchone()["booked_minutes"] or 0))
+
+    daily_limit = 120  # 2 hours per day
+    remaining = max(0, daily_limit - booked_minutes)
+    return {
+        "daily_limit_minutes": daily_limit,
+        "booked_minutes": booked_minutes,
+        "remaining_minutes": remaining,
+        "is_admin": current_user.get("role") == "admin",
+    }
 
 
 @router.get("/my")

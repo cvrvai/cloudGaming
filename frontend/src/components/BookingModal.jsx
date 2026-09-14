@@ -198,13 +198,38 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
   const durationOptions = [
     { label: '30 Mins', value: 30 },
     { label: '1 Hour', value: 60 },
-    { label: '2 Hours', value: 120 },
-    { label: '3 Hours', value: 180 },
+    { label: '2 Hours (Max)', value: 120 },
   ];
 
+  const [dailyQuota, setDailyQuota] = useState(null);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState(null);
+
+  // Fetch remaining 2-hour daily free quota for current date
+  useEffect(() => {
+    if (!token) return;
+    const fetchQuota = async () => {
+      try {
+        const targetDate = mode === 'instant' ? todayStr : scheduleDate;
+        const res = await fetch(`${API_BASE}/api/bookings/quota?date=${targetDate}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDailyQuota(data);
+          // If selected duration exceeds remaining quota and user is not admin, adjust duration
+          if (!data.is_admin && data.remaining_minutes < durationMinutes) {
+            if (data.remaining_minutes >= 60) setDurationMinutes(60);
+            else if (data.remaining_minutes >= 30) setDurationMinutes(30);
+          }
+        }
+      } catch (err) {
+        console.debug('Failed to fetch daily quota:', err);
+      }
+    };
+    fetchQuota();
+  }, [token, scheduleDate, mode, todayStr]);
 
   if (!game && !machine) return null;
 
@@ -352,23 +377,52 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
 
             {error && <div className="booking-error-banner">{error}</div>}
 
+            {/* 2-Hour Daily Free Beta Quota Banner */}
+            <div
+              style={{
+                background: 'rgba(0, 210, 255, 0.08)',
+                border: '1px solid rgba(0, 210, 255, 0.22)',
+                borderRadius: '10px',
+                padding: '7px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '11px',
+                marginBottom: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#00d2ff', fontWeight: 700 }}>
+                <ClockIcon size={13} />
+                <span>Beta Free Quota: 2 Hours / Day</span>
+              </div>
+              {dailyQuota && (
+                <span style={{ color: dailyQuota.remaining_minutes > 0 ? '#4ade80' : '#ff5b52', fontWeight: 800 }}>
+                  {dailyQuota.remaining_minutes} mins left
+                </span>
+              )}
+            </div>
+
             <form onSubmit={handleBookSession} className="booking-modal-form">
               {mode === 'instant' ? (
                 <div className="instant-mode-panel">
                   <div className="form-group">
                     <label className="form-label-caps">Session Duration</label>
                     <div className="duration-grid">
-                      {durationOptions.map((item) => (
-                        <button
-                          key={item.value}
-                          type="button"
-                          className={`duration-card ${durationMinutes === item.value ? 'selected' : ''}`}
-                          onClick={() => setDurationMinutes(item.value)}
-                          disabled={submitting}
-                        >
-                          <span className="duration-label">{item.label}</span>
-                        </button>
-                      ))}
+                      {durationOptions.map((item) => {
+                        const isExceeded = dailyQuota && !dailyQuota.is_admin && item.value > dailyQuota.remaining_minutes;
+                        return (
+                          <button
+                            key={item.value}
+                            type="button"
+                            className={`duration-card ${durationMinutes === item.value ? 'selected' : ''} ${isExceeded ? 'disabled' : ''}`}
+                            onClick={() => !isExceeded && setDurationMinutes(item.value)}
+                            disabled={submitting || isExceeded}
+                            title={isExceeded ? `Exceeds 2-hour daily quota (${dailyQuota.remaining_minutes} mins left)` : ''}
+                          >
+                            <span className="duration-label">{item.label}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -542,17 +596,21 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                   <div className="form-group">
                     <label className="form-label-caps">Session Duration</label>
                     <div className="duration-grid">
-                      {durationOptions.map((item) => (
-                        <button
-                          key={item.value}
-                          type="button"
-                          className={`duration-card ${durationMinutes === item.value ? 'selected' : ''}`}
-                          onClick={() => setDurationMinutes(item.value)}
-                          disabled={submitting}
-                        >
-                          <span className="duration-label">{item.label}</span>
-                        </button>
-                      ))}
+                      {durationOptions.map((item) => {
+                        const isExceeded = dailyQuota && !dailyQuota.is_admin && item.value > dailyQuota.remaining_minutes;
+                        return (
+                          <button
+                            key={item.value}
+                            type="button"
+                            className={`duration-card ${durationMinutes === item.value ? 'selected' : ''} ${isExceeded ? 'disabled' : ''}`}
+                            onClick={() => !isExceeded && setDurationMinutes(item.value)}
+                            disabled={submitting || isExceeded}
+                            title={isExceeded ? `Exceeds 2-hour daily quota (${dailyQuota.remaining_minutes} mins left)` : ''}
+                          >
+                            <span className="duration-label">{item.label}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
