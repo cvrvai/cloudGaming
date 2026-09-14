@@ -3,10 +3,13 @@ import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../config';
 import { GamepadIcon, RocketIcon, CalendarIcon, LockIcon, HistoryIcon } from './Icons';
 
+let cachedBookingsData = null;
+let cachedDailyQuota = null;
+
 export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
   const { token, user, openAuth } = useAuth();
-  const [bookingsData, setBookingsData] = useState({ active: [], upcoming: [], past: [] });
-  const [dailyQuota, setDailyQuota] = useState(null);
+  const [bookingsData, setBookingsData] = useState(() => cachedBookingsData || { active: [], upcoming: [], past: [] });
+  const [dailyQuota, setDailyQuota] = useState(() => cachedDailyQuota || null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [cancellingId, setCancellingId] = useState(null);
@@ -25,7 +28,11 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
       const res = await fetch(`${API_BASE}/api/bookings/quota`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) setDailyQuota(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        cachedDailyQuota = data;
+        setDailyQuota(data);
+      }
     } catch (e) {
       // ignore
     }
@@ -42,6 +49,7 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
       });
       if (res.ok) {
         const data = await res.json();
+        cachedBookingsData = data;
         setBookingsData(data);
       } else {
         setError('Failed to fetch bookings');

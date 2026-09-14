@@ -2,17 +2,30 @@ import { useState, useEffect } from 'react';
 import { API_BASE } from '../config';
 import { SparkleIcon, PlayIcon, GamepadIcon } from './Icons';
 
+let cachedGames = null;
+let lastGamesFetchTime = 0;
+const CACHE_TTL_MS = 60000; // 60s cache
+
 export default function GamesView({ onSelectGame, searchQuery = '', onSearchChange }) {
-  const [games, setGames] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [games, setGames] = useState(() => cachedGames || []);
+  const [loading, setLoading] = useState(() => !cachedGames);
   const [selectedGenre, setSelectedGenre] = useState('All');
   const [heroIndex, setHeroIndex] = useState(0);
 
-  const fetchGames = async () => {
+  const fetchGames = async (force = false) => {
+    const now = Date.now();
+    if (!force && cachedGames && now - lastGamesFetchTime < CACHE_TTL_MS) {
+      setGames(cachedGames);
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/api/games`);
       if (res.ok) {
-        setGames(await res.json());
+        const data = await res.json();
+        cachedGames = data;
+        lastGamesFetchTime = Date.now();
+        setGames(data);
       }
     } catch (err) {
       console.error('Failed to load games:', err);
@@ -23,11 +36,10 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
 
   useEffect(() => {
     fetchGames();
-    window.addEventListener('cloudkh-games-updated', fetchGames);
-    window.addEventListener('focus', fetchGames);
+    const handleUpdate = () => fetchGames(true);
+    window.addEventListener('cloudkh-games-updated', handleUpdate);
     return () => {
-      window.removeEventListener('cloudkh-games-updated', fetchGames);
-      window.removeEventListener('focus', fetchGames);
+      window.removeEventListener('cloudkh-games-updated', handleUpdate);
     };
   }, []);
 
