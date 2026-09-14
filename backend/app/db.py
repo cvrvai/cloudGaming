@@ -207,6 +207,13 @@ def init_db() -> None:
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_machine_pairings_code ON machine_pairings(code);")
 
+        # 7. Enable Row Level Security (RLS) on all public tables to secure against unauthorized PostgREST access
+        for tbl in ["users", "machines", "games", "node_games", "bookings", "machine_pairings", "audit_logs"]:
+            try:
+                cursor.execute(f"ALTER TABLE public.{tbl} ENABLE ROW LEVEL SECURITY;")
+            except Exception:
+                pass
+
         conn.commit()
         _seed_initial_data(conn)
 
