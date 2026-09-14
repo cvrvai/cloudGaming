@@ -88,8 +88,11 @@ class GStreamerWebRTCPeer:
     # ------------------------------------------------------------------
     def _pipeline_description_windows(self) -> str:
         leaky = "queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 leaky=downstream"
+        # Windows d3d11screencapturesrc uses 0-based monitor-index (0 is primary display).
+        # Convert 1-based index (e.g. default 1) to 0.
+        mon_idx = max(0, self.monitor_index - 1) if self.monitor_index > 0 else 0
         return (
-            f"d3d11screencapturesrc monitor-index={self.monitor_index} "
+            f"d3d11screencapturesrc monitor-index={mon_idx} "
             f"! {leaky} "
             f"! d3d11convert "
             f"! video/x-raw(memory:D3D11Memory),width={self.width},height={self.height},framerate={self.fps}/1,format=NV12 "

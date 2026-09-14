@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     video_width: int = 854
     video_height: int = 480
     video_bitrate: int = 4_000_000
-    monitor_index: int = 1
+    monitor_index: int = 0
     capture_use_damage: bool = True
 
     # WebRTC
