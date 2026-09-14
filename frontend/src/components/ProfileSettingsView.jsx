@@ -270,22 +270,6 @@ export default function ProfileSettingsView({ onNavigateToBookings, onNavigateTo
                   </div>
                   <span className="field-hint">Email address is permanently linked to your student credentials.</span>
                 </div>
-
-                <div className="form-group">
-                  <label>Account Role</label>
-                  <div className="profile-readonly-badge-wrap">
-                    <span className={`profile-role-pill role-${user.role || 'student'}`}>
-                      {user.role === 'admin' ? 'Platform Administrator' : 'Student Gamer'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label>User Identifier</label>
-                  <div className="profile-readonly-badge-wrap">
-                    <code className="profile-id-code">UID-{String(user.id).padStart(5, '0')}</code>
-                  </div>
-                </div>
               </div>
 
               <div className="profile-form-actions">
@@ -299,19 +283,10 @@ export default function ProfileSettingsView({ onNavigateToBookings, onNavigateTo
               </div>
             </form>
 
-            <div className="profile-quick-nav-box">
-              <h4>Quick Actions</h4>
-              <div className="quick-buttons-row">
-                <button type="button" className="btn-secondary-outline" onClick={onNavigateToBookings}>
-                  <CalendarIcon size={15} /> View My Bookings
-                </button>
-                <button type="button" className="btn-secondary-outline" onClick={onNavigateToGames}>
-                  <GamepadIcon size={15} /> Browse Game Catalog
-                </button>
-                <button type="button" className="btn-secondary-danger" onClick={logout}>
-                  Sign Out of CloudKH
-                </button>
-              </div>
+            <div className="profile-signout-box">
+              <button type="button" className="btn-secondary-danger" onClick={logout}>
+                Sign Out of CloudKH
+              </button>
             </div>
           </div>
         )}
