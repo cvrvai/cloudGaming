@@ -16,6 +16,9 @@ export const SERVER_IP = server || window.location.hostname;
 export const API_PORT = port;
 
 export const API_BASE = apiBaseOverride || (server ? `${httpScheme}//${server}:${port}` : '');
-export const INPUT_WS_URL = server
-  ? `${wsScheme}//${server}:${port}/ws/input`
-  : `${wsScheme}//${window.location.host}/ws/input`;
+export const INPUT_WS_URL = apiBaseOverride
+  ? `${apiBaseOverride.replace(/^http/, 'ws')}/ws/input`
+  : (server
+      ? `${wsScheme}//${server}:${port}/ws/input`
+      : `${wsScheme}//${window.location.host}/ws/input`);
+
