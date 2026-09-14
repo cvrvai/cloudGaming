@@ -8,26 +8,38 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
   const [selectedGenre, setSelectedGenre] = useState('All');
   const [heroIndex, setHeroIndex] = useState(0);
 
-  useEffect(() => {
-    const fetchGames = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/games`);
-        if (res.ok) {
-          setGames(await res.json());
-        }
-      } catch (err) {
-        console.error('Failed to load games:', err);
-      } finally {
-        setLoading(false);
+  const fetchGames = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/games`);
+      if (res.ok) {
+        setGames(await res.json());
       }
-    };
+    } catch (err) {
+      console.error('Failed to load games:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchGames();
+    window.addEventListener('cloudkh-games-updated', fetchGames);
+    window.addEventListener('focus', fetchGames);
+    return () => {
+      window.removeEventListener('cloudkh-games-updated', fetchGames);
+      window.removeEventListener('focus', fetchGames);
+    };
   }, []);
 
-  const genres = ['All', ...new Set(games.map((g) => g.genre).filter(Boolean))];
+  // Genuine available games configured and ready on connected PC nodes
+  const availableGames = games.filter((g) => (g.ready_nodes_count || 0) > 0);
+  const featuredGames = availableGames.slice(0, 5);
+  const activeHero = featuredGames[heroIndex] || featuredGames[0] || null;
+
+  const genres = ['All', ...new Set(availableGames.map((g) => g.genre).filter(Boolean))];
 
   const q = (searchQuery || '').trim().toLowerCase();
-  const filteredGames = games.filter((g) => {
+  const filteredGames = availableGames.filter((g) => {
     const matchesSearch =
       !q ||
       g.title.toLowerCase().includes(q) ||
@@ -37,11 +49,6 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
   });
 
   const isSearching = q.length > 0;
-
-  // Genuine available games configured and ready on connected PC nodes
-  const availableGames = games.filter((g) => (g.ready_nodes_count || 0) > 0);
-  const featuredGames = availableGames.slice(0, 5);
-  const activeHero = featuredGames[heroIndex] || featuredGames[0] || null;
 
   // Auto-cycle hero every 7 seconds when not searching
   useEffect(() => {
@@ -53,8 +60,8 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
   }, [featuredGames.length, isSearching]);
 
   const getGenreCount = (genre) => {
-    if (genre === 'All') return games.length;
-    return games.filter((g) => g.genre === genre).length;
+    if (genre === 'All') return availableGames.length;
+    return availableGames.filter((g) => g.genre === genre).length;
   };
 
   return (
@@ -171,39 +178,41 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
         </div>
 
         {/* Minimalist Sliding Segmented Bar */}
-        <div className="genre-segmented-wrapper">
-          <div className="genre-segmented-bar" role="tablist" aria-label="Game Genres">
-            {genres.map((genre) => {
-              const count = getGenreCount(genre);
-              const isActive = selectedGenre === genre;
-              return (
-                <button
-                  key={genre}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  className={`genre-segmented-btn ${isActive ? 'active' : ''}`}
-                  onClick={() => setSelectedGenre(genre)}
-                >
-                  <span className="genre-label">{genre === 'All' ? 'All Games' : genre}</span>
-                  <span className="genre-count-badge">{count}</span>
-                </button>
-              );
-            })}
+        {!loading && availableGames.length > 0 && genres.length > 1 && (
+          <div className="genre-segmented-wrapper">
+            <div className="genre-segmented-bar" role="tablist" aria-label="Game Genres">
+              {genres.map((genre) => {
+                const count = getGenreCount(genre);
+                const isActive = selectedGenre === genre;
+                return (
+                  <button
+                    key={genre}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    className={`genre-segmented-btn ${isActive ? 'active' : ''}`}
+                    onClick={() => setSelectedGenre(genre)}
+                  >
+                    <span className="genre-label">{genre === 'All' ? 'All Games' : genre}</span>
+                    <span className="genre-count-badge">{count}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {loading ? (
           <div className="loading-games-state">
             <div className="spinner-geforce" />
             <p>Loading...</p>
           </div>
-        ) : games.length === 0 ? (
+        ) : availableGames.length === 0 ? (
           <div className="empty-catalog-state glass-panel" style={{ textAlign: 'center', padding: '60px 20px' }}>
             <GamepadIcon size={48} style={{ opacity: 0.35, marginBottom: 16 }} />
-            <h3 style={{ margin: '0 0 8px 0', fontSize: '1.2rem', fontWeight: 600 }}>No Games in Catalog</h3>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '1.2rem', fontWeight: 600 }}>No Games Installed</h3>
             <p style={{ color: 'var(--text-secondary)', maxWidth: 460, margin: '0 auto', fontSize: '0.9rem', lineHeight: 1.5 }}>
-              There are currently no games in your catalog. Add titles in the Admin Console and assign them to your Host PC to start streaming.
+              There are currently no games installed on your Host PC. Configure and assign games in the Admin Console to start streaming.
             </p>
           </div>
         ) : filteredGames.length === 0 ? (
@@ -221,53 +230,42 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
           </div>
         ) : (
           <div className="geforce-posters-grid">
-            {filteredGames.map((game) => {
-              const isReady = (game.ready_nodes_count || 0) > 0;
-              return (
+            {filteredGames.map((game) => (
+              <div
+                key={game.id}
+                className="game-poster-tile glass-panel"
+                onClick={() => onSelectGame(game)}
+                title={game.title}
+              >
                 <div
-                  key={game.id}
-                  className={`game-poster-tile glass-panel ${!isReady ? 'uninstalled' : ''}`}
-                  onClick={() => isReady && onSelectGame(game)}
-                  title={game.title}
-                  style={!isReady ? { opacity: 0.8 } : undefined}
+                  className="poster-art-box"
+                  style={{ backgroundImage: `url(${game.cover_url})` }}
                 >
-                  <div
-                    className="poster-art-box"
-                    style={{ backgroundImage: `url(${game.cover_url})` }}
-                  >
-                    <div className="poster-top-badges">
-                      <span className="poster-genre-pill">{game.genre}</span>
-                    </div>
-                  </div>
-
-                  <div className="poster-details-box">
-                    <h3 className="poster-title">{game.title}</h3>
-
-                    <div className="poster-footer-row">
-                      {isReady ? (
-                        <span className="poster-stream-ready">
-                          <span className="mini-green-dot" /> Available
-                        </span>
-                      ) : (
-                        <span className="poster-stream-unavail">
-                          <span className="mini-gray-dot" /> Not Installed
-                        </span>
-                      )}
-                      <button
-                        className={`btn-tile-play ${!isReady ? 'disabled' : ''}`}
-                        disabled={!isReady}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (isReady) onSelectGame(game);
-                        }}
-                      >
-                        {isReady ? 'Play' : 'Unavailable'}
-                      </button>
-                    </div>
+                  <div className="poster-top-badges">
+                    <span className="poster-genre-pill">{game.genre}</span>
                   </div>
                 </div>
-              );
-            })}
+
+                <div className="poster-details-box">
+                  <h3 className="poster-title">{game.title}</h3>
+
+                  <div className="poster-footer-row">
+                    <span className="poster-stream-ready">
+                      <span className="mini-green-dot" /> Available
+                    </span>
+                    <button
+                      className="btn-tile-play"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectGame(game);
+                      }}
+                    >
+                      Play
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </section>

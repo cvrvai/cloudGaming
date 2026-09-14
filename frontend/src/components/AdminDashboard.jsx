@@ -60,7 +60,10 @@ export default function AdminDashboard() {
       ]);
       if (mRes.ok) setMachines(await mRes.json());
       if (bRes.ok) setBookings(await bRes.json());
-      if (gRes.ok) setGames(await gRes.json());
+      if (gRes.ok) {
+        setGames(await gRes.json());
+        window.dispatchEvent(new Event('cloudkh-games-updated'));
+      }
     } catch (err) {
       console.error('Failed to load admin data:', err);
     } finally {
@@ -543,8 +546,21 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
-              <div className="admin-games-grid">
-                {games.map((g) => (
+              {games.length === 0 ? (
+                <div className="admin-empty-state glass-panel" style={{ textAlign: 'center', padding: '48px 24px', borderRadius: '12px' }}>
+                  <GamepadIcon size={40} style={{ opacity: 0.35, marginBottom: 12 }} />
+                  <h3 style={{ margin: '0 0 6px 0', fontSize: '1.1rem' }}>No Catalog Games</h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', maxWidth: 400, margin: '0 auto 16px auto' }}>
+                    Your catalog is currently empty. Click "Add Game to Catalog" to register your first game title.
+                  </p>
+                  <button className="btn-primary" onClick={openAddGameModal} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <PlusIcon size={14} />
+                    <span>Add Game</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="admin-games-grid">
+                  {games.map((g) => (
                   <div key={g.id} className="admin-game-card glass-panel">
                     <div
                       className="game-cover-banner"
@@ -580,8 +596,9 @@ export default function AdminDashboard() {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
           {/* TAB 3: RESERVATIONS */}
           {adminTab === 'bookings' && (
