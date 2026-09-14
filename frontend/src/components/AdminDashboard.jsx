@@ -17,11 +17,15 @@ import {
   ServerIcon,
   CpuIcon,
   RamIcon,
+  UsersIcon,
+  ChartIcon,
+  DownloadIcon,
+  UserIcon,
 } from './Icons';
 
 export default function AdminDashboard() {
   const { token, user } = useAuth();
-  const [adminTab, setAdminTab] = useState('machines'); // 'machines' | 'games' | 'bookings'
+  const [adminTab, setAdminTab] = useState('machines'); // 'machines' | 'games' | 'bookings' | 'users' | 'dmaic'
   
   const [machines, setMachines] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -69,13 +73,48 @@ export default function AdminDashboard() {
   const [nodeGameSubmitting, setNodeGameSubmitting] = useState(false);
   const [nodeGameError, setNodeGameError] = useState(null);
 
+  // Users state (Clear User Account Tracking & Visibility)
+  const [users, setUsers] = useState([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserRole, setNewUserRole] = useState('student');
+  const [createUserError, setCreateUserError] = useState(null);
+  const [createUserSubmitting, setCreateUserSubmitting] = useState(false);
+
+  // Operations Research - Lean Six Sigma DMAIC CTQ state
+  const [dmaicMetrics, setDmaicMetrics] = useState(null);
+  const [dmaicRecords, setDmaicRecords] = useState([]);
+  const [dmaicPhaseFilter, setDmaicPhaseFilter] = useState('all');
+  const [showAddTestModal, setShowAddTestModal] = useState(false);
+  const [newTestAccount, setNewTestAccount] = useState('');
+  const [newTestRequestedTime, setNewTestRequestedTime] = useState('');
+  const [newTestBookingSlot, setNewTestBookingSlot] = useState('');
+  const [newTestWaitingTime, setNewTestWaitingTime] = useState(15);
+  const [newTestLatency, setNewTestLatency] = useState(75);
+  const [newTestFps, setNewTestFps] = useState(60);
+  const [newTestDisconnects, setNewTestDisconnects] = useState(0);
+  const [newTestCompleted, setNewTestCompleted] = useState(true);
+  const [newTestFailureReason, setNewTestFailureReason] = useState('');
+  const [newTestPcIdleTime, setNewTestPcIdleTime] = useState(25);
+  const [newTestPowerUsage, setNewTestPowerUsage] = useState(185);
+  const [newTestPhase, setNewTestPhase] = useState('V1_Baseline');
+  const [addTestError, setAddTestError] = useState(null);
+  const [addTestSubmitting, setAddTestSubmitting] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
+
   const fetchAllAdminData = async () => {
     if (!token) return;
     try {
-      const [mRes, bRes, gRes] = await Promise.all([
+      const [mRes, bRes, gRes, uRes, dMetricsRes, dRecordsRes] = await Promise.all([
         fetch(`${API_BASE}/api/machines`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${API_BASE}/api/bookings/admin/all`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${API_BASE}/api/games`),
+        fetch(`${API_BASE}/api/admin/users`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_BASE}/api/admin/dmaic/metrics`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_BASE}/api/admin/dmaic/records`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       if (mRes.ok) setMachines(await mRes.json());
       if (bRes.ok) setBookings(await bRes.json());
@@ -83,10 +122,153 @@ export default function AdminDashboard() {
         setGames(await gRes.json());
         window.dispatchEvent(new Event('cloudkh-games-updated'));
       }
+      if (uRes.ok) setUsers(await uRes.json());
+      if (dMetricsRes.ok) setDmaicMetrics(await dMetricsRes.json());
+      if (dRecordsRes.ok) setDmaicRecords(await dRecordsRes.json());
     } catch (err) {
       console.error('Failed to load admin data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRoleChange = async (userId, newRole) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/users/${userId}/role`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ role: newRole }),
+      });
+      if (res.ok) {
+        fetchAllAdminData();
+      } else {
+        const err = await res.json();
+        alert(err.detail || 'Failed to update user role');
+      }
+    } catch (err) {
+      alert('Role update error: ' + err.message);
+    }
+  };
+
+  const handleDeleteUser = async (userId, userEmail) => {
+    if (!window.confirm(`Delete user account "${userEmail}"? All associated reservations will also be deleted.`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        fetchAllAdminData();
+      } else {
+        const err = await res.json();
+        alert(err.detail || 'Failed to delete user');
+      }
+    } catch (err) {
+      alert('Delete error: ' + err.message);
+    }
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setCreateUserSubmitting(true);
+    setCreateUserError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: newUserName.trim(),
+          email: newUserEmail.trim().toLowerCase(),
+          password: newUserPassword,
+          role: newUserRole,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Failed to create user account');
+      }
+      setShowCreateUserModal(false);
+      setNewUserName('');
+      setNewUserEmail('');
+      setNewUserPassword('');
+      setNewUserRole('student');
+      fetchAllAdminData();
+    } catch (err) {
+      setCreateUserError(err.message);
+    } finally {
+      setCreateUserSubmitting(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setExportingCsv(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/dmaic/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to export dataset');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cloudkh_dmaic_dataset_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('CSV Export error: ' + err.message);
+    } finally {
+      setExportingCsv(false);
+    }
+  };
+
+  const handleLogObservation = async (e) => {
+    e.preventDefault();
+    setAddTestSubmitting(true);
+    setAddTestError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/dmaic/records`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          account_name: newTestAccount.trim() || 'Guest Student',
+          requested_time: newTestRequestedTime.trim() || undefined,
+          booking_slot: newTestBookingSlot.trim() || undefined,
+          waiting_time_mins: parseFloat(newTestWaitingTime) || 0,
+          latency_ms: parseFloat(newTestLatency) || 0,
+          fps: parseFloat(newTestFps) || 60,
+          disconnects_count: parseInt(newTestDisconnects) || 0,
+          completed: newTestCompleted,
+          failure_reason: !newTestCompleted ? (newTestFailureReason.trim() || 'aborted') : null,
+          pc_idle_time_mins: parseFloat(newTestPcIdleTime) || 0,
+          power_usage_watts: parseFloat(newTestPowerUsage) || 180,
+          phase: newTestPhase,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Failed to record observation');
+      }
+      setShowAddTestModal(false);
+      setNewTestAccount('');
+      setNewTestRequestedTime('');
+      setNewTestBookingSlot('');
+      setNewTestFailureReason('');
+      fetchAllAdminData();
+    } catch (err) {
+      setAddTestError(err.message);
+    } finally {
+      setAddTestSubmitting(false);
     }
   };
 
@@ -550,6 +732,34 @@ export default function AdminDashboard() {
           </div>
           <div className="bento-value">{bookings.length}</div>
         </div>
+
+        <div
+          className="admin-bento-card glass-panel"
+          onClick={() => setAdminTab('users')}
+          style={{ cursor: 'pointer' }}
+          title="Click to view all registered users"
+        >
+          <div className="bento-top-row">
+            <span className="bento-tag">User Accounts</span>
+            <div className="bento-icon-box"><UsersIcon size={16} /></div>
+          </div>
+          <div className="bento-value">{users.length}</div>
+        </div>
+
+        <div
+          className="admin-bento-card glass-panel"
+          onClick={() => setAdminTab('dmaic')}
+          style={{ cursor: 'pointer' }}
+          title="Click to view Lean Six Sigma DMAIC CTQ Dashboard"
+        >
+          <div className="bento-top-row">
+            <span className="bento-tag">DMAIC Pass Rate</span>
+            <div className="bento-icon-box"><ChartIcon size={16} /></div>
+          </div>
+          <div className="bento-value highlight-green">
+            {dmaicMetrics?.ctq4_completion_rate ? `${dmaicMetrics.ctq4_completion_rate.completion_rate_pct}%` : '---'}
+          </div>
+        </div>
       </div>
 
       {/* Admin Tabs */}
@@ -577,6 +787,22 @@ export default function AdminDashboard() {
         >
           <ClipboardListIcon size={16} />
           <span>Reservations ({bookings.length})</span>
+        </button>
+        <button
+          className={`admin-subnav-btn ${adminTab === 'users' ? 'active' : ''}`}
+          onClick={() => setAdminTab('users')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+        >
+          <UsersIcon size={16} />
+          <span>User Accounts ({users.length})</span>
+        </button>
+        <button
+          className={`admin-subnav-btn ${adminTab === 'dmaic' ? 'active' : ''}`}
+          onClick={() => setAdminTab('dmaic')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+        >
+          <ChartIcon size={16} />
+          <span>Lean Six Sigma DMAIC</span>
         </button>
       </div>
 
@@ -845,6 +1071,412 @@ export default function AdminDashboard() {
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: USER ACCOUNTS TRACKING */}
+          {adminTab === 'users' && (
+            <div className="admin-tab-content">
+              <div className="tab-section-header">
+                <div>
+                  <h2>User Accounts &amp; Roster</h2>
+                  <p>Track all registered players, student test accounts, and access permissions.</p>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <div className="admin-search-box">
+                    <input
+                      type="text"
+                      className="admin-search-input"
+                      placeholder="Search name or email (e.g. bokpa)..."
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                    />
+                    {userSearch && (
+                      <button className="admin-search-clear" onClick={() => setUserSearch('')}>
+                        <XIcon size={12} />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    className="btn-primary"
+                    onClick={() => setShowCreateUserModal(true)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+                  >
+                    <PlusIcon size={14} />
+                    <span>+ Add User</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="admin-bookings-table-wrapper glass-panel">
+                <table className="admin-bookings-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Player / Account</th>
+                      <th>Role</th>
+                      <th>Bookings Record</th>
+                      <th>Registered</th>
+                      <th>Last Login</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users
+                      .filter((u) => {
+                        if (!userSearch.trim()) return true;
+                        const q = userSearch.toLowerCase();
+                        return (
+                          (u.email && u.email.toLowerCase().includes(q)) ||
+                          (u.name && u.name.toLowerCase().includes(q)) ||
+                          (u.role && u.role.toLowerCase().includes(q))
+                        );
+                      })
+                      .map((u) => (
+                        <tr key={u.id} className={u.email === 'bokpa@gmail.com' ? 'user-highlight-row' : ''}>
+                          <td>
+                            <span className="user-id-badge">#{u.id}</span>
+                          </td>
+                          <td>
+                            <div className="user-identity-cell">
+                              <div className="user-avatar-circle">
+                                {(u.name || u.email || 'U')[0].toUpperCase()}
+                              </div>
+                              <div className="user-details-col">
+                                <span className="user-name-text">{u.name || 'CloudKH Player'}</span>
+                                <span className="user-email-text">{u.email}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <select
+                              className={`admin-role-select role-${u.role}`}
+                              value={u.role}
+                              onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                            >
+                              <option value="student">Student</option>
+                              <option value="user">User</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                          </td>
+                          <td>
+                            <div className="user-bookings-stat">
+                              <span className="booking-stat-active" title="Active Reservations">
+                                {u.active_bookings || 0} active
+                              </span>
+                              <span className="booking-stat-divider">/</span>
+                              <span className="booking-stat-total" title="Total Reservations">
+                                {u.total_bookings || 0} total
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className="text-muted-cell">
+                              {u.created_at
+                                ? new Date(u.created_at).toLocaleDateString([], {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric',
+                                  })
+                                : '—'}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="text-muted-cell">
+                              {u.last_login
+                                ? new Date(u.last_login).toLocaleString([], {
+                                    dateStyle: 'short',
+                                    timeStyle: 'short',
+                                  })
+                                : 'Never'}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              className="btn-admin-delete-user"
+                              onClick={() => handleDeleteUser(u.id, u.email)}
+                              title="Delete account"
+                            >
+                              <TrashIcon size={13} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: LEAN SIX SIGMA DMAIC CTQ DASHBOARD */}
+          {adminTab === 'dmaic' && (
+            <div className="admin-tab-content">
+              {/* Project Hero Banner */}
+              <div className="dmaic-hero-banner glass-panel">
+                <div className="dmaic-hero-content">
+                  <div className="dmaic-badge-row">
+                    <span className="dmaic-badge">Operations Research &bull; Lean Six Sigma DMAIC</span>
+                    <span className="dmaic-subbadge">CloudKH Single-PC MVP</span>
+                  </div>
+                  <h2 className="dmaic-hero-title">Voice of Customer (VOC) to Critical to Quality (CTQ) Telemetry</h2>
+                  <p className="dmaic-hero-desc">
+                    Single RTX 3050 rig pilot experiment evaluating Queue Waiting Times, Network Latency, Rig Utilization &amp; Energy Waste, and Session Completion Defect Rates across DMAIC Phases (V1 Baseline vs V2 Improved).
+                  </p>
+                </div>
+                <div className="dmaic-hero-actions">
+                  <button
+                    className="btn-primary"
+                    onClick={handleExportCsv}
+                    disabled={exportingCsv}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    <DownloadIcon size={16} />
+                    <span>{exportingCsv ? 'Exporting...' : '📥 Export Dataset (.CSV)'}</span>
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => setShowAddTestModal(true)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    <PlusIcon size={14} />
+                    <span>+ Log Test Run</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Team Member CTQ Cards */}
+              <div className="dmaic-ctq-grid">
+                {/* CTQ 1: Latency & Frame Stability (Choonvai) */}
+                <div className="dmaic-ctq-card glass-panel">
+                  <div className="ctq-card-header">
+                    <div className="ctq-owner-tag">CTQ 1 &bull; Choonvai</div>
+                    <span className={`ctq-status-badge ${dmaicMetrics?.ctq1_latency?.status === 'PASS' ? 'pass' : 'risk'}`}>
+                      {dmaicMetrics?.ctq1_latency?.status || 'PASS'}
+                    </span>
+                  </div>
+                  <h3 className="ctq-metric-title">Latency &amp; FPS Stability</h3>
+                  <div className="ctq-target-spec">
+                    <span className="spec-label">Target:</span> &le; 100 ms &bull; 60 FPS
+                  </div>
+                  <div className="ctq-big-value">
+                    {dmaicMetrics?.ctq1_latency?.mean_latency_ms || 0}
+                    <span className="ctq-unit">ms mean</span>
+                  </div>
+                  <div className="ctq-stats-breakdown">
+                    <div className="ctq-substat">
+                      <span className="substat-label">Peak Latency</span>
+                      <span className="substat-val">{dmaicMetrics?.ctq1_latency?.peak_latency_ms || 0} ms</span>
+                    </div>
+                    <div className="ctq-substat">
+                      <span className="substat-label">Mean Framerate</span>
+                      <span className="substat-val">{dmaicMetrics?.ctq1_latency?.mean_fps || 0} FPS</span>
+                    </div>
+                    <div className="ctq-substat">
+                      <span className="substat-label">Defect Rate (&gt;100ms)</span>
+                      <span className={`substat-val ${(dmaicMetrics?.ctq1_latency?.defect_rate_pct || 0) > 0 ? 'text-defect' : ''}`}>
+                        {dmaicMetrics?.ctq1_latency?.defect_rate_pct || 0}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* CTQ 2: PC Utilization & Energy Waste (Sean Pheavyraksonya) */}
+                <div className="dmaic-ctq-card glass-panel">
+                  <div className="ctq-card-header">
+                    <div className="ctq-owner-tag">CTQ 2 &bull; Sean Pheavyraksonya</div>
+                    <span className={`ctq-status-badge ${dmaicMetrics?.ctq2_utilization?.status === 'PASS' ? 'pass' : 'risk'}`}>
+                      {dmaicMetrics?.ctq2_utilization?.status || 'OPTIMAL'}
+                    </span>
+                  </div>
+                  <h3 className="ctq-metric-title">PC Utilization &amp; Energy Waste</h3>
+                  <div className="ctq-target-spec">
+                    <span className="spec-label">Target:</span> &ge; 70% Rig Utilization
+                  </div>
+                  <div className="ctq-big-value">
+                    {dmaicMetrics?.ctq2_utilization?.utilization_pct || 0}
+                    <span className="ctq-unit">%</span>
+                  </div>
+                  <div className="ctq-stats-breakdown">
+                    <div className="ctq-substat">
+                      <span className="substat-label">Gaming Hours</span>
+                      <span className="substat-val">{dmaicMetrics?.ctq2_utilization?.gaming_hours || 0} hrs</span>
+                    </div>
+                    <div className="ctq-substat">
+                      <span className="substat-label">Idle Hours</span>
+                      <span className="substat-val">{dmaicMetrics?.ctq2_utilization?.idle_hours || 0} hrs</span>
+                    </div>
+                    <div className="ctq-substat">
+                      <span className="substat-label">Est. Energy Waste</span>
+                      <span className="substat-val">
+                        {dmaicMetrics?.ctq2_utilization?.est_kwh || 0} kWh (~${dmaicMetrics?.ctq2_utilization?.est_cost_usd || 0})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* CTQ 3: Booking Waiting Time & Capacity (Lim Hokann) */}
+                <div className="dmaic-ctq-card glass-panel">
+                  <div className="ctq-card-header">
+                    <div className="ctq-owner-tag">CTQ 3 &bull; Lim Hokann</div>
+                    <span className={`ctq-status-badge ${dmaicMetrics?.ctq3_waiting_time?.status === 'PASS' ? 'pass' : 'risk'}`}>
+                      {dmaicMetrics?.ctq3_waiting_time?.status || 'PASS'}
+                    </span>
+                  </div>
+                  <h3 className="ctq-metric-title">Queue Waiting &amp; Capacity</h3>
+                  <div className="ctq-target-spec">
+                    <span className="spec-label">Target:</span> &le; 30 min queue wait
+                  </div>
+                  <div className="ctq-big-value">
+                    {dmaicMetrics?.ctq3_waiting_time?.mean_waiting_time_mins || 0}
+                    <span className="ctq-unit">min mean</span>
+                  </div>
+                  <div className="ctq-stats-breakdown">
+                    <div className="ctq-substat">
+                      <span className="substat-label">Max Queue Wait</span>
+                      <span className="substat-val">{dmaicMetrics?.ctq3_waiting_time?.max_waiting_time_mins || 0} min</span>
+                    </div>
+                    <div className="ctq-substat">
+                      <span className="substat-label">Booked Slots</span>
+                      <span className="substat-val">{dmaicMetrics?.ctq3_waiting_time?.total_booked_slots || 0}</span>
+                    </div>
+                    <div className="ctq-substat">
+                      <span className="substat-label">Capacity Bottlenecks</span>
+                      <span className={`substat-val ${(dmaicMetrics?.ctq3_waiting_time?.capacity_defects_count || 0) > 0 ? 'text-defect' : ''}`}>
+                        {dmaicMetrics?.ctq3_waiting_time?.capacity_defects_count || 0} rejections
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* CTQ 4: Session Completion Rate (Hour) */}
+                <div className="dmaic-ctq-card glass-panel">
+                  <div className="ctq-card-header">
+                    <div className="ctq-owner-tag">CTQ 4 &bull; Hour</div>
+                    <span className={`ctq-status-badge ${dmaicMetrics?.ctq4_completion_rate?.status === 'PASS' ? 'pass' : 'risk'}`}>
+                      {dmaicMetrics?.ctq4_completion_rate?.status || 'PASS'}
+                    </span>
+                  </div>
+                  <h3 className="ctq-metric-title">Session Completion Rate</h3>
+                  <div className="ctq-target-spec">
+                    <span className="spec-label">Target:</span> &ge; 95% Completion (6&sigma;)
+                  </div>
+                  <div className="ctq-big-value">
+                    {dmaicMetrics?.ctq4_completion_rate?.completion_rate_pct || 0}
+                    <span className="ctq-unit">%</span>
+                  </div>
+                  <div className="ctq-stats-breakdown">
+                    <div className="ctq-substat">
+                      <span className="substat-label">Completed / Total</span>
+                      <span className="substat-val">
+                        {dmaicMetrics?.ctq4_completion_rate?.completed_sessions || 0} / {dmaicMetrics?.ctq4_completion_rate?.total_sessions || 0}
+                      </span>
+                    </div>
+                    <div className="ctq-substat">
+                      <span className="substat-label">Defect Rate</span>
+                      <span className={`substat-val ${(dmaicMetrics?.ctq4_completion_rate?.defect_rate_pct || 0) > 0 ? 'text-defect' : ''}`}>
+                        {dmaicMetrics?.ctq4_completion_rate?.defect_rate_pct || 0}%
+                      </span>
+                    </div>
+                    <div className="ctq-substat">
+                      <span className="substat-label">Failure Causes</span>
+                      <span className="substat-val">
+                        {dmaicMetrics?.ctq4_completion_rate?.failure_breakdown?.disconnect || 0} disc, {dmaicMetrics?.ctq4_completion_rate?.failure_breakdown?.crash || 0} crash
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Research Observation Dataset Section */}
+              <div className="tab-section-header" style={{ marginTop: '30px' }}>
+                <div>
+                  <h2>Experimental Observation Dataset</h2>
+                  <p>Individual trial records formatted for statistical analysis (ANOVA, 2-Sample t-test, Capability Analysis).</p>
+                </div>
+                <div className="dmaic-phase-filter-bar">
+                  <button
+                    className={`phase-filter-btn ${dmaicPhaseFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setDmaicPhaseFilter('all')}
+                  >
+                    All ({dmaicRecords.length})
+                  </button>
+                  <button
+                    className={`phase-filter-btn ${dmaicPhaseFilter === 'V1_Baseline' ? 'active' : ''}`}
+                    onClick={() => setDmaicPhaseFilter('V1_Baseline')}
+                  >
+                    V1 Baseline ({dmaicRecords.filter((r) => r.phase === 'V1_Baseline').length})
+                  </button>
+                  <button
+                    className={`phase-filter-btn ${dmaicPhaseFilter === 'V2_Improved' ? 'active' : ''}`}
+                    onClick={() => setDmaicPhaseFilter('V2_Improved')}
+                  >
+                    V2 Improved ({dmaicRecords.filter((r) => r.phase === 'V2_Improved').length})
+                  </button>
+                </div>
+              </div>
+
+              <div className="admin-bookings-table-wrapper glass-panel">
+                <table className="admin-bookings-table dmaic-dataset-table">
+                  <thead>
+                    <tr>
+                      <th>Test ID</th>
+                      <th>Phase</th>
+                      <th>Account</th>
+                      <th>Booking Slot</th>
+                      <th>Wait Time</th>
+                      <th>Latency</th>
+                      <th>FPS</th>
+                      <th>Disconnects</th>
+                      <th>Status</th>
+                      <th>Failure Reason</th>
+                      <th>Idle Time</th>
+                      <th>Power (W)</th>
+                      <th>Logged At</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dmaicRecords
+                      .filter((r) => dmaicPhaseFilter === 'all' || r.phase === dmaicPhaseFilter)
+                      .map((r) => (
+                        <tr key={r.id}>
+                          <td><strong>{r.test_id}</strong></td>
+                          <td>
+                            <span className={`phase-badge-pill ${r.phase}`}>
+                              {r.phase === 'V1_Baseline' ? 'V1 Baseline' : 'V2 Improved'}
+                            </span>
+                          </td>
+                          <td>{r.account_name}</td>
+                          <td>{r.booking_slot || '—'}</td>
+                          <td>{r.waiting_time_mins} min</td>
+                          <td className={r.latency_ms > 100 ? 'text-defect' : ''}>
+                            {r.latency_ms} ms
+                          </td>
+                          <td>{r.fps} fps</td>
+                          <td>{r.disconnects_count}</td>
+                          <td>
+                            <span className={`status-pill-small ${r.completed ? 'confirmed' : 'cancelled'}`}>
+                              {r.completed ? 'COMPLETED' : 'DEFECT'}
+                            </span>
+                          </td>
+                          <td>
+                            {r.failure_reason ? (
+                              <span className="failure-reason-pill">{r.failure_reason}</span>
+                            ) : (
+                              <span className="text-muted-cell">—</span>
+                            )}
+                          </td>
+                          <td>{r.pc_idle_time_mins} min</td>
+                          <td>{r.power_usage_watts} W</td>
+                          <td>
+                            <span className="text-muted-cell">
+                              {new Date(r.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
@@ -1244,6 +1876,265 @@ export default function AdminDashboard() {
                 </form>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: CREATE USER ACCOUNT */}
+      {showCreateUserModal && (
+        <div className="modal-backdrop" onClick={() => setShowCreateUserModal(false)}>
+          <div className="modal-dialog glass-panel" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close-btn" onClick={() => setShowCreateUserModal(false)} aria-label="Close">
+              <XIcon size={16} />
+            </button>
+
+            <div className="auth-header">
+              <h2>Create User Account</h2>
+              <p style={{ color: 'var(--text-2)', fontSize: '13px', margin: '4px 0 0' }}>
+                Add student or test account for CloudKH platform simulations.
+              </p>
+            </div>
+
+            {createUserError && (
+              <div className="auth-error-banner" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
+                <AlertTriangleIcon size={16} />
+                <span>{createUserError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateUser} className="auth-form" style={{ marginTop: '14px' }}>
+              <div className="form-group">
+                <label>Full Name / Student Alias</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Sok Bokpa"
+                  value={newUserName}
+                  onChange={(e) => setNewUserName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Email Address</label>
+                <input
+                  type="email"
+                  placeholder="e.g. bokpa@gmail.com"
+                  value={newUserEmail}
+                  onChange={(e) => setNewUserEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Password</label>
+                <input
+                  type="password"
+                  placeholder="Minimum 6 characters"
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>System Role</label>
+                <select
+                  className="admin-select-input"
+                  value={newUserRole}
+                  onChange={(e) => setNewUserRole(e.target.value)}
+                >
+                  <option value="student">Student (Standard User)</option>
+                  <option value="user">User</option>
+                  <option value="admin">Administrator</option>
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                className="btn-primary auth-submit-btn"
+                disabled={createUserSubmitting}
+                style={{ marginTop: '10px' }}
+              >
+                {createUserSubmitting ? 'Creating...' : 'Create Account'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: LOG DMAIC EXPERIMENTAL OBSERVATION */}
+      {showAddTestModal && (
+        <div className="modal-backdrop" onClick={() => setShowAddTestModal(false)}>
+          <div className="modal-dialog glass-panel" style={{ maxWidth: '540px' }} onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close-btn" onClick={() => setShowAddTestModal(false)} aria-label="Close">
+              <XIcon size={16} />
+            </button>
+
+            <div className="auth-header">
+              <h2>Log DMAIC Observation Run</h2>
+              <p style={{ color: 'var(--text-2)', fontSize: '13px', margin: '4px 0 0' }}>
+                Record trial metrics for Lean Six Sigma CTQ analysis &amp; dataset export.
+              </p>
+            </div>
+
+            {addTestError && (
+              <div className="auth-error-banner" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
+                <AlertTriangleIcon size={16} />
+                <span>{addTestError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleLogObservation} className="auth-form" style={{ marginTop: '14px' }}>
+              <div className="booking-form-grid">
+                <div className="form-group">
+                  <label>Phase</label>
+                  <select
+                    className="admin-select-input"
+                    value={newTestPhase}
+                    onChange={(e) => setNewTestPhase(e.target.value)}
+                  >
+                    <option value="V1_Baseline">V1 Baseline (Current)</option>
+                    <option value="V2_Improved">V2 Improved (Optimized)</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Tester / Account</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Choonvai, Bokpa"
+                    value={newTestAccount}
+                    onChange={(e) => setNewTestAccount(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="booking-form-grid">
+                <div className="form-group">
+                  <label>Requested Slot</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 14:00 - 15:00"
+                    value={newTestBookingSlot}
+                    onChange={(e) => setNewTestBookingSlot(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Waiting Time (Mins)</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={newTestWaitingTime}
+                    onChange={(e) => setNewTestWaitingTime(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="booking-form-grid">
+                <div className="form-group">
+                  <label>Latency (ms)</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={newTestLatency}
+                    onChange={(e) => setNewTestLatency(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Framerate (FPS)</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={newTestFps}
+                    onChange={(e) => setNewTestFps(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="booking-form-grid">
+                <div className="form-group">
+                  <label>Disconnects Count</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={newTestDisconnects}
+                    onChange={(e) => setNewTestDisconnects(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>PC Idle Time (Mins)</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={newTestPcIdleTime}
+                    onChange={(e) => setNewTestPcIdleTime(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="booking-form-grid">
+                <div className="form-group">
+                  <label>Power Usage (Watts)</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={newTestPowerUsage}
+                    onChange={(e) => setNewTestPowerUsage(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '12px' }}>
+                    <input
+                      type="checkbox"
+                      checked={newTestCompleted}
+                      onChange={(e) => setNewTestCompleted(e.target.checked)}
+                      style={{ width: '18px', height: '18px', accentColor: '#30d158' }}
+                    />
+                    <span style={{ fontWeight: 700, color: newTestCompleted ? '#30d158' : '#ff453a' }}>
+                      {newTestCompleted ? 'Session Completed' : 'Defect / Failed'}
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {!newTestCompleted && (
+                <div className="form-group">
+                  <label>Failure Reason</label>
+                  <select
+                    className="admin-select-input"
+                    value={newTestFailureReason}
+                    onChange={(e) => setNewTestFailureReason(e.target.value)}
+                  >
+                    <option value="disconnect">disconnect (Network drop)</option>
+                    <option value="crash">crash (Game crash / freeze)</option>
+                    <option value="launch_failure">launch_failure (Game won't launch)</option>
+                    <option value="restart">restart (PC reboot required)</option>
+                    <option value="capacity_defect">capacity_defect (Slot rejected)</option>
+                  </select>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="btn-primary auth-submit-btn"
+                disabled={addTestSubmitting}
+                style={{ marginTop: '10px' }}
+              >
+                {addTestSubmitting ? 'Logging...' : 'Save Observation Record'}
+              </button>
+            </form>
           </div>
         </div>
       )}

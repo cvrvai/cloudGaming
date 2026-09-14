@@ -207,8 +207,39 @@ def init_db() -> None:
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_machine_pairings_code ON machine_pairings(code);")
 
-        # 7. Enable Row Level Security (RLS) on all public tables to secure against unauthorized PostgREST access
-        for tbl in ["users", "machines", "games", "node_games", "bookings", "machine_pairings", "audit_logs"]:
+        # 7. Session Telemetry table (Operations Research - Lean Six Sigma DMAIC CTQ tracking)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS session_telemetry (
+            id SERIAL PRIMARY KEY,
+            test_id TEXT NOT NULL,
+            booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL,
+            user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            user_email TEXT,
+            machine_id INTEGER REFERENCES machines(id) ON DELETE SET NULL,
+            game_title TEXT,
+            requested_time TEXT,
+            booking_slot TEXT,
+            waiting_time_minutes DOUBLE PRECISION DEFAULT 0.0,
+            avg_latency_ms DOUBLE PRECISION DEFAULT 0.0,
+            max_latency_ms DOUBLE PRECISION DEFAULT 0.0,
+            avg_fps DOUBLE PRECISION DEFAULT 60.0,
+            packet_loss_pct DOUBLE PRECISION DEFAULT 0.0,
+            disconnects_count INTEGER DEFAULT 0,
+            completed BOOLEAN DEFAULT TRUE,
+            failure_reason TEXT,
+            pc_idle_minutes DOUBLE PRECISION DEFAULT 0.0,
+            power_kwh DOUBLE PRECISION DEFAULT 0.0,
+            energy_cost_usd DOUBLE PRECISION DEFAULT 0.0,
+            phase TEXT DEFAULT 'V1_Baseline',
+            notes TEXT,
+            created_at TEXT NOT NULL
+        );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_test_id ON session_telemetry(test_id);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_phase ON session_telemetry(phase);")
+
+        # 8. Enable Row Level Security (RLS) on all public tables
+        for tbl in ["users", "machines", "games", "node_games", "bookings", "machine_pairings", "audit_logs", "session_telemetry"]:
             try:
                 cursor.execute(f"ALTER TABLE public.{tbl} ENABLE ROW LEVEL SECURITY;")
             except Exception:

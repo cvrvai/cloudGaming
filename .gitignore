@@ -22,3 +22,4 @@ Thumbs.db
 *.sqlite3
 backend/cloudkh.db
 .node_config.json
+user_storage/
