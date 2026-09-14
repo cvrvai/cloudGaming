@@ -197,7 +197,31 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
     print("=" * 62)
     print("\n[*] Streaming daemon active. Press Ctrl+C to stop.\n")
 
-    reconnect_delay = 3
+    loop = asyncio.get_running_loop()
+    active_ws = None
+
+    def on_game_exit(game_id, title):
+        ts = datetime.now().strftime("%H:%M:%S")
+        print(f"\n[{ts}] [STREAM] Game '{title}' exited! Terminating WebRTC capture pipeline immediately...")
+        try:
+            stream_manager.close_all()
+        except Exception as e:
+            print(f"[{ts}] Error closing stream manager: {e}")
+
+        # Send notification over websocket to cloud backend
+        if active_ws:
+            try:
+                exit_msg = json.dumps({
+                    "type": "game_exited",
+                    "game_id": game_id,
+                    "title": title,
+                    "message": f"Game '{title}' has ended. Save data secured.",
+                })
+                asyncio.run_coroutine_threadsafe(active_ws.send(exit_msg), loop)
+            except Exception as e:
+                print(f"[{ts}] Error notifying cloud relay of game exit: {e}")
+
+    host_agent.register_exit_callback(on_game_exit)
 
     while True:
         hb_task = None
@@ -211,6 +235,7 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                 ping_timeout=15,
                 max_size=10 * 1024 * 1024,
             ) as ws:
+                active_ws = ws
                 reconnect_delay = 3
                 ts = datetime.now().strftime("%H:%M:%S")
                 print(f"[{ts}] [OK] Connected to CloudKH Cloud Relay. Ready for player sessions.")
@@ -251,6 +276,23 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                         offer = msg.get("offer", {})
                         ts = datetime.now().strftime("%H:%M:%S")
                         print(f"\n[{ts}] [STREAM] Incoming session offer from browser client...")
+
+                        # Privacy / Kiosk Protection: Strictly prohibit streaming Windows desktop
+                        # Wait up to 10 seconds for authorized game process to be actively running
+                        wait_sec = 0.0
+                        while not host_agent.is_game_running() and wait_sec < 10.0:
+                            await asyncio.sleep(0.5)
+                            wait_sec += 0.5
+
+                        if not host_agent.is_game_running():
+                            err_msg = "Streaming blocked: No authorized game is actively running on this PC. Windows desktop interface streaming is disabled."
+                            print(f"[{ts}] [!] {err_msg}")
+                            await ws.send(json.dumps({
+                                "type": "stream_error",
+                                "correlation_id": corr_id,
+                                "error": err_msg,
+                            }))
+                            continue
 
                         try:
                             answer = await stream_manager.create_peer_answer(
@@ -329,6 +371,8 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
 
                         try:
                             res = host_agent.dispatch(op, cmd_payload)
+                            if op in ("STOP_GAME", "STOP_SESSION"):
+                                stream_manager.close_all()
                             await ws.send(json.dumps({
                                 "type": "command_result",
                                 "correlation_id": corr_id,
@@ -344,11 +388,13 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                             }))
 
         except (websockets.exceptions.ConnectionClosedError, websockets.exceptions.ConnectionClosedOK) as exc:
+            active_ws = None
             if hb_task:
                 hb_task.cancel()
             ts = datetime.now().strftime("%H:%M:%S")
             print(f"\n[{ts}] [!] Tunnel disconnected: {exc}. Reconnecting in {reconnect_delay}s...")
         except Exception as exc:
+            active_ws = None
             if hb_task:
                 hb_task.cancel()
             ts = datetime.now().strftime("%H:%M:%S")

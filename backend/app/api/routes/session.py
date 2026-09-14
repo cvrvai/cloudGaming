@@ -84,15 +84,8 @@ def verify_session_access(
     agent_launch_info = None
     if booking["game_id"]:
         from app.services.streaming.node_relay import node_relay
-        if booking["is_host"] == 1:
-            try:
-                agent_launch_info = host_agent.start_game(
-                    game_id=booking["game_id"],
-                    user_id=booking["user_id"],
-                )
-            except Exception as e:
-                agent_launch_info = {"status": "warning", "error": str(e)}
-        elif node_relay.is_node_connected(booking["machine_id"]):
+        from app.services.streaming.manager import stream_manager
+        if node_relay.is_node_connected(booking["machine_id"]):
             try:
                 import asyncio
                 asyncio.create_task(
@@ -106,6 +99,14 @@ def verify_session_access(
                     )
                 )
                 agent_launch_info = {"status": "command_dispatched_to_node", "node_id": booking["machine_id"]}
+            except Exception as e:
+                agent_launch_info = {"status": "warning", "error": str(e)}
+        elif booking["is_host"] == 1 and stream_manager.available:
+            try:
+                agent_launch_info = host_agent.start_game(
+                    game_id=booking["game_id"],
+                    user_id=booking["user_id"],
+                )
             except Exception as e:
                 agent_launch_info = {"status": "warning", "error": str(e)}
 

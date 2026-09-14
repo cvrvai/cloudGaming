@@ -181,8 +181,21 @@ export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = tr
                     {status === 'disconnected' && 'Stream lost — reconnecting…'}
                     {status === 'error' && (
                         <>
-                            Can't reach the stream — retrying
-                            <div style={{ opacity: 0.55, marginTop: 6, fontSize: 11, fontWeight: 400 }}>{errorDetail}</div>
+                            {errorDetail.toLowerCase().includes('blocked') ? (
+                                <>
+                                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                                        Waiting for game window to launch…
+                                    </div>
+                                    <div style={{ opacity: 0.75, fontSize: 11, fontWeight: 400, maxWidth: 360 }}>
+                                        Windows desktop streaming is restricted for privacy. The stream will start automatically once the game appears.
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    Can't reach the stream — retrying
+                                    <div style={{ opacity: 0.55, marginTop: 6, fontSize: 11, fontWeight: 400 }}>{errorDetail}</div>
+                                </>
+                            )}
                         </>
                     )}
                 </div>

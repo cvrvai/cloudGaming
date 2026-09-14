@@ -10,6 +10,8 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
   const [inputMode, setInputMode] = useState('desktop'); // desktop | controller
   const [wsConnected, setWsConnected] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [gameExitedData, setGameExitedData] = useState(null);
+  const [countdown, setCountdown] = useState(5);
   const containerRef = useRef(null);
   const wsRef = useRef(null);
   const keySequenceRef = useRef(0);
@@ -46,6 +48,14 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
         ws.onopen = () => {
           if (!cancelled) setWsConnected(true);
         };
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'game_exited') {
+              setGameExitedData(data);
+            }
+          } catch (e) {}
+        };
         ws.onclose = () => {
           if (!cancelled) {
             setWsConnected(false);
@@ -74,13 +84,34 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
     };
   }, []);
 
+  // Auto-return countdown when game exits
+  useEffect(() => {
+    if (!gameExitedData) return;
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          onSessionEnd();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [gameExitedData, onSessionEnd]);
+
   // Desktop mode keyboard event capture
   useEffect(() => {
     if (inputMode !== 'desktop') return;
 
     const sendKeyEvent = (e, pressed) => {
-      // Ignore functional browser shortcuts
-      if (['F5', 'F11', 'F12'].includes(e.key)) return;
+      // Ignore functional browser shortcuts and Windows system keys to protect kiosk mode
+      if (
+        ['F5', 'F11', 'F12', 'Meta', 'OS'].includes(e.key) ||
+        ['MetaLeft', 'MetaRight', 'OSLeft', 'OSRight'].includes(e.code)
+      ) {
+        return;
+      }
 
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -134,7 +165,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
       <StreamHUD sessionData={sessionData} onSessionEnd={onSessionEnd} />
 
       <div className="stream-canvas-wrapper">
-        {gstreamerAvailable ? (
+        {!gameExitedData && gstreamerAvailable ? (
           <WebRTCPlayer
             serverIP={serverIP}
             apiBase={apiBase}
@@ -142,6 +173,21 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
             quality="auto"
             showStats={true}
           />
+        ) : gameExitedData ? (
+          <div className="stream-connecting-box glass-panel" style={{ maxWidth: '460px', padding: '28px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px' }}>
+              <div style={{
+                width: 54, height: 54, borderRadius: '50%', background: 'rgba(74, 222, 128, 0.15)',
+                border: '1px solid rgba(74, 222, 128, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4ade80'
+              }}>
+                <CheckIcon size={28} />
+              </div>
+            </div>
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Game Process Ended</h3>
+            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem', lineHeight: '1.5', margin: '0 0 12px 0' }}>
+              The video stream was disconnected because the game closed.
+            </p>
+          </div>
         ) : gstreamerAvailable === null ? (
           <div className="stream-connecting-box glass-panel">
             <div className="stream-status-spinner" />
@@ -221,6 +267,43 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
             rightStick: true,
           }}
         />
+      )}
+
+      {/* Game Exited / Process Termination Kiosk Modal */}
+      {gameExitedData && (
+        <div className="cutoff-modal-backdrop">
+          <div className="cutoff-modal-dialog glass-panel" style={{ textAlign: 'center', maxWidth: '480px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+              <div style={{
+                width: 60, height: 60, borderRadius: '50%', background: 'rgba(74, 222, 128, 0.15)',
+                border: '1px solid rgba(74, 222, 128, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4ade80'
+              }}>
+                <CheckIcon size={32} />
+              </div>
+            </div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 600, marginBottom: '8px' }}>Game Session Ended</h2>
+            <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.95rem', lineHeight: '1.5', margin: '0 0 16px 0' }}>
+              <strong>{gameExitedData.title || sessionData?.game_title || 'The game'}</strong> has closed.
+              The video stream was terminated immediately to prevent streaming the Windows desktop interface.
+            </p>
+            <div style={{
+              background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: '14px 18px',
+              border: '1px solid rgba(255,255,255,0.1)', marginBottom: '20px', fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span>Save Game Status:</span>
+                <span style={{ color: '#4ade80', fontWeight: 600 }}>Secured & Archived</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Desktop Capture:</span>
+                <span style={{ color: '#94a3b8' }}>Blocked & Terminated</span>
+              </div>
+            </div>
+            <button className="btn-primary" onClick={onSessionEnd} style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }}>
+              Return to Dashboard ({countdown}s)
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

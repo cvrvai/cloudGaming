@@ -23,6 +23,7 @@ router = APIRouter()
 @router.websocket("/ws/input")
 async def input_websocket(websocket: WebSocket) -> None:
     await websocket.accept()
+    await node_relay.register_client_ws(websocket)
     client = websocket.client.host if websocket.client else "unknown"
     logger.info("Input client connected: %s", client)
 
@@ -95,8 +96,12 @@ async def input_websocket(websocket: WebSocket) -> None:
                     data.get("dx", 0), data.get("dy", 0)
                 )
             elif msg_type == "key":
+                k = str(data.get("key", ""))
+                # Privacy / Kiosk Protection: Block Windows / Super keys to prevent remote opening of desktop Start menu
+                if k.upper() in ("WIN", "META", "OS", "METALEFT", "METARIGHT", "OSLEFT", "OSRIGHT", "CMD"):
+                    continue
                 gamepad_service.handle_key(
-                    data.get("key", ""), bool(data.get("pressed", False))
+                    k, bool(data.get("pressed", False))
                 )
             elif msg_type == "text":
                 gamepad_service.handle_text(data.get("text", ""))
@@ -129,4 +134,5 @@ async def input_websocket(websocket: WebSocket) -> None:
     except Exception as exc:
         logger.warning("Input websocket error (%s): %s", client, exc)
     finally:
+        await node_relay.unregister_client_ws(websocket)
         gamepad_service.reset()

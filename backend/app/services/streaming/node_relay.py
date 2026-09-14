@@ -23,6 +23,7 @@ class NodeRelayManager:
         self._node_meta: Dict[int, Dict[str, Any]] = {}
         self._pending_offers: Dict[str, asyncio.Future] = {}
         self._pending_commands: Dict[str, asyncio.Future] = {}
+        self._client_ws: set[WebSocket] = set()
         self._lock = asyncio.Lock()
 
     def is_node_connected(self, node_id: Optional[int] = None) -> bool:
@@ -186,6 +187,32 @@ class NodeRelayManager:
                 future.set_exception(RuntimeError(error))
             else:
                 future.set_result(result or {})
+
+    async def register_client_ws(self, ws: WebSocket) -> None:
+        """Register a connected player input WebSocket for server push events."""
+        self._client_ws.add(ws)
+
+    async def unregister_client_ws(self, ws: WebSocket) -> None:
+        """Unregister player input WebSocket."""
+        self._client_ws.discard(ws)
+
+    async def broadcast_game_exited(self, node_id: int, msg: dict) -> None:
+        """Broadcast game exit event to all connected player clients."""
+        payload = {
+            "type": "game_exited",
+            "node_id": node_id,
+            "game_id": msg.get("game_id"),
+            "title": msg.get("title", "Game"),
+            "message": msg.get("message", "Game process ended. Save data secured."),
+        }
+        dead = []
+        for ws in list(self._client_ws):
+            try:
+                await ws.send_json(payload)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self._client_ws.discard(ws)
 
 
 # Singleton node relay manager instance

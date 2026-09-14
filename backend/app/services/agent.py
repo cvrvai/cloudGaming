@@ -8,7 +8,9 @@ Enforces strict security:
 import logging
 import os
 import subprocess
+import sys
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -67,7 +69,20 @@ class GamingPCAgent:
         self.node_id = node_id if node_id is not None else _detect_local_node_id()
         self._active_process: Optional[subprocess.Popen] = None
         self._active_game_info: Optional[Dict[str, Any]] = None
+        self._exit_callbacks = []
         self._lock = threading.Lock()
+
+    def register_exit_callback(self, callback) -> None:
+        """Register a function to execute immediately when the game process terminates."""
+        if callback not in self._exit_callbacks:
+            self._exit_callbacks.append(callback)
+
+    def is_game_running(self) -> bool:
+        """Check if an authorized game process is currently running."""
+        with self._lock:
+            if self._active_process:
+                return self._active_process.poll() is None
+            return False
 
     def dispatch(self, operation: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Dispatch a predefined agent operation."""
@@ -230,6 +245,13 @@ class GamingPCAgent:
                     self._active_process = proc
                     pid = proc.pid
                     logger.info("Launched game '%s' (PID %d): %s", config["title"], pid, exe_path)
+
+                    # Start process watchdog thread to monitor process exit
+                    self._start_process_watchdog(proc, config["title"], config["game_id"])
+
+                    # Focus game window on Windows
+                    if sys.platform == "win32":
+                        threading.Thread(target=self._focus_process_window, args=(pid,), daemon=True).start()
                 except Exception as e:
                     logger.warning("Failed to launch physical executable: %s", e)
                     simulated = True
@@ -263,6 +285,52 @@ class GamingPCAgent:
                 "save_mount": save_mount_info,
             }
 
+    def _start_process_watchdog(self, proc: subprocess.Popen, title: str, game_id: int) -> None:
+        """Monitor game process in background and instantly react on exit."""
+        def _watch():
+            logger.info("[Watchdog] Monitoring game '%s' (PID %d)", title, proc.pid)
+            try:
+                proc.wait()
+            except Exception as e:
+                logger.warning("[Watchdog] proc.wait() error: %s", e)
+            logger.info("[Watchdog] Game '%s' (PID %d) terminated (code: %s)", title, proc.pid, proc.returncode)
+            self._handle_process_exit(proc.pid, title, game_id)
+
+        t = threading.Thread(target=_watch, name=f"Watchdog-PID{proc.pid}", daemon=True)
+        t.start()
+
+    def _focus_process_window(self, pid: int) -> None:
+        """Bring the newly launched game window to foreground on Windows."""
+        time.sleep(1.5)  # Allow game window to initialize Win32 handle
+        try:
+            cmd = f"$w = New-Object -ComObject WScript.Shell; $w.AppActivate({pid})"
+            subprocess.run(["powershell", "-NoProfile", "-Command", cmd], timeout=5, capture_output=True)
+            logger.info("[Agent] Focused window for PID %d", pid)
+        except Exception as e:
+            logger.debug("[Agent] Could not focus window for PID %d: %s", pid, e)
+
+    def _handle_process_exit(self, pid: int, title: str, game_id: int) -> None:
+        """Invoked immediately when the game process terminates."""
+        with self._lock:
+            if not self._active_process and not self._active_game_info:
+                return
+            if self._active_process and self._active_process.pid != pid:
+                return
+            self._active_process = None
+            self._active_game_info = None
+
+        logger.info("[Agent] Game '%s' (PID %d) exited. Unmounting & archiving user saves...", title, pid)
+        try:
+            save_manager.unmount_session(clean_after=True)
+        except Exception as exc:
+            logger.warning("[Agent] Save unmount error on exit: %s", exc)
+
+        for cb in list(self._exit_callbacks):
+            try:
+                cb(game_id, title)
+            except Exception as exc:
+                logger.warning("[Agent] Error invoking exit callback: %s", exc)
+
     def stop_game(self) -> Dict[str, Any]:
         """Terminate the active game process and archive user save state."""
         with self._lock:
@@ -271,15 +339,23 @@ class GamingPCAgent:
                 return {"status": "no_active_game"}
 
             self._terminate_active_process()
-            time.sleep(1.0)  # Allow process to finish writing files to disk
-
-            archive_res = save_manager.unmount_session(clean_after=True)
             self._active_game_info = None
-            return {
-                "status": "stopped",
-                "previous_game": info["title"] if info else None,
-                "save_archived": archive_res,
-            }
+
+        time.sleep(0.5)  # Allow process to finish writing files to disk
+        archive_res = save_manager.unmount_session(clean_after=True)
+
+        if info:
+            for cb in list(self._exit_callbacks):
+                try:
+                    cb(info.get("game_id", 0), info.get("title", "Game"))
+                except Exception as exc:
+                    logger.warning("[Agent] Error invoking exit callback from stop_game: %s", exc)
+
+        return {
+            "status": "stopped",
+            "previous_game": info["title"] if info else None,
+            "save_archived": archive_res,
+        }
 
     def _terminate_active_process(self) -> None:
         if self._active_process:

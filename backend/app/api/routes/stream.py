@@ -41,6 +41,12 @@ async def create_stream(offer: SdpOffer) -> dict:
 
     # 1. Standalone Host Mode: If this backend process has GStreamer (running on Gaming PC)
     if stream_manager.available:
+        from app.services.agent import host_agent
+        if not host_agent.is_game_running():
+            raise HTTPException(
+                status_code=403,
+                detail="Streaming blocked: No authorized game is actively running. Windows desktop interface streaming is disabled.",
+            )
         try:
             return await stream_manager.create_peer_answer(
                 offer.sdp,

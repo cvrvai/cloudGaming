@@ -73,6 +73,10 @@ async def streaming_node_endpoint(websocket: WebSocket, node_id: int):
                 error = msg.get("error")
                 node_relay.resolve_command(corr_id, result=result, error=error)
 
+            elif msg_type == "game_exited":
+                logger.info("Node #%d reported game_exited: %s", node_id, msg)
+                await node_relay.broadcast_game_exited(node_id, msg)
+
             elif msg_type == "heartbeat":
                 now_iso = datetime.now(timezone.utc).isoformat()
                 with get_db() as conn:

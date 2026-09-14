@@ -44,6 +44,26 @@ async def lifespan(app: FastAPI):
             "GStreamer unavailable - video streaming disabled: %s",
             stream_manager.unavailable_reason,
         )
+
+    # Register local host agent exit callback to stop stream and broadcast event
+    from app.services.agent import host_agent
+    from app.services.streaming.node_relay import node_relay
+    import asyncio
+
+    def _on_local_game_exit(game_id, title):
+        logger.info("Local host detected game exit for '%s' (ID %s). Terminating stream...", title, game_id)
+        stream_manager.close_all()
+        try:
+            loop = asyncio.get_running_loop()
+            asyncio.run_coroutine_threadsafe(
+                node_relay.broadcast_game_exited(1, {"game_id": game_id, "title": title}),
+                loop,
+            )
+        except Exception as e:
+            logger.debug("Could not dispatch broadcast_game_exited: %s", e)
+
+    host_agent.register_exit_callback(_on_local_game_exit)
+
     yield
     stream_manager.close_all()
     gamepad_service.stop()
