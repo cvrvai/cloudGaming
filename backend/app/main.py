@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 from app.api.websockets.input import router as input_ws_router
+from app.db import init_db
 from app.services.input.gamepad import gamepad_service
 from app.services.streaming.manager import stream_manager
 
@@ -25,6 +26,7 @@ logger = logging.getLogger("app")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
     gamepad_service.start()
     if not stream_manager.available:
         logger.warning(

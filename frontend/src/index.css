@@ -1,44 +1,53 @@
-/* ============================================
-   Design tokens — Minimal Glass
-   ============================================ */
+/* =========================================================
+   CloudKH Twilight Indigo — Official Ergonomic Color Palette
+   Comfortable, eye-friendly, zero-glare purple-blue atmosphere
+   ========================================================= */
 
 :root {
-  /* Surfaces */
-  --bg: #0b0d10;
+  color-scheme: dark;
+  --bg: #12132b;
   --bg-gradient:
-    radial-gradient(120% 90% at 50% -10%, rgba(94, 162, 255, 0.08), transparent 60%),
-    linear-gradient(180deg, #0c0e12 0%, #08090c 100%);
+    radial-gradient(100% 70% at 50% -10%, rgba(99, 102, 241, 0.28), transparent 60%),
+    radial-gradient(80% 60% at 90% 20%, rgba(168, 85, 247, 0.20), transparent 50%),
+    radial-gradient(60% 50% at 10% 80%, rgba(59, 130, 246, 0.16), transparent 50%),
+    linear-gradient(180deg, #1d1e45 0%, #101026 100%);
 
-  --glass-bg: rgba(255, 255, 255, 0.06);
-  --glass-bg-strong: rgba(18, 20, 26, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-border-soft: rgba(255, 255, 255, 0.07);
-  --glass-blur: blur(24px) saturate(1.4);
-  --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --navbar-bg: rgba(22, 23, 52, 0.95);
+  --card-bg: rgba(34, 36, 76, 0.88);
+  --card-bg-hover: rgba(44, 46, 96, 0.98);
+  --card-inner-box: #1a1b3f;
+  --hero-bg-overlay: linear-gradient(90deg, rgba(22, 23, 52, 0.97) 0%, rgba(22, 23, 52, 0.88) 50%, rgba(22, 23, 52, 0.35) 100%);
+  --hero-card-bg: #20214a;
 
-  /* Text */
-  --text-1: rgba(255, 255, 255, 0.92);
-  --text-2: rgba(255, 255, 255, 0.60);
-  --text-3: rgba(255, 255, 255, 0.38);
+  --glass-bg: rgba(32, 34, 72, 0.78);
+  --glass-bg-strong: rgba(24, 25, 56, 0.95);
+  --glass-border: rgba(168, 85, 247, 0.32);
+  --glass-border-soft: rgba(255, 255, 255, 0.12);
+  --glass-blur: blur(24px) saturate(1.3);
+  --glass-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
 
-  /* Accent (single, used sparingly) */
-  --accent: #5ea2ff;
-  --accent-press: #4a8ae6;
-  --accent-soft: rgba(94, 162, 255, 0.16);
+  /* Text - High Legibility & Comfort */
+  --text-1: #ffffff;
+  --text-2: #e0e7ff;
+  --text-3: #a5b4fc;
 
-  /* Status */
-  --ok: #30d158;
-  --warn: #ffd60a;
-  --err: #ff453a;
+  /* Accents */
+  --accent: #00d2ff;
+  --accent-primary: #0052ff;
+  --accent-gradient: linear-gradient(135deg, #0052ff 0%, #00d2ff 100%);
+  --accent-press: #0045d8;
+  --accent-soft: rgba(0, 210, 255, 0.16);
+  --accent-glow: 0 0 24px rgba(0, 210, 255, 0.45);
 
-  /* Shape */
-  --radius-s: 10px;
-  --radius-m: 16px;
-  --radius-l: 24px;
+  --ok: #00e5ff;
+  --warn: #ffb703;
+  --err: #ff3b30;
+
+  --radius-s: 8px;
+  --radius-m: 14px;
+  --radius-l: 20px;
   --radius-pill: 999px;
-
-  /* Type */
-  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Inter', system-ui, sans-serif;
+  --font: 'Segoe UI', system-ui, -apple-system, Roboto, 'Inter', sans-serif;
 }
 
 html,
@@ -58,4 +67,21 @@ body {
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
   overscroll-behavior: none;
+}
+
+/* Suppress all browser scrollbars globally across the entire app */
+html,
+body,
+#root,
+.app-container,
+.cloudkh-main-content,
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }

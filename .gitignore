@@ -15,3 +15,9 @@ frontend/.env
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+backend/cloudkh.db

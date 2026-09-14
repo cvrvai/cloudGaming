@@ -1,396 +1,138 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { SERVER_IP, API_BASE, INPUT_WS_URL } from './config';
-import GamepadController from './components/GamepadController';
-import SettingsPage from './components/SettingsPage';
-import ControllerEditor from './components/ControllerEditor';
-import NavigationDock from './components/NavigationDock';
-import LandingScreen from './components/LandingScreen';
+import { useState, useEffect } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { SERVER_IP, API_BASE } from './config';
+import Navbar from './components/Navbar';
+import AuthModal from './components/AuthModal';
+import GamesView from './components/GamesView';
+import MyBookingsView from './components/MyBookingsView';
+import AdminDashboard from './components/AdminDashboard';
+import BookingModal from './components/BookingModal';
+import CloudStreamPlayer from './components/CloudStreamPlayer';
 import './App.css';
+import './CloudKH.css';
 
-const DEFAULT_VISIBLE = {
-  lt: true, rt: true,
-  lb: true, rb: true,
-  dpad: true,
-  faceButtons: true,
-  leftStick: true,
-  rightStick: true,
-};
-const REMOTE_QUALITY_KEYS = ['auto', 'fast', 'balanced', 'hd'];
+function CloudKHPlatform() {
+  const { token, user } = useAuth();
+  const [activeTab, setActiveTab] = useState('games'); // games | bookings | admin | stream
+  const [activeSession, setActiveSession] = useState(null);
+  const [activeBookingsCount, setActiveBookingsCount] = useState(0);
+  const [selectedGameForBooking, setSelectedGameForBooking] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
-const initialInputMode = () => {
-  const saved = localStorage.getItem('cp-input-mode');
-  if (saved === 'gamepad' || saved === 'touchpad') return saved;
-  return window.matchMedia?.('(hover: hover) and (pointer: fine)').matches ? 'touchpad' : 'gamepad';
-};
-
-const initialMouseMode = () => (
-  localStorage.getItem('cp-mouse-mode') === 'relative' ? 'relative' : 'absolute'
-);
-
-const loadJSON = (key, fallback) => {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const loadNumber = (key, fallback) => {
-  const value = parseFloat(localStorage.getItem(key));
-  return Number.isFinite(value) ? value : fallback;
-};
-
-function App() {
-  const [wsStatus, setWsStatus] = useState('disconnected');
-  const [controllerMode, setControllerMode] = useState('unknown');
-  // 'landing', 'game', 'settings', 'editor' — landing shows once per session
-  const [currentView, setCurrentView] = useState(() =>
-    sessionStorage.getItem('cloudplay-entered') ? 'game' : 'landing'
-  );
-  const [showMenu, setShowMenu] = useState(false);
-  const [menuDockVisible, setMenuDockVisible] = useState(true);
-  const [showVideo, setShowVideo] = useState(true);
-  // The overlay is a client preference: the PC can accept both controller
-  // and direct mouse/keyboard messages on the same input socket.
-  const [inputMode, setInputMode] = useState(initialInputMode);
-  const [mouseMode, setMouseMode] = useState(initialMouseMode);
-
-  // Persisted controller preferences
-  const [controllerScale, setControllerScale] = useState(() => loadNumber('cp-scale', 1.0));
-  const [controllerOpacity, setControllerOpacity] = useState(() => loadNumber('cp-opacity', 0.8));
-  const [sensitivity, setSensitivity] = useState(() => loadNumber('cp-sensitivity', 20));
-  const [visibleControls, setVisibleControls] = useState(() => loadJSON('cp-visible', DEFAULT_VISIBLE));
-  const [quality, setQuality] = useState(() => {
-    const saved = localStorage.getItem('cp-quality');
-    return REMOTE_QUALITY_KEYS.includes(saved) ? saved : 'auto';
-  });
-  const [showStatusBar, setShowStatusBar] = useState(() => localStorage.getItem('cp-statusbar') === '1');
-
-  const [inputStats, setInputStats] = useState({
-    rttMs: 0,
-    sendRateHz: 0,
-    ackRateHz: 0,
-    lastInputAgeMs: 0,
-    bufferedAmount: 0,
-    serverApplyMs: 0,
-    latestAckSequence: 0,
-    sequenceGaps: 0,
-    staleSequences: 0,
-    droppedSends: 0,
-  });
-  const wsRef = useRef(null);
-  const sensitivityRef = useRef(sensitivity);
-  const pendingInputPacketsRef = useRef(new Map());
-  const inputSendTimesRef = useRef([]);
-  const inputAckTimesRef = useRef([]);
-
-  useEffect(() => { localStorage.setItem('cp-quality', quality); }, [quality]);
-  useEffect(() => { localStorage.setItem('cp-input-mode', inputMode); }, [inputMode]);
-  useEffect(() => { localStorage.setItem('cp-mouse-mode', mouseMode); }, [mouseMode]);
-  useEffect(() => { localStorage.setItem('cp-statusbar', showStatusBar ? '1' : '0'); }, [showStatusBar]);
-  useEffect(() => { localStorage.setItem('cp-scale', String(controllerScale)); }, [controllerScale]);
-  useEffect(() => { localStorage.setItem('cp-opacity', String(controllerOpacity)); }, [controllerOpacity]);
-  useEffect(() => { localStorage.setItem('cp-visible', JSON.stringify(visibleControls)); }, [visibleControls]);
+  // Poll for active bookings to display badge in navbar
   useEffect(() => {
-    sensitivityRef.current = sensitivity;
-    localStorage.setItem('cp-sensitivity', String(sensitivity));
-  }, [sensitivity]);
-
-  // Push sensitivity to the PC (called on change and after every reconnect)
-  const sendSensitivity = useCallback((value) => {
-    const socket = wsRef.current;
-    if (socket?.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: 'set_sensitivity', value: Math.round(value) }));
+    if (!token) {
+      setActiveBookingsCount(0);
+      return;
     }
-  }, []);
+    const checkActive = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/bookings/my`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setActiveBookingsCount(data.active ? data.active.length : 0);
+        }
+      } catch (err) {
+        console.error('Error fetching booking count:', err);
+      }
+    };
+    checkActive();
+    const interval = setInterval(checkActive, 10000);
+    return () => clearInterval(interval);
+  }, [token]);
 
-  const updateSensitivity = useCallback((value) => {
-    setSensitivity(value);
-    sendSensitivity(value);
-  }, [sendSensitivity]);
-
-  const trimRecentTimes = (items, now) => {
-    while (items.length && now - items[0] > 1000) {
-      items.shift();
+  // Session launcher gatekeeper (FR-05, User Story 2)
+  const handleLaunchSession = async (booking) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/session/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ booking_id: booking.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || 'Access Denied: You do not have an active slot right now.');
+        return;
+      }
+      setActiveSession(data);
+      setActiveTab('stream');
+    } catch (err) {
+      alert('Verification error: ' + err.message);
     }
   };
 
-  const registerInputPacket = useCallback((sequence, sentAt, bufferedAmount, sent) => {
-    const now = performance.now();
-
-    if (sent) {
-      pendingInputPacketsRef.current.set(sequence, sentAt);
-      inputSendTimesRef.current.push(now);
-    }
-
-    trimRecentTimes(inputSendTimesRef.current, now);
-    trimRecentTimes(inputAckTimesRef.current, now);
-
-    setInputStats(prev => ({
-      ...prev,
-      sendRateHz: inputSendTimesRef.current.length,
-      ackRateHz: inputAckTimesRef.current.length,
-      lastInputAgeMs: sent ? 0 : prev.lastInputAgeMs,
-      bufferedAmount,
-      droppedSends: sent ? prev.droppedSends : prev.droppedSends + 1,
-    }));
-  }, []);
-
-  useEffect(() => {
-    console.log('Connecting to:', INPUT_WS_URL);
-    let disposed = false;
-    let reconnectTimer = null;
-
-    const connect = () => {
-      if (disposed) return;
-      const ws = new WebSocket(INPUT_WS_URL);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        console.log('WebSocket connected');
-        setWsStatus('connected');
-        // Re-apply the player's sensitivity after every (re)connect
-        ws.send(JSON.stringify({ type: 'set_sensitivity', value: Math.round(sensitivityRef.current) }));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          if (payload?.type === 'status') {
-            if (payload.controllerMode) {
-              setControllerMode(payload.controllerMode);
-            }
-          } else if (payload?.type === 'input_ack') {
-            const now = performance.now();
-            const sentAt = pendingInputPacketsRef.current.get(payload.sequence);
-            if (typeof sentAt === 'number') {
-              pendingInputPacketsRef.current.delete(payload.sequence);
-              inputAckTimesRef.current.push(now);
-              trimRecentTimes(inputSendTimesRef.current, now);
-              trimRecentTimes(inputAckTimesRef.current, now);
-
-              setInputStats(prev => ({
-                ...prev,
-                rttMs: now - sentAt,
-                sendRateHz: inputSendTimesRef.current.length,
-                ackRateHz: inputAckTimesRef.current.length,
-                lastInputAgeMs: now - sentAt,
-                serverApplyMs: Number(payload.serverApplyMs || 0),
-                latestAckSequence: payload.sequence,
-                sequenceGaps: prev.sequenceGaps + Number(payload.sequenceGap || 0),
-                staleSequences: prev.staleSequences + (payload.staleSequence ? 1 : 0),
-              }));
-            }
-          }
-        } catch {
-          // Ignore non-JSON messages.
-        }
-      };
-
-      ws.onclose = () => {
-        if (disposed) return;
-        console.log('WebSocket disconnected');
-        setWsStatus('disconnected');
-        // Auto-reconnect after 3 seconds
-        reconnectTimer = setTimeout(connect, 3000);
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setWsStatus('error');
-      };
-    };
-
-    connect();
-
-    return () => {
-      disposed = true;
-      clearTimeout(reconnectTimer);
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
-  }, []);
-
-  const navigateTo = useCallback((view) => {
-    setCurrentView(view);
-    setShowMenu(false);
-  }, []);
-
-  const openSettings = useCallback(() => navigateTo('settings'), [navigateTo]);
-
-  const hideMenuDock = () => setMenuDockVisible(false);
-  const showMenuDock = () => setMenuDockVisible(true);
-
-  const menuButtonStyle = {
-    padding: '14px', borderRadius: '14px', border: 'none',
-    background: 'rgba(255,255,255,0.08)', color: 'white',
-    fontSize: '15px', fontWeight: '600', cursor: 'pointer'
+  const handleSessionEnd = () => {
+    setActiveSession(null);
+    setActiveTab('bookings');
   };
 
   return (
     <div className="app-container">
-
-      {/* Navigation Dock (Only visible in game mode) */}
-      {currentView === 'game' && (
+      {activeTab === 'stream' && activeSession ? (
+        <CloudStreamPlayer
+          sessionData={activeSession}
+          onSessionEnd={handleSessionEnd}
+          apiBase={API_BASE}
+          serverIP={SERVER_IP}
+        />
+      ) : (
         <>
-          {menuDockVisible && (
-            <NavigationDock
-              status={wsStatus}
-              onNavigate={navigateTo}
-              onToggleMenu={() => setShowMenu(true)}
+          <Navbar
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            activeBookingsCount={activeBookingsCount}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+          />
+
+          <main className="cloudkh-main-content">
+            {activeTab === 'games' && (
+              <GamesView
+                onSelectGame={(game) => setSelectedGameForBooking(game)}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+              />
+            )}
+
+            {activeTab === 'bookings' && (
+              <MyBookingsView
+                onLaunchSession={handleLaunchSession}
+                onBrowseGames={() => setActiveTab('games')}
+              />
+            )}
+
+            {activeTab === 'admin' && <AdminDashboard />}
+          </main>
+
+          {selectedGameForBooking && (
+            <BookingModal
+              game={selectedGameForBooking}
+              onClose={() => setSelectedGameForBooking(null)}
+              onBookingSuccess={(booking) => {
+                setActiveTab('bookings');
+              }}
+              onLaunchNow={(booking) => {
+                handleLaunchSession(booking);
+              }}
             />
           )}
 
-          {/* Menu Overlay */}
-          {showMenu && (
-            <div
-              onClick={() => setShowMenu(false)}
-              className="game-menu-backdrop"
-            >
-              <div
-                onClick={e => e.stopPropagation()}
-                className="game-menu-dialog"
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '700', letterSpacing: '-0.01em' }}>Menu</h2>
-                  <button onClick={() => setShowMenu(false)} style={{ background: 'none', border: 'none', color: 'white', fontSize: '20px', cursor: 'pointer' }}>✕</button>
-                </div>
-
-                <div className="input-mode-segmented" role="group" aria-label="Input mode">
-                  <button
-                    type="button"
-                    className={inputMode === 'gamepad' ? 'active' : ''}
-                    onClick={() => setInputMode('gamepad')}
-                  >
-                    Controller
-                  </button>
-                  <button
-                    type="button"
-                    className={inputMode === 'touchpad' ? 'active' : ''}
-                    onClick={() => setInputMode('touchpad')}
-                  >
-                    Desktop
-                  </button>
-                </div>
-
-                <button onClick={() => setShowMenu(false)} style={menuButtonStyle}>
-                  Resume ▶
-                </button>
-
-                {inputMode === 'gamepad' && (
-                  <button onClick={() => navigateTo('editor')} style={menuButtonStyle}>
-                    Edit Controller 🎮
-                  </button>
-                )}
-
-                <button onClick={() => navigateTo('settings')} style={menuButtonStyle}>
-                  Settings ⚙
-                </button>
-
-                <button
-                  onClick={() => setShowVideo(v => !v)}
-                  style={menuButtonStyle}
-                >
-                  {showVideo ? 'Video Off 🚫' : 'Video On 📺'}
-                </button>
-
-                <button
-                  onClick={() => {
-                    setShowMenu(false);
-                    setMenuDockVisible(false);
-                  }}
-                  style={menuButtonStyle}
-                >
-                  Hide Menu Dock
-                </button>
-
-                <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--text-3)', textAlign: 'center' }}>
-                  Cloud Play
-                </div>
-              </div>
-            </div>
-          )}
+          <AuthModal />
         </>
       )}
-
-      {/* Views */}
-      {currentView === 'landing' && (
-        <LandingScreen
-          apiBase={API_BASE}
-          serverIP={SERVER_IP}
-          wsStatus={wsStatus}
-          inputMode={inputMode}
-          mouseMode={mouseMode}
-          onInputModeChange={setInputMode}
-          onPlay={() => {
-            sessionStorage.setItem('cloudplay-entered', '1');
-            setCurrentView('game');
-          }}
-        />
-      )}
-
-      {/* Game stays mounted under Settings/Editor so the stream never drops */}
-      {currentView !== 'landing' && (
-        <GamepadController
-          wsRef={wsRef}
-          serverStatus={wsStatus}
-          controllerMode={controllerMode}
-          inputMode={inputMode}
-          mouseMode={mouseMode}
-          controllerScale={controllerScale}
-          controllerOpacity={controllerOpacity}
-          visibleControls={visibleControls}
-          showVideo={showVideo}
-          quality={quality}
-          showStatusBar={showStatusBar}
-          menuDockVisible={menuDockVisible}
-          onHideMenuDock={hideMenuDock}
-          onShowMenuDock={showMenuDock}
-          serverIP={SERVER_IP}
-          apiBase={API_BASE}
-          inputStats={inputStats}
-          onInputPacketSent={registerInputPacket}
-          sensitivity={sensitivity}
-          onOpenSettings={openSettings}
-        />
-      )}
-
-      {currentView === 'settings' && (
-        <SettingsPage
-          apiBase={API_BASE}
-          serverIP={SERVER_IP}
-          quality={quality}
-          setQuality={setQuality}
-          inputMode={inputMode}
-          setInputMode={setInputMode}
-          mouseMode={mouseMode}
-          setMouseMode={setMouseMode}
-          sensitivity={sensitivity}
-          onSensitivityChange={updateSensitivity}
-          onBack={() => setCurrentView('game')}
-        />
-      )}
-
-      {currentView === 'editor' && (
-        <ControllerEditor
-          controllerScale={controllerScale}
-          setControllerScale={setControllerScale}
-          controllerOpacity={controllerOpacity}
-          setControllerOpacity={setControllerOpacity}
-          sensitivity={sensitivity}
-          onSensitivityChange={updateSensitivity}
-          visibleControls={visibleControls}
-          setVisibleControls={setVisibleControls}
-          showStatusBar={showStatusBar}
-          setShowStatusBar={setShowStatusBar}
-          onBack={() => setCurrentView('game')}
-        />
-      )}
-
     </div>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <AuthProvider>
+      <CloudKHPlatform />
+    </AuthProvider>
+  );
+}
