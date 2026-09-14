@@ -12,13 +12,22 @@ import threading
 import time
 from typing import Dict
 
-from pynput.keyboard import Controller as KeyboardController, Key
-from pynput.mouse import Button as MouseButton, Controller as MouseController
+logger = logging.getLogger("input.gamepad")
+
+try:
+    from pynput.keyboard import Controller as KeyboardController, Key
+    from pynput.mouse import Button as MouseButton, Controller as MouseController
+    PYNPUT_AVAILABLE = True
+except Exception as exc:
+    KeyboardController = None
+    MouseController = None
+    Key = None
+    MouseButton = None
+    PYNPUT_AVAILABLE = False
+    logger.info("pynput not available in headless environment (%s) - keyboard/mouse emulation disabled", exc)
 
 from app.core.config import settings
 from app.utils.display_linux import get_monitor_geometry
-
-logger = logging.getLogger("input.gamepad")
 
 try:
     import vgamepad as vg
@@ -62,13 +71,13 @@ KEYBOARD_SPECIAL_KEYS = {
     "DOWN": Key.down,
     "LEFT": Key.left,
     "RIGHT": Key.right,
-}
+} if (PYNPUT_AVAILABLE and Key is not None) else {}
 
 MOUSE_BUTTONS = {
     "left": MouseButton.left,
     "right": MouseButton.right,
     "middle": MouseButton.middle,
-}
+} if (PYNPUT_AVAILABLE and MouseButton is not None) else {}
 
 # App button name -> keyboard key when running in fallback mode
 BUTTON_KEYBOARD_MAP = {
@@ -100,8 +109,15 @@ class GamepadService:
     """Applies controller input messages to a virtual gamepad / keyboard / mouse."""
 
     def __init__(self) -> None:
-        self.mouse = MouseController()
-        self.keyboard = KeyboardController()
+        self.mouse = None
+        self.keyboard = None
+        if PYNPUT_AVAILABLE and MouseController is not None and KeyboardController is not None:
+            try:
+                self.mouse = MouseController()
+                self.keyboard = KeyboardController()
+            except Exception as exc:
+                logger.info("Unable to initialize mouse/keyboard controller (%s)", exc)
+
         self.keyboard_keys_down: set = set()
         self.mouse_buttons_down: set = set()
         self.gamepad = None
@@ -224,8 +240,11 @@ class GamepadService:
             if self.gamepad is None and (self.right_stick["x"] != 0 or self.right_stick["y"] != 0):
                 dx = int(self.right_stick["x"] * self.mouse_sensitivity)
                 dy = int(self.right_stick["y"] * self.mouse_sensitivity)
-                if dx != 0 or dy != 0:
-                    self.mouse.move(dx, dy)
+                if (dx != 0 or dy != 0) and self.mouse is not None:
+                    try:
+                        self.mouse.move(dx, dy)
+                    except Exception:
+                        pass
 
             time.sleep(0.016)
 
@@ -236,6 +255,8 @@ class GamepadService:
         return KEYBOARD_SPECIAL_KEYS.get(name.upper(), name.lower())
 
     def _set_keyboard_key(self, name: str, pressed: bool) -> None:
+        if self.keyboard is None:
+            return
         key_name = name.upper()
         key = self._keyboard_key(key_name)
         try:
@@ -249,6 +270,9 @@ class GamepadService:
             logger.debug("Ignoring unsupported key: %r", name)
 
     def _release_all_keys(self) -> None:
+        if self.keyboard is None:
+            self.keyboard_keys_down.clear()
+            return
         for key_name in list(self.keyboard_keys_down):
             try:
                 self.keyboard.release(self._keyboard_key(key_name))
@@ -312,12 +336,17 @@ class GamepadService:
     # Direct mouse/keyboard control (phone "Keys & Mouse" trackpad mode)
     # ------------------------------------------------------------------
     def handle_mouse_move(self, dx, dy) -> None:
+        if self.mouse is None:
+            return
         try:
             dx, dy = int(dx), int(dy)
         except (TypeError, ValueError):
             return
         if dx or dy:
-            self.mouse.move(dx, dy)
+            try:
+                self.mouse.move(dx, dy)
+            except Exception:
+                pass
 
     def handle_mouse_absolute(self, x, y) -> None:
         """Place the host cursor at normalized coordinates from the browser.
@@ -325,6 +354,8 @@ class GamepadService:
         Unlike relative browser movement, this remains accurate at the edge of
         a fullscreen window and is independent of the streamed encode size.
         """
+        if self.mouse is None:
+            return
         try:
             x = max(0.0, min(1.0, float(x)))
             y = max(0.0, min(1.0, float(y)))
@@ -349,6 +380,8 @@ class GamepadService:
             logger.debug("Absolute mouse move error: %s", exc)
 
     def handle_mouse_button(self, button, pressed: bool) -> None:
+        if self.mouse is None:
+            return
         mouse_button = MOUSE_BUTTONS.get(str(button).lower())
         if mouse_button is None:
             return
@@ -363,18 +396,25 @@ class GamepadService:
             logger.debug("Mouse button error: %s", exc)
 
     def handle_mouse_scroll(self, dx, dy) -> None:
+        if self.mouse is None:
+            return
         try:
             dx, dy = int(dx), int(dy)
         except (TypeError, ValueError):
             return
         if dx or dy:
-            self.mouse.scroll(dx, dy)
+            try:
+                self.mouse.scroll(dx, dy)
+            except Exception:
+                pass
 
     def handle_key(self, key, pressed: bool) -> None:
         if isinstance(key, str) and key:
             self._set_keyboard_key(key, bool(pressed))
 
     def handle_text(self, text) -> None:
+        if self.keyboard is None:
+            return
         if isinstance(text, str) and text:
             try:
                 self.keyboard.type(text[:200])
@@ -396,11 +436,12 @@ class GamepadService:
         self.left_stick = {"x": 0.0, "y": 0.0}
         self.right_stick = {"x": 0.0, "y": 0.0}
         self._release_all_keys()
-        for mouse_button in list(self.mouse_buttons_down):
-            try:
-                self.mouse.release(mouse_button)
-            except Exception:
-                pass
+        if self.mouse is not None:
+            for mouse_button in list(self.mouse_buttons_down):
+                try:
+                    self.mouse.release(mouse_button)
+                except Exception:
+                    pass
         self.mouse_buttons_down.clear()
         if self.gamepad is not None:
             self.gamepad.reset()
