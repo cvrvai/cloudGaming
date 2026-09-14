@@ -7,13 +7,16 @@ import TouchpadOverlay from './TouchpadOverlay';
 
 export default function GamepadController({
     wsRef,
-    serverStatus,
-    controllerMode,
-    inputMode,
-    mouseMode,
+    serverStatus = 'connected',
+    controllerMode = 'xinput',
+    inputMode = 'controller',
+    mouseMode = 'relative',
     controllerScale,
     controllerOpacity,
     visibleControls,
+    visible,
+    scale,
+    opacity,
     showVideo,
     quality,
     showStatusBar,
@@ -22,10 +25,20 @@ export default function GamepadController({
     apiBase,
     inputStats,
     onInputPacketSent,
-    sensitivity,
+    sensitivity = 20,
     onOpenSettings,
 }) {
     const inputSequenceRef = useRef(0);
+    const activeControls = visibleControls || visible || {
+        lt: true, rt: true,
+        lb: true, rb: true,
+        dpad: true,
+        faceButtons: true,
+        leftStick: true,
+        rightStick: true,
+    };
+    const activeScale = controllerScale ?? scale ?? 1;
+    const activeOpacity = controllerOpacity ?? opacity ?? 1;
 
     const inputModeLabel = controllerMode === 'xinput'
         ? 'XInput'
@@ -172,18 +185,18 @@ export default function GamepadController({
                 />
             ) : (
                 /* Main controller layout */
-                <div className="controller-layout" style={{ opacity: controllerOpacity, transform: `scale(${controllerScale})` }}>
+                <div className="controller-layout" style={{ opacity: activeOpacity, transform: `scale(${activeScale})` }}>
                 {/* Left side - Movement */}
                 <div className="controller-left">
                     <div className="shoulder-group">
-                        {visibleControls.lt && (
+                        {activeControls.lt && (
                             <ActionButton label="LT" color="#ffffff" size={50} {...createButtonHandler('LT')} className="trigger-btn left-trigger" />
                         )}
-                        {visibleControls.lb && (
+                        {activeControls.lb && (
                             <ActionButton label="LB" color="#ffffff" size={50} {...createButtonHandler('LB')} className="shoulder-btn left-shoulder" />
                         )}
                     </div>
-                    {visibleControls.leftStick && (
+                    {activeControls.leftStick && (
                         <AnalogStick
                             position="left"
                             onMove={handleLeftStickMove}
@@ -192,7 +205,7 @@ export default function GamepadController({
                             color="#ffffff"
                         />
                     )}
-                    {visibleControls.dpad && (
+                    {activeControls.dpad && (
                         <DPad
                             onPress={handleDPadPress}
                             onRelease={handleDPadRelease}
@@ -211,14 +224,14 @@ export default function GamepadController({
                 {/* Right side - Actions */}
                 <div className="controller-right">
                     <div className="shoulder-group">
-                        {visibleControls.rb && (
+                        {activeControls.rb && (
                             <ActionButton label="RB" color="#ffffff" size={50} {...createButtonHandler('RB')} className="shoulder-btn right-shoulder" />
                         )}
-                        {visibleControls.rt && (
+                        {activeControls.rt && (
                             <ActionButton label="RT" color="#ffffff" size={50} {...createButtonHandler('RT')} className="trigger-btn right-trigger" />
                         )}
                     </div>
-                    {visibleControls.faceButtons && (
+                    {activeControls.faceButtons && (
                         <div className="action-buttons-grid">
                             <ActionButton label="Y" color="#ffffff" size={60} {...createButtonHandler('Y')} className="btn-y" />
                             <ActionButton label="X" color="#ffffff" size={60} {...createButtonHandler('X')} className="btn-x" />
@@ -226,7 +239,7 @@ export default function GamepadController({
                             <ActionButton label="A" color="#ffffff" size={60} {...createButtonHandler('A')} className="btn-a" />
                         </div>
                     )}
-                    {visibleControls.rightStick && (
+                    {activeControls.rightStick && (
                         <AnalogStick
                             position="right"
                             onMove={handleRightStickMove}
