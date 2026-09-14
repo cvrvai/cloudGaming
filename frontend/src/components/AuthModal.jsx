@@ -74,34 +74,32 @@ export default function AuthModal() {
 
   return (
     <div className="modal-backdrop" onClick={handleClose}>
-      <div className="modal-dialog glass-panel auth-modal-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`modal-dialog glass-panel auth-modal-dialog ${mfaChallenge ? 'mfa-dialog' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <button className="modal-close-btn" onClick={handleClose}>
           ✕
         </button>
 
         {mfaChallenge ? (
-          <div className="mfa-container">
-            <div className="auth-header">
-              <div className="auth-logo-badge mfa-logo-badge">
-                <ShieldCheckIcon className="mfa-badge-icon" size={24} />
+          <div className="mfa-container compact">
+            <div className="auth-header compact">
+              <div className="auth-logo-badge mfa-logo-badge compact">
+                <ShieldCheckIcon className="mfa-badge-icon" size={18} />
               </div>
-              <h2>Security Verification</h2>
-              <p className="auth-subtitle" style={{ marginTop: '4px' }}>
-                Two-step authentication is active for administrator access
+              <h2>Two-Step Verification</h2>
+              <p className="auth-subtitle">
+                Enter the 6-digit code from your authenticator app
               </p>
             </div>
 
             {mfaChallenge.mfa_setup_required && (
-              <div className="mfa-setup-box">
-                <div className="mfa-setup-badge-row">
-                  <KeyIcon size={14} className="mfa-setup-icon" />
-                  <span className="mfa-setup-title">First-Time Setup Required</span>
-                </div>
-                <p className="mfa-setup-desc">
-                  Enter this secret key in Google Authenticator or 1Password:
-                </p>
-                <div className="mfa-secret-box">
-                  <code className="mfa-secret-code">{mfaChallenge.secret}</code>
+              <div className="mfa-setup-compact">
+                <div className="mfa-setup-top">
+                  <span className="mfa-setup-tag">
+                    <KeyIcon size={12} /> First-Time Setup Key
+                  </span>
                   <button
                     type="button"
                     className="mfa-copy-btn"
@@ -113,19 +111,19 @@ export default function AuthModal() {
                       }
                     }}
                   >
-                    {copiedSecret ? '✓ Copied' : 'Copy'}
+                    {copiedSecret ? '✓ Copied' : 'Copy Key'}
                   </button>
+                </div>
+                <div className="mfa-secret-box">
+                  <code className="mfa-secret-code">{mfaChallenge.secret}</code>
                 </div>
               </div>
             )}
 
-            {mfaError && <div className="auth-error-banner">⚠️ {mfaError}</div>}
+            {mfaError && <div className="auth-error-banner compact">⚠️ {mfaError}</div>}
 
-            <form onSubmit={handleMfaSubmit} className="auth-form">
-              <div className="form-group">
-                <label style={{ textAlign: 'center', width: '100%', display: 'block' }}>
-                  Enter 6-Digit Security Code
-                </label>
+            <form onSubmit={handleMfaSubmit} className="auth-form compact">
+              <div className="form-group compact">
                 <div className="mfa-input-wrap">
                   <input
                     type="text"
@@ -133,7 +131,7 @@ export default function AuthModal() {
                     autoComplete="one-time-code"
                     autoFocus
                     maxLength={6}
-                    placeholder="000000"
+                    placeholder="000 000"
                     value={mfaCode}
                     onChange={(e) => {
                       const val = e.target.value.replace(/\D/g, '').slice(0, 6);
@@ -144,7 +142,7 @@ export default function AuthModal() {
                   />
                 </div>
                 <div className="mfa-helper-text">
-                  Codes refresh every 30 seconds. 5 attempts remaining before lockout.
+                  Codes refresh every 30 seconds
                 </div>
               </div>
 
@@ -154,12 +152,12 @@ export default function AuthModal() {
                   className="auth-submit-btn"
                   disabled={mfaSubmitting || mfaCode.length !== 6}
                 >
-                  {mfaSubmitting ? 'Verifying...' : 'Verify & Enter Dashboard'}
+                  {mfaSubmitting ? 'Verifying...' : 'Verify Code'}
                 </button>
               </div>
             </form>
 
-            <div className="auth-footer-prompt">
+            <div className="auth-footer-prompt compact">
               <button
                 type="button"
                 className="auth-text-link"
