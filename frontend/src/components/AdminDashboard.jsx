@@ -4,7 +4,7 @@ import { API_BASE } from '../config';
 
 export default function AdminDashboard() {
   const { token, user } = useAuth();
-  const [adminTab, setAdminTab] = useState('games'); // 'games' | 'machines' | 'bookings'
+  const [adminTab, setAdminTab] = useState('machines'); // 'machines' | 'games' | 'bookings'
   
   const [machines, setMachines] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -12,18 +12,31 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null);
 
-  // New game modal state
+  // Catalog game modal state
   const [showGameModal, setShowGameModal] = useState(false);
   const [editingGame, setEditingGame] = useState(null);
   const [gameTitle, setGameTitle] = useState('');
+  const [gameSlug, setGameSlug] = useState('');
   const [gameGenre, setGameGenre] = useState('Action');
   const [gameCover, setGameCover] = useState('');
-  const [gameExe, setGameExe] = useState('');
   const [gameSize, setGameSize] = useState(50);
   const [gameDesc, setGameDesc] = useState('');
-  const [gameInstalledRigs, setGameInstalledRigs] = useState('all');
+  const [gameEnabled, setGameEnabled] = useState(true);
   const [gameSubmitting, setGameSubmitting] = useState(false);
   const [gameError, setGameError] = useState(null);
+
+  // Per-node game installation modal state (MVP Manual Admin Configuration)
+  const [showNodeGameModal, setShowNodeGameModal] = useState(false);
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [editingNodeGame, setEditingNodeGame] = useState(null);
+  const [nodeGameId, setNodeGameId] = useState('');
+  const [nodeGameExe, setNodeGameExe] = useState('');
+  const [nodeGameWorkDir, setNodeGameWorkDir] = useState('');
+  const [nodeGameArgs, setNodeGameArgs] = useState('');
+  const [nodeGameStatus, setNodeGameStatus] = useState('ready');
+  const [nodeGameEnabled, setNodeGameEnabled] = useState(true);
+  const [nodeGameSubmitting, setNodeGameSubmitting] = useState(false);
+  const [nodeGameError, setNodeGameError] = useState(null);
 
   const fetchAllAdminData = async () => {
     if (!token) return;
@@ -84,15 +97,16 @@ export default function AdminDashboard() {
     }
   };
 
+  // --- CATALOG MODAL HANDLERS ---
   const openAddGameModal = () => {
     setEditingGame(null);
     setGameTitle('');
+    setGameSlug('');
     setGameGenre('Action RPG');
     setGameCover('https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&auto=format&fit=crop&q=80');
-    setGameExe('C:\\Games\\GameName\\game.exe');
     setGameSize(60);
     setGameDesc('');
-    setGameInstalledRigs('all');
+    setGameEnabled(true);
     setGameError(null);
     setShowGameModal(true);
   };
@@ -100,12 +114,12 @@ export default function AdminDashboard() {
   const openEditGameModal = (game) => {
     setEditingGame(game);
     setGameTitle(game.title);
+    setGameSlug(game.slug || '');
     setGameGenre(game.genre);
     setGameCover(game.cover_url || '');
-    setGameExe(game.exe_path || '');
     setGameSize(game.size_gb || 50);
     setGameDesc(game.description || '');
-    setGameInstalledRigs(game.installed_machines || 'all');
+    setGameEnabled(game.enabled !== false);
     setGameError(null);
     setShowGameModal(true);
   };
@@ -117,12 +131,12 @@ export default function AdminDashboard() {
 
     const payload = {
       title: gameTitle,
+      slug: gameSlug || undefined,
       genre: gameGenre,
       cover_url: gameCover,
       description: gameDesc,
-      exe_path: gameExe,
       size_gb: parseFloat(gameSize) || 50,
-      installed_machines: gameInstalledRigs,
+      enabled: gameEnabled,
     };
 
     try {
@@ -155,7 +169,7 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteGame = async (gameId) => {
-    if (!window.confirm('Delete this game from the platform library?')) return;
+    if (!window.confirm('Delete this game from the platform catalog? This will remove its installations across all gaming PCs.')) return;
     try {
       const res = await fetch(`${API_BASE}/api/games/${gameId}`, {
         method: 'DELETE',
@@ -169,6 +183,90 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       alert('Delete error: ' + err.message);
+    }
+  };
+
+  // --- PER-NODE GAME CONFIGURATION HANDLERS ---
+  const openAddGameToNodeModal = (machine) => {
+    setSelectedNode(machine);
+    setEditingNodeGame(null);
+    setNodeGameId(games[0]?.id ? String(games[0].id) : '');
+    setNodeGameExe('');
+    setNodeGameWorkDir('');
+    setNodeGameArgs('');
+    setNodeGameStatus('ready');
+    setNodeGameEnabled(true);
+    setNodeGameError(null);
+    setShowNodeGameModal(true);
+  };
+
+  const openEditNodeGameModal = (machine, nodeGame) => {
+    setSelectedNode(machine);
+    setEditingNodeGame(nodeGame);
+    setNodeGameId(String(nodeGame.game_id));
+    setNodeGameExe(nodeGame.executable_path || '');
+    setNodeGameWorkDir(nodeGame.working_directory || '');
+    setNodeGameArgs(nodeGame.launch_arguments || '');
+    setNodeGameStatus(nodeGame.status || 'ready');
+    setNodeGameEnabled(nodeGame.enabled !== false);
+    setNodeGameError(null);
+    setShowNodeGameModal(true);
+  };
+
+  const handleSaveNodeGame = async (e) => {
+    e.preventDefault();
+    if (!selectedNode) return;
+    setNodeGameError(null);
+    setNodeGameSubmitting(true);
+
+    const payload = {
+      game_id: parseInt(nodeGameId),
+      executable_path: nodeGameExe.trim(),
+      working_directory: nodeGameWorkDir.trim() || undefined,
+      launch_arguments: nodeGameArgs.trim() || undefined,
+      status: nodeGameStatus,
+      enabled: nodeGameEnabled,
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/api/machines/${selectedNode.id}/games`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.detail || 'Failed to configure game on PC');
+      }
+
+      setShowNodeGameModal(false);
+      fetchAllAdminData();
+    } catch (err) {
+      setNodeGameError(err.message);
+    } finally {
+      setNodeGameSubmitting(false);
+    }
+  };
+
+  const handleRemoveNodeGame = async (machineId, gameId, gameTitle) => {
+    if (!window.confirm(`Unassign "${gameTitle}" from this gaming PC?`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/machines/${machineId}/games/${gameId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        fetchAllAdminData();
+      } else {
+        const errData = await res.json();
+        alert(errData.detail || 'Failed to remove game from machine');
+      }
+    } catch (err) {
+      alert('Unassign error: ' + err.message);
     }
   };
 
@@ -193,7 +291,7 @@ export default function AdminDashboard() {
         <div>
           <h1 className="admin-title">Admin Management Console</h1>
           <p className="admin-subtitle">
-            Monitor gaming nodes, configure installed games, and oversee platform reservations.
+            Configure gaming PCs, manage installed game executables, and oversee platform sessions.
           </p>
         </div>
         <button className="btn-secondary" onClick={fetchAllAdminData}>
@@ -204,14 +302,14 @@ export default function AdminDashboard() {
       {/* Admin KPI Stats */}
       <div className="admin-stats-row">
         <div className="admin-stat-card glass-panel">
-          <span className="stat-label">Gaming Rigs</span>
+          <span className="stat-label">Gaming PCs</span>
           <span className="stat-value">{machines.length}</span>
           <span className="stat-hint">{machines.filter((m) => m.status === 'available').length} Online</span>
         </div>
         <div className="admin-stat-card glass-panel">
-          <span className="stat-label">Game Library</span>
+          <span className="stat-label">Game Catalog</span>
           <span className="stat-value">{games.length}</span>
-          <span className="stat-hint">Installed Titles</span>
+          <span className="stat-hint">Active Titles</span>
         </div>
         <div className="admin-stat-card glass-panel">
           <span className="stat-label">Active Sessions</span>
@@ -228,16 +326,16 @@ export default function AdminDashboard() {
       {/* Admin Tabs */}
       <div className="admin-subnav-tabs">
         <button
-          className={`admin-subnav-btn ${adminTab === 'games' ? 'active' : ''}`}
-          onClick={() => setAdminTab('games')}
-        >
-          🎮 Game Library ({games.length})
-        </button>
-        <button
           className={`admin-subnav-btn ${adminTab === 'machines' ? 'active' : ''}`}
           onClick={() => setAdminTab('machines')}
         >
-          🖥️ Machine Nodes ({machines.length})
+          🖥️ Gaming PCs ({machines.length})
+        </button>
+        <button
+          className={`admin-subnav-btn ${adminTab === 'games' ? 'active' : ''}`}
+          onClick={() => setAdminTab('games')}
+        >
+          🎮 Game Catalog ({games.length})
         </button>
         <button
           className={`admin-subnav-btn ${adminTab === 'bookings' ? 'active' : ''}`}
@@ -251,71 +349,13 @@ export default function AdminDashboard() {
         <div className="admin-loading">Loading management data...</div>
       ) : (
         <>
-          {/* TAB 1: GAME LIBRARY ("PUT GAME") */}
-          {adminTab === 'games' && (
-            <div className="admin-tab-content">
-              <div className="tab-section-header">
-                <div>
-                  <h2>Installed Games Library</h2>
-                  <p>Manage games available on host workstations and remote rigs.</p>
-                </div>
-                <button className="btn-primary btn-add-game" onClick={openAddGameModal}>
-                  ➕ Put / Add Game
-                </button>
-              </div>
-
-              <div className="admin-games-grid">
-                {games.map((g) => (
-                  <div key={g.id} className="admin-game-card glass-panel">
-                    <div
-                      className="game-cover-banner"
-                      style={{ backgroundImage: `url(${g.cover_url})` }}
-                    >
-                      <span className="game-genre-pill">{g.genre}</span>
-                      <span className="game-size-pill">{g.size_gb} GB</span>
-                    </div>
-
-                    <div className="game-card-info">
-                      <h3 className="game-card-title">{g.title}</h3>
-                      <p className="game-card-desc">{g.description || 'No description provided.'}</p>
-                      
-                      <div className="game-exe-box">
-                        <span className="exe-label">Launch Target:</span>
-                        <code className="exe-path">{g.exe_path || 'Standard Launcher'}</code>
-                      </div>
-
-                      <div className="game-installed-on">
-                        <span>Installed on: <strong>{g.installed_machines === 'all' ? 'All Gaming Rigs' : `Rig #${g.installed_machines}`}</strong></span>
-                      </div>
-
-                      <div className="game-actions-row">
-                        <button
-                          className="btn-game-edit"
-                          onClick={() => openEditGameModal(g)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="btn-game-delete"
-                          onClick={() => handleDeleteGame(g.id)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: MACHINE NODES */}
+          {/* TAB 1: GAMING PCS & PER-PC INSTALLED GAMES (MVP Manual Admin Setup) */}
           {adminTab === 'machines' && (
             <div className="admin-tab-content">
               <div className="tab-section-header">
                 <div>
-                  <h2>Connected Machine Nodes</h2>
-                  <p>Real-time hardware status and maintenance controls for gaming workstations.</p>
+                  <h2>Connected Gaming PCs</h2>
+                  <p>Configure hardware nodes and manually define installed games, executables, and working directories.</p>
                 </div>
               </div>
 
@@ -339,21 +379,141 @@ export default function AdminDashboard() {
                       <div><strong>GPU:</strong> {m.gpu}</div>
                       <div><strong>CPU:</strong> {m.cpu}</div>
                       <div><strong>RAM:</strong> {m.ram}</div>
-                      <div><strong>Notes:</strong> {m.notes || 'Ready for game streaming.'}</div>
+                      <div><strong>Notes:</strong> {m.notes || 'Gaming workstation.'}</div>
                     </div>
 
-                    <div className="admin-node-actions">
-                      <button
-                        className={`btn-toggle-maintenance ${m.status === 'maintenance' ? 'restore' : ''}`}
-                        onClick={() => handleToggleMaintenance(m)}
-                        disabled={updatingId === m.id}
-                      >
-                        {updatingId === m.id
-                          ? 'Updating...'
-                          : m.status === 'maintenance'
-                          ? '✓ Restore to Available'
-                          : '⚠️ Put Under Maintenance'}
-                      </button>
+                    {/* Installed Games on this PC (Manual Admin Configuration) */}
+                    <div className="node-games-section">
+                      <div className="node-games-header">
+                        <span className="node-games-title">
+                          Installed Games <span className="node-games-count">{m.installed_games?.length || 0}</span>
+                        </span>
+                        <button
+                          className="btn-add-node-game"
+                          onClick={() => openAddGameToNodeModal(m)}
+                        >
+                          ➕ Add Game
+                        </button>
+                      </div>
+
+                      {!m.installed_games || m.installed_games.length === 0 ? (
+                        <div className="node-games-empty">
+                          No games configured on this PC yet. Click "+ Add Game" to assign one.
+                        </div>
+                      ) : (
+                        <div className="node-games-list">
+                          {m.installed_games.map((ng) => (
+                            <div key={ng.id} className="node-game-card">
+                              <div className="node-game-top">
+                                <div className="node-game-title-row">
+                                  <span className="node-game-title">{ng.title}</span>
+                                  <span className={`status-pill-mini ${ng.status || 'ready'}`}>
+                                    {ng.status || 'ready'}
+                                  </span>
+                                </div>
+                                <div className="node-game-actions">
+                                  <button
+                                    className="btn-node-game-action"
+                                    onClick={() => openEditNodeGameModal(m, ng)}
+                                    title="Edit configuration"
+                                  >
+                                    ✏️
+                                  </button>
+                                  <button
+                                    className="btn-node-game-action delete"
+                                    onClick={() => handleRemoveNodeGame(m.id, ng.game_id, ng.title)}
+                                    title="Unassign game"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="node-game-path-box">
+                                <div className="node-game-path-line">
+                                  <span className="node-game-path-label">Path:</span>
+                                  <span className="node-game-path-val" title={ng.executable_path}>
+                                    {ng.executable_path}
+                                  </span>
+                                </div>
+                                {ng.working_directory && (
+                                  <div className="node-game-path-line">
+                                    <span className="node-game-path-label">Dir:</span>
+                                    <span className="node-game-path-val" title={ng.working_directory}>
+                                      {ng.working_directory}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      className={`btn-toggle-maintenance ${m.status === 'maintenance' ? 'restore' : ''}`}
+                      onClick={() => handleToggleMaintenance(m)}
+                      disabled={updatingId === m.id}
+                    >
+                      {updatingId === m.id
+                        ? 'Updating...'
+                        : m.status === 'maintenance'
+                        ? '✓ Restore to Available'
+                        : '⚠️ Put Under Maintenance'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: GAME CATALOG */}
+          {adminTab === 'games' && (
+            <div className="admin-tab-content">
+              <div className="tab-section-header">
+                <div>
+                  <h2>Game Catalog</h2>
+                  <p>Global catalog of titles available across the CloudKH platform.</p>
+                </div>
+                <button className="btn-primary btn-add-game" onClick={openAddGameModal}>
+                  ➕ Add Game to Catalog
+                </button>
+              </div>
+
+              <div className="admin-games-grid">
+                {games.map((g) => (
+                  <div key={g.id} className="admin-game-card glass-panel">
+                    <div
+                      className="game-cover-banner"
+                      style={{ backgroundImage: `url(${g.cover_url})` }}
+                    >
+                      <span className="game-genre-pill">{g.genre}</span>
+                      <span className="game-size-pill">{g.size_gb} GB</span>
+                    </div>
+
+                    <div className="game-card-info">
+                      <h3 className="game-card-title">{g.title}</h3>
+                      <p className="game-card-desc">{g.description || 'No description provided.'}</p>
+                      
+                      <div className="game-installed-on">
+                        <span>Installed on: <strong>{g.installed_machines}</strong></span>
+                      </div>
+
+                      <div className="game-actions-row">
+                        <button
+                          className="btn-game-edit"
+                          onClick={() => openEditGameModal(g)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="btn-game-delete"
+                          onClick={() => handleDeleteGame(g.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -419,7 +579,121 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {/* Put / Edit Game Modal */}
+      {/* MODAL 1: CONFIGURE GAME ON SPECIFIC PC (Admin → Gaming PCs → PC-001 → Games → Add Game) */}
+      {showNodeGameModal && selectedNode && (
+        <div className="modal-backdrop" onClick={() => setShowNodeGameModal(false)}>
+          <div className="modal-dialog glass-panel" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close-btn" onClick={() => setShowNodeGameModal(false)}>
+              ✕
+            </button>
+
+            <div className="auth-header">
+              <h2>{editingNodeGame ? 'Edit Game Configuration' : 'Add Game to PC'}</h2>
+              <p className="auth-subtitle">
+                Configure trusted executable and directory for <strong>{selectedNode.name}</strong>.
+              </p>
+            </div>
+
+            {nodeGameError && <div className="auth-error-banner">⚠️ {nodeGameError}</div>}
+
+            <form onSubmit={handleSaveNodeGame} className="auth-form">
+              <div className="form-group">
+                <label>Game</label>
+                <select
+                  className="admin-select-input"
+                  value={nodeGameId}
+                  onChange={(e) => {
+                    setNodeGameId(e.target.value);
+                    const sel = games.find((g) => String(g.id) === e.target.value);
+                    if (sel && !nodeGameExe) {
+                      // Suggest sensible placeholder
+                      const safeSlug = sel.slug || sel.title.toLowerCase().replace(/[^a-z0-9]+/g, '');
+                      setNodeGameExe(`C:\\Games\\${sel.title}\\${safeSlug}.exe`);
+                      setNodeGameWorkDir(`C:\\Games\\${sel.title}`);
+                    }
+                  }}
+                  required
+                >
+                  {games.map((g) => (
+                    <option key={g.id} value={String(g.id)}>
+                      {g.title} ({g.genre})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Executable Path</label>
+                <input
+                  type="text"
+                  placeholder="e.g. C:\Games\Forza Horizon 4\ForzaHorizon4.exe"
+                  value={nodeGameExe}
+                  onChange={(e) => setNodeGameExe(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Working Directory</label>
+                <input
+                  type="text"
+                  placeholder="e.g. C:\Games\Forza Horizon 4"
+                  value={nodeGameWorkDir}
+                  onChange={(e) => setNodeGameWorkDir(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Launch Arguments</label>
+                <input
+                  type="text"
+                  placeholder="e.g. -fullscreen -novid (optional)"
+                  value={nodeGameArgs}
+                  onChange={(e) => setNodeGameArgs(e.target.value)}
+                />
+              </div>
+
+              <div className="booking-form-grid">
+                <div className="form-group">
+                  <label>Status</label>
+                  <select
+                    className="admin-select-input"
+                    value={nodeGameStatus}
+                    onChange={(e) => setNodeGameStatus(e.target.value)}
+                  >
+                    <option value="ready">Ready</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="disabled">Disabled</option>
+                    <option value="broken">Broken</option>
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '12px' }}>
+                    <input
+                      type="checkbox"
+                      checked={nodeGameEnabled}
+                      onChange={(e) => setNodeGameEnabled(e.target.checked)}
+                      style={{ width: '18px', height: '18px', accentColor: '#6366f1' }}
+                    />
+                    <span>Enabled</span>
+                  </label>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="btn-primary auth-submit-btn"
+                disabled={nodeGameSubmitting}
+              >
+                {nodeGameSubmitting ? 'Saving...' : 'Save'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: CENTRAL CATALOG GAME MODAL */}
       {showGameModal && (
         <div className="modal-backdrop" onClick={() => setShowGameModal(false)}>
           <div className="modal-dialog glass-panel" onClick={(e) => e.stopPropagation()}>
@@ -428,8 +702,8 @@ export default function AdminDashboard() {
             </button>
 
             <div className="auth-header">
-              <h2>{editingGame ? 'Edit Game' : 'Put New Game in Library'}</h2>
-              <p className="auth-subtitle">Configure game shortcut and rig availability.</p>
+              <h2>{editingGame ? 'Edit Catalog Game' : 'Add Game to Catalog'}</h2>
+              <p className="auth-subtitle">Configure game metadata and artwork.</p>
             </div>
 
             {gameError && <div className="auth-error-banner">⚠️ {gameError}</div>}
@@ -439,7 +713,7 @@ export default function AdminDashboard() {
                 <label>Game Title</label>
                 <input
                   type="text"
-                  placeholder="e.g. Cyberpunk 2077, GTA V, CS2"
+                  placeholder="e.g. Forza Horizon 4, Persona 3 Reload"
                   value={gameTitle}
                   onChange={(e) => setGameTitle(e.target.value)}
                   required
@@ -447,10 +721,20 @@ export default function AdminDashboard() {
               </div>
 
               <div className="form-group">
+                <label>Slug / Identifier</label>
+                <input
+                  type="text"
+                  placeholder="e.g. forza-horizon-4 (optional, auto-generated if empty)"
+                  value={gameSlug}
+                  onChange={(e) => setGameSlug(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
                 <label>Genre / Category</label>
                 <input
                   type="text"
-                  placeholder="e.g. Action RPG, Tactical FPS, Open World"
+                  placeholder="e.g. Racing, Action RPG, Tactical FPS"
                   value={gameGenre}
                   onChange={(e) => setGameGenre(e.target.value)}
                   required
@@ -467,42 +751,28 @@ export default function AdminDashboard() {
                 />
               </div>
 
-              <div className="form-group">
-                <label>Executable Path / Launch Target</label>
-                <input
-                  type="text"
-                  placeholder="C:\Games\GameName\game.exe or steam://rungameid/..."
-                  value={gameExe}
-                  onChange={(e) => setGameExe(e.target.value)}
-                />
-              </div>
-
               <div className="booking-form-grid">
                 <div className="form-group">
-                  <label>Install Size (GB)</label>
+                  <label>Approx Size (GB)</label>
                   <input
                     type="number"
-                    step="0.5"
+                    step="1"
                     min="1"
                     value={gameSize}
                     onChange={(e) => setGameSize(e.target.value)}
                   />
                 </div>
 
-                <div className="form-group">
-                  <label>Install Availability</label>
-                  <select
-                    className="admin-select-input"
-                    value={gameInstalledRigs}
-                    onChange={(e) => setGameInstalledRigs(e.target.value)}
-                  >
-                    <option value="all">All Gaming Rigs</option>
-                    {machines.map((m) => (
-                      <option key={m.id} value={String(m.id)}>
-                        Only {m.name}
-                      </option>
-                    ))}
-                  </select>
+                <div className="form-group" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '12px' }}>
+                    <input
+                      type="checkbox"
+                      checked={gameEnabled}
+                      onChange={(e) => setGameEnabled(e.target.checked)}
+                      style={{ width: '18px', height: '18px', accentColor: '#6366f1' }}
+                    />
+                    <span>Enabled in Catalog</span>
+                  </label>
                 </div>
               </div>
 
@@ -510,7 +780,7 @@ export default function AdminDashboard() {
                 <label>Description</label>
                 <input
                   type="text"
-                  placeholder="Brief description of gameplay or performance specs"
+                  placeholder="Brief synopsis of gameplay or specs"
                   value={gameDesc}
                   onChange={(e) => setGameDesc(e.target.value)}
                 />
@@ -521,7 +791,7 @@ export default function AdminDashboard() {
                 className="btn-primary auth-submit-btn"
                 disabled={gameSubmitting}
               >
-                {gameSubmitting ? 'Saving...' : editingGame ? 'Update Game' : 'Add Game to Platform'}
+                {gameSubmitting ? 'Saving...' : editingGame ? 'Update Game' : 'Save to Catalog'}
               </button>
             </form>
           </div>

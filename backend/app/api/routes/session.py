@@ -1,12 +1,13 @@
 """Session Access Control & Stream Launcher Gatekeeper (FR-05, User Story 2)."""
 from datetime import datetime, timezone
-from typing import Dict
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.db import get_db
-from app.services.auth import create_access_token, get_current_user
+from app.services.agent import host_agent
+from app.services.auth import create_access_token, get_current_user, require_admin
 
 router = APIRouter(prefix="/session", tags=["session"])
 
@@ -15,20 +16,24 @@ class VerifySessionRequest(BaseModel):
     booking_id: int
 
 
+class AgentCommandRequest(BaseModel):
+    operation: str = Field(..., description="Predefined agent operation, e.g. START_GAME, STOP_GAME, GET_STATUS")
+    payload: Optional[Dict[str, Any]] = None
+
+
 @router.post("/verify")
 def verify_session_access(
     req: VerifySessionRequest,
     current_user: Dict = Depends(get_current_user),
 ):
-    """Validate that the student has a valid, active reservation right now (FR-05)."""
+    """Validate active reservation and launch administrator-configured game via trusted agent (FR-05)."""
     now = datetime.now(timezone.utc)
-    now_iso = now.isoformat()
 
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT b.id, b.user_id, b.machine_id, b.start_time, b.end_time, b.status,
+            SELECT b.id, b.user_id, b.machine_id, b.game_id, b.game_title, b.start_time, b.end_time, b.status,
                    m.name as machine_name, m.is_host, m.gpu
             FROM bookings b
             JOIN machines m ON b.machine_id = m.id
@@ -75,6 +80,15 @@ def verify_session_access(
 
     remaining_seconds = max(1, int((end_dt - now).total_seconds()))
 
+    # Trigger trusted host agent to start game if this machine is host and a game was reserved
+    agent_launch_info = None
+    if booking["game_id"] and booking["is_host"] == 1:
+        try:
+            agent_launch_info = host_agent.start_game(game_id=booking["game_id"])
+        except Exception as e:
+            # Log error but allow session verification to succeed
+            agent_launch_info = {"status": "warning", "error": str(e)}
+
     # Issue temporary session launch token
     session_token = create_access_token(
         {
@@ -91,8 +105,40 @@ def verify_session_access(
         "machine_name": booking["machine_name"],
         "is_host": bool(booking["is_host"]),
         "gpu": booking["gpu"],
+        "game_id": booking["game_id"],
+        "game_title": booking["game_title"],
+        "agent": agent_launch_info,
         "session_token": session_token,
         "remaining_seconds": remaining_seconds,
         "end_time": booking["end_time"],
         "user_name": current_user["name"],
     }
+
+
+@router.post("/stop")
+def stop_session(
+    current_user: Dict = Depends(get_current_user),
+):
+    """End active streaming session and terminate game process."""
+    host_agent.stop_game()
+    return {"status": "session_stopped"}
+
+
+@router.post("/agent/command")
+def dispatch_agent_command(
+    req: AgentCommandRequest,
+    admin_user: Dict = Depends(require_admin),
+):
+    """Admin-only: Dispatch predefined agent operations (START_GAME, STOP_GAME, GET_STATUS).
+    
+    Arbitrary shell execution (RUN_SHELL, RUN_CMD, EXECUTE_COMMAND) is strictly blocked.
+    """
+    try:
+        res = host_agent.dispatch(req.operation, req.payload)
+        return res
+    except PermissionError as pe:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(pe))
+    except ValueError as ve:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))

@@ -1,7 +1,8 @@
 """PostgreSQL Database layer for CloudKH platform.
 
 Provides thread-safe connection pooling via psycopg2, schema initialization,
-and atomic reservation locks (FOR UPDATE) to prevent double bookings (FR-04, NFR-02).
+manual administrator game-to-node mapping (node_games), and atomic reservation
+locks (FOR UPDATE) to prevent double bookings (FR-04, NFR-02).
 """
 import threading
 from contextlib import contextmanager
@@ -78,22 +79,51 @@ def init_db() -> None:
         );
         """)
 
-        # 3. Games Library table
+        # 3. Games Catalog table (Central game metadata)
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS games (
             id SERIAL PRIMARY KEY,
+            slug TEXT UNIQUE NOT NULL,
             title TEXT NOT NULL,
             genre TEXT NOT NULL,
             cover_url TEXT,
             description TEXT,
-            exe_path TEXT,
             size_gb DOUBLE PRECISION DEFAULT 50.0,
-            installed_machines TEXT DEFAULT 'all',
-            created_at TEXT NOT NULL
+            enabled BOOLEAN DEFAULT TRUE,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
         );
         """)
 
-        # 4. Bookings table
+        # Migration helpers for existing games schema
+        for col_def in [
+            ("slug", "TEXT UNIQUE"),
+            ("enabled", "BOOLEAN DEFAULT TRUE"),
+            ("updated_at", "TEXT"),
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE games ADD COLUMN IF NOT EXISTS {col_def[0]} {col_def[1]};")
+            except Exception:
+                pass
+
+        # 4. Node Games table (Manual per-PC game configuration)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS node_games (
+            id SERIAL PRIMARY KEY,
+            node_id INTEGER NOT NULL REFERENCES machines(id) ON DELETE CASCADE,
+            game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+            executable_path TEXT NOT NULL,
+            working_directory TEXT,
+            launch_arguments TEXT DEFAULT '',
+            enabled BOOLEAN DEFAULT TRUE,
+            status TEXT NOT NULL DEFAULT 'ready',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            CONSTRAINT uq_node_game UNIQUE (node_id, game_id)
+        );
+        """)
+
+        # 5. Bookings table
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS bookings (
             id SERIAL PRIMARY KEY,
@@ -108,7 +138,7 @@ def init_db() -> None:
         );
         """)
 
-        # Indices for high performance overlap checks & user lookups
+        # Indices for high performance lookups & conflict checking
         cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_bookings_machine_overlap 
         ON bookings(machine_id, status, start_time, end_time);
@@ -116,6 +146,14 @@ def init_db() -> None:
         cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_bookings_user 
         ON bookings(user_id, status);
+        """)
+        cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_node_games_node 
+        ON node_games(node_id, status);
+        """)
+        cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_node_games_game 
+        ON node_games(game_id, status);
         """)
 
         conn.commit()
@@ -128,20 +166,19 @@ def _seed_initial_data(conn: Any) -> None:
 
     cursor = conn.cursor()
     real_hw = detect_host_hardware()
+    now_iso = datetime.now(timezone.utc).isoformat()
 
-    # Seed Admin and Demo accounts if none exist
+    # 1. Seed Admin and Demo accounts if none exist
     cursor.execute("SELECT COUNT(*) AS count FROM users;")
     row = cursor.fetchone()
     if row["count"] == 0:
-        now = datetime.now(timezone.utc).isoformat()
-
         admin_hash, admin_salt = hash_password("cloudkh2026")
         cursor.execute(
             """
             INSERT INTO users (name, email, password_hash, salt, role, created_at)
             VALUES (%s, %s, %s, %s, %s, %s);
             """,
-            ("System Administrator", "admin@kit.edu.kh", admin_hash, admin_salt, "admin", now),
+            ("System Administrator", "admin@kit.edu.kh", admin_hash, admin_salt, "admin", now_iso),
         )
 
         user_hash, user_salt = hash_password("user123456")
@@ -150,10 +187,10 @@ def _seed_initial_data(conn: Any) -> None:
             INSERT INTO users (name, email, password_hash, salt, role, created_at)
             VALUES (%s, %s, %s, %s, %s, %s);
             """,
-            ("Cloud Gamer", "gamer@cloudkh.com", user_hash, user_salt, "user", now),
+            ("Cloud Gamer", "gamer@cloudkh.com", user_hash, user_salt, "user", now_iso),
         )
 
-    # Seed or sync Gaming Rigs with real host hardware
+    # 2. Seed or sync Gaming Rigs with real host hardware
     cursor.execute("SELECT COUNT(*) AS count FROM machines;")
     row = cursor.fetchone()
     if row["count"] == 0:
@@ -194,7 +231,6 @@ def _seed_initial_data(conn: Any) -> None:
             rigs,
         )
     else:
-        # Always update the host machine with actual detected hardware
         cursor.execute(
             """
             UPDATE machines
@@ -209,69 +245,191 @@ def _seed_initial_data(conn: Any) -> None:
             ),
         )
 
-    # Seed Games Library if empty
-    cursor.execute("SELECT COUNT(*) AS count FROM games;")
-    row = cursor.fetchone()
-    if row["count"] == 0:
-        now_iso = datetime.now(timezone.utc).isoformat()
-        sample_games = [
+    # 3. Seed or sync Games Catalog
+    sample_games = [
+        (
+            "forza-horizon-4",
+            "Forza Horizon 4",
+            "Racing",
+            "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&auto=format&fit=crop&q=80",
+            "Dynamic seasons and open-world racing festival in historic Britain.",
+            80.0,
+            True,
+            now_iso,
+            now_iso,
+        ),
+        (
+            "persona-3-reload",
+            "Persona 3 Reload",
+            "JRPG",
+            "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=600&auto=format&fit=crop&q=80",
+            "Step into the shoes of a transfer student thrust into an unexpected fate.",
+            30.0,
+            True,
+            now_iso,
+            now_iso,
+        ),
+        (
+            "gta-v",
+            "Grand Theft Auto V",
+            "Open World Action",
+            "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600&auto=format&fit=crop&q=80",
+            "Los Santos open world campaign and multiplayer.",
+            110.0,
+            True,
+            now_iso,
+            now_iso,
+        ),
+        (
+            "cyberpunk-2077",
+            "Cyberpunk 2077",
+            "Action RPG",
+            "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&auto=format&fit=crop&q=80",
+            "Night City dystopian open world with full Ray Tracing and DLSS support.",
+            70.0,
+            True,
+            now_iso,
+            now_iso,
+        ),
+        (
+            "counter-strike-2",
+            "Counter-Strike 2",
+            "Competitive FPS",
+            "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=600&auto=format&fit=crop&q=80",
+            "Sub-tick tactical esports shooter running at ultra low latency.",
+            35.0,
+            True,
+            now_iso,
+            now_iso,
+        ),
+        (
+            "valorant",
+            "Valorant",
+            "Tactical Shooter",
+            "https://images.unsplash.com/photo-1563089145-599997674d42?w=600&auto=format&fit=crop&q=80",
+            "5v5 character-based competitive FPS.",
+            45.0,
+            True,
+            now_iso,
+            now_iso,
+        ),
+    ]
+
+    for g in sample_games:
+        cursor.execute("SELECT id FROM games WHERE slug = %s;", (g[0],))
+        existing = cursor.fetchone()
+        if not existing:
+            cursor.execute(
+                """
+                INSERT INTO games (slug, title, genre, cover_url, description, size_gb, enabled, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+                """,
+                g,
+            )
+
+    # 4. Seed Node Games (Manual per-node game installation configuration)
+    cursor.execute("SELECT COUNT(*) AS count FROM node_games;")
+    ng_row = cursor.fetchone()
+    if ng_row["count"] == 0:
+        # Fetch game IDs by slug
+        cursor.execute("SELECT id, slug FROM games;")
+        game_map = {row["slug"]: row["id"] for row in cursor.fetchall()}
+
+        # Fetch Host PC (node_id 1) and Cloud Rig 02 (node_id 2)
+        cursor.execute("SELECT id, is_host FROM machines ORDER BY id ASC;")
+        machine_rows = cursor.fetchall()
+        host_id = machine_rows[0]["id"] if machine_rows else 1
+        rig2_id = machine_rows[1]["id"] if len(machine_rows) > 1 else 2
+
+        node_configs = [
+            # Host PC games
             (
-                "Cyberpunk 2077",
-                "Action RPG",
-                "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&auto=format&fit=crop&q=80",
-                "Night City dystopian open world with full Ray Tracing and DLSS support.",
-                r"C:\Games\Cyberpunk2077\bin\x64\Cyberpunk2077.exe",
-                70.0,
-                "all",
+                host_id,
+                game_map["forza-horizon-4"],
+                r"C:\Games\Forza Horizon 4\ForzaHorizon4.exe",
+                r"C:\Games\Forza Horizon 4",
+                "",
+                True,
+                "ready",
+                now_iso,
                 now_iso,
             ),
             (
-                "Counter-Strike 2",
-                "Competitive FPS",
-                "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=600&auto=format&fit=crop&q=80",
-                "Sub-tick tactical esports shooter running at ultra low latency.",
-                r"C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\cs2.exe",
-                35.0,
-                "all",
+                host_id,
+                game_map["persona-3-reload"],
+                r"C:\Games\P3R\P3R.exe",
+                r"C:\Games\P3R",
+                "",
+                True,
+                "ready",
+                now_iso,
                 now_iso,
             ),
             (
-                "Black Myth: Wukong",
-                "Action RPG",
-                "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=600&auto=format&fit=crop&q=80",
-                "Unreal Engine 5 showcase rooted in Chinese mythology.",
-                r"C:\Games\b1\b1.exe",
-                130.0,
-                "1",
-                now_iso,
-            ),
-            (
-                "Valorant",
-                "Tactical Shooter",
-                "https://images.unsplash.com/photo-1563089145-599997674d42?w=600&auto=format&fit=crop&q=80",
-                "5v5 character-based competitive FPS.",
-                r"C:\Riot Games\VALORANT\live\VALORANT.exe",
-                45.0,
-                "all",
-                now_iso,
-            ),
-            (
-                "Grand Theft Auto V",
-                "Open World Action",
-                "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600&auto=format&fit=crop&q=80",
-                "Los Santos open world campaign and multiplayer.",
+                host_id,
+                game_map["gta-v"],
                 r"C:\Games\GTAV\GTA5.exe",
-                110.0,
-                "all",
+                r"C:\Games\GTAV",
+                "",
+                True,
+                "ready",
+                now_iso,
+                now_iso,
+            ),
+            (
+                host_id,
+                game_map["cyberpunk-2077"],
+                r"C:\Games\Cyberpunk2077\bin\x64\Cyberpunk2077.exe",
+                r"C:\Games\Cyberpunk2077",
+                "",
+                True,
+                "ready",
+                now_iso,
+                now_iso,
+            ),
+            (
+                host_id,
+                game_map["counter-strike-2"],
+                r"C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\cs2.exe",
+                r"C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive",
+                "-novid",
+                True,
+                "ready",
+                now_iso,
+                now_iso,
+            ),
+            # Cloud Rig 02 games
+            (
+                rig2_id,
+                game_map["counter-strike-2"],
+                r"D:\Steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\cs2.exe",
+                r"D:\Steam\steamapps\common\Counter-Strike Global Offensive",
+                "-novid",
+                True,
+                "ready",
+                now_iso,
+                now_iso,
+            ),
+            (
+                rig2_id,
+                game_map["valorant"],
+                r"C:\Riot Games\VALORANT\live\VALORANT.exe",
+                r"C:\Riot Games\VALORANT\live",
+                "",
+                True,
+                "ready",
+                now_iso,
                 now_iso,
             ),
         ]
+
         cursor.executemany(
             """
-            INSERT INTO games (title, genre, cover_url, description, exe_path, size_gb, installed_machines, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+            INSERT INTO node_games (node_id, game_id, executable_path, working_directory, launch_arguments, enabled, status, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (node_id, game_id) DO NOTHING;
             """,
-            sample_games,
+            node_configs,
         )
 
     conn.commit()
@@ -292,7 +450,8 @@ def create_booking_atomic(
 ) -> Dict[str, Any]:
     """Atomically check for conflicts and insert a booking with transaction row locking (FR-04, NFR-02).
     
-    If machine_id is omitted, automatically finds and allocates the best available gaming rig.
+    When game_id is specified, only gaming rigs where the administrator has configured
+    the game (node_games status = 'ready' and enabled = true) are eligible.
     """
     with get_db() as conn:
         cursor = conn.cursor()
@@ -307,13 +466,31 @@ def create_booking_atomic(
             # Auto-assign machine if none specified
             allocated_machine_id = machine_id
             if not allocated_machine_id:
-                # Find all active machines not under maintenance with FOR UPDATE lock
-                cursor.execute(
-                    "SELECT id, name FROM machines WHERE status != 'maintenance' ORDER BY is_host DESC, id ASC FOR UPDATE;"
-                )
+                if game_id:
+                    # Select machines where admin has explicitly configured this game as ready
+                    cursor.execute(
+                        """
+                        SELECT m.id, m.name 
+                        FROM machines m
+                        JOIN node_games ng ON m.id = ng.node_id
+                        WHERE ng.game_id = %s 
+                          AND ng.enabled = TRUE 
+                          AND ng.status = 'ready'
+                          AND m.status != 'maintenance'
+                        ORDER BY m.is_host DESC, m.id ASC FOR UPDATE;
+                        """,
+                        (game_id,),
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT id, name FROM machines WHERE status != 'maintenance' ORDER BY is_host DESC, id ASC FOR UPDATE;"
+                    )
                 available_candidates = cursor.fetchall()
                 if not available_candidates:
-                    raise ValueError("No gaming rigs are currently online.")
+                    if game_id:
+                        raise ValueError(f"Game '{game_title or game_id}' is not currently configured or ready on any online gaming PC.")
+                    else:
+                        raise ValueError("No gaming rigs are currently online.")
 
                 # Check each candidate for overlap
                 for cand in available_candidates:
@@ -332,7 +509,7 @@ def create_booking_atomic(
                         break
 
                 if not allocated_machine_id:
-                    raise BookingConflictError("All gaming servers are fully booked for this time slot. Please choose another time.")
+                    raise BookingConflictError("All gaming servers capable of running this title are fully booked for this time slot.")
 
             # 1. Verify machine exists, lock it, and check not under maintenance
             cursor.execute("SELECT id, name, status FROM machines WHERE id = %s FOR UPDATE;", (allocated_machine_id,))
@@ -341,6 +518,20 @@ def create_booking_atomic(
                 raise ValueError(f"Machine {allocated_machine_id} does not exist")
             if machine["status"] == "maintenance":
                 raise ValueError(f"Machine '{machine['name']}' is currently undergoing maintenance")
+
+            # Verify that the game is installed and ready on this specific machine
+            if game_id:
+                cursor.execute(
+                    """
+                    SELECT id, status, enabled FROM node_games
+                    WHERE node_id = %s AND game_id = %s;
+                    """,
+                    (allocated_machine_id, game_id),
+                )
+                ng = cursor.fetchone()
+                if not ng or not ng["enabled"] or ng["status"] != "ready":
+                    status_text = ng["status"] if ng else "not installed"
+                    raise ValueError(f"Game '{game_title or game_id}' is {status_text} on machine '{machine['name']}'.")
 
             # 2. Check for overlapping confirmed reservations on the allocated machine
             cursor.execute(
