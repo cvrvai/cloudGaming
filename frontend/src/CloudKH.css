@@ -3046,7 +3046,100 @@ input:-webkit-autofill:active {
   margin-top: 10px;
 }
 
-/* Genre Filter Scroll */
+/* Minimalist Sliding Segmented Genre Bar */
+.genre-segmented-wrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  overflow-x: auto;
+  padding: 2px 2px 8px 2px;
+  margin-bottom: 18px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.genre-segmented-wrapper::-webkit-scrollbar {
+  display: none;
+}
+
+.genre-segmented-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 5px;
+  background: rgba(14, 18, 36, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35), 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.genre-segmented-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.genre-segmented-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.genre-segmented-btn.active {
+  color: #ffffff;
+  font-weight: 700;
+  background: linear-gradient(135deg, rgba(0, 102, 255, 0.92), rgba(0, 210, 255, 0.95));
+  border-color: rgba(0, 220, 255, 0.4);
+  box-shadow: 0 4px 14px rgba(0, 140, 255, 0.38), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+}
+
+.genre-segmented-btn .genre-label {
+  line-height: 1;
+}
+
+.genre-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.genre-segmented-btn:hover:not(.active) .genre-count-badge {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.genre-segmented-btn.active .genre-count-badge {
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Genre Filter Scroll (Legacy fallback) */
 .genre-filter-scroll {
   display: flex;
   align-items: center;
@@ -4304,6 +4397,25 @@ input:-webkit-autofill:active {
     align-items: stretch !important;
     gap: 6px !important;
     margin-bottom: 8px !important;
+  }
+  .genre-segmented-wrapper {
+    margin-bottom: 12px !important;
+    padding-bottom: 4px !important;
+  }
+  .genre-segmented-bar {
+    padding: 3px 4px !important;
+    gap: 3px !important;
+  }
+  .genre-segmented-btn {
+    padding: 5px 12px !important;
+    font-size: 11px !important;
+    gap: 6px !important;
+  }
+  .genre-count-badge {
+    min-width: 16px !important;
+    height: 16px !important;
+    font-size: 9.5px !important;
+    padding: 0 4px !important;
   }
   .genre-filter-scroll {
     gap: 4px !important;

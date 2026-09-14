@@ -51,6 +51,11 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
     return () => clearInterval(timer);
   }, [featuredGames.length, isSearching]);
 
+  const getGenreCount = (genre) => {
+    if (genre === 'All') return games.length;
+    return games.filter((g) => g.genre === genre).length;
+  };
+
   return (
     <div className="geforce-games-container luna-games-container">
       {/* 1. Luna-Inspired Hero Billboard */}
@@ -164,17 +169,27 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
           )}
         </div>
 
-        {/* Genre Filter Pills */}
-        <div className="genre-filter-scroll">
-          {genres.map((genre) => (
-            <button
-              key={genre}
-              className={`genre-filter-btn ${selectedGenre === genre ? 'active' : ''}`}
-              onClick={() => setSelectedGenre(genre)}
-            >
-              {genre === 'All' ? 'All Games' : genre}
-            </button>
-          ))}
+        {/* Minimalist Sliding Segmented Bar */}
+        <div className="genre-segmented-wrapper">
+          <div className="genre-segmented-bar" role="tablist" aria-label="Game Genres">
+            {genres.map((genre) => {
+              const count = getGenreCount(genre);
+              const isActive = selectedGenre === genre;
+              return (
+                <button
+                  key={genre}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`genre-segmented-btn ${isActive ? 'active' : ''}`}
+                  onClick={() => setSelectedGenre(genre)}
+                >
+                  <span className="genre-label">{genre === 'All' ? 'All Games' : genre}</span>
+                  <span className="genre-count-badge">{count}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {loading ? (
