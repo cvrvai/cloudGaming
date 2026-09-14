@@ -21,6 +21,13 @@ import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 CONFIG_FILE = Path(__file__).resolve().parent / ".node_config.json"
 
 
@@ -157,10 +164,10 @@ def pair_pc(api_base: str, pair_code: str, custom_name: str = "") -> dict:
     print(f"URL: {url}")
     print(f"Pairing Code: {pair_code.strip()}")
     print("\nDetected Hardware:")
-    print(f"  • GPU: {specs['gpu']}")
-    print(f"  • CPU: {specs['cpu']}")
-    print(f"  • RAM: {specs['ram']}")
-    print(f"  • OS:  {specs['os']}")
+    print(f"  - GPU: {specs['gpu']}")
+    print(f"  - CPU: {specs['cpu']}")
+    print(f"  - RAM: {specs['ram']}")
+    print(f"  - OS:  {specs['os']}")
 
     try:
         resp = post_json(url, payload)
@@ -231,7 +238,7 @@ def main():
             result = pair_pc(api_base, pair_code, args.name)
             node_id = result.get("node_id") or result.get("machine", {}).get("id")
             machine_name = result.get("machine", {}).get("name") or "Gaming Rig Node"
-            print(f"\n[✓] {result.get('message', 'Pairing complete!')}")
+            print(f"\n[OK] {result.get('message', 'Pairing complete!')}")
 
             config = {
                 "api_base": api_base,
@@ -241,7 +248,7 @@ def main():
             }
             save_config(config)
         except Exception as e:
-            print(f"\n[✗] Pairing failed: {e}")
+            print(f"\n[FAIL] Pairing failed: {e}")
             sys.exit(1)
 
     api_base = args.api.strip() or config["api_base"]
