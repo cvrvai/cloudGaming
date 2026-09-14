@@ -67,25 +67,26 @@ function CloudKHPlatform() {
     }
   };
 
-  const handleSessionEnd = async () => {
-    try {
-      if (token) {
-        await fetch(`${API_BASE}/api/session/stop`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (activeSession?.booking_id) {
-          await fetch(`${API_BASE}/api/bookings/${activeSession.booking_id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` },
-          });
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to notify session stop or release booking:', e);
-    }
+  const handleSessionEnd = () => {
+    const stoppingSession = activeSession;
+    // Synchronously exit the stream player immediately (0ms delay) to prevent showing desktop
     setActiveSession(null);
     setActiveTab('bookings');
+
+    // Run backend teardown and booking release asynchronously in the background
+    if (token) {
+      fetch(`${API_BASE}/api/session/stop`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch((e) => console.warn('Failed to notify session stop:', e));
+
+      if (stoppingSession?.booking_id) {
+        fetch(`${API_BASE}/api/bookings/${stoppingSession.booking_id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch((e) => console.warn('Failed to release booking:', e));
+      }
+    }
   };
 
   return (

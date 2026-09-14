@@ -408,11 +408,11 @@ class GamingPCAgent:
             # Loop while any authorized game process is running
             while True:
                 if not self.is_game_running():
-                    # Grace period to prevent false triggers during level loads or transitions
-                    time.sleep(2.5)
+                    # Check once more quickly (0.2s) to prevent false triggers during process transitions
+                    time.sleep(0.2)
                     if not self.is_game_running():
                         break
-                time.sleep(1.0)
+                time.sleep(0.5)
 
             logger.info("[Watchdog] Game '%s' has stopped running. Triggering exit...", title)
             self._watchdog_active = False

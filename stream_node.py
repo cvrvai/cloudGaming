@@ -397,20 +397,26 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                             )
                         elif inp in ("stop_session", "exit_game", "STOP_GAME"):
                             ts = datetime.now().strftime("%H:%M:%S")
-                            print(f"\n[{ts}] [STREAM] Received '{inp}' signal via input channel. Stopping game & stream immediately...")
+                            print(f"\n[{ts}] [STREAM] Received '{inp}' signal via input channel. Stopping capture pipeline first, then game process...")
+                            try:
+                                stream_manager.close_all()
+                            except Exception as e:
+                                print(f"[{ts}] [!] Error closing stream manager: {e}")
                             try:
                                 host_agent.stop_game()
-                                stream_manager.close_all()
                             except Exception as exc:
                                 print(f"[{ts}] [!] Error stopping game on client request: {exc}")
 
                     # Handle direct session stop or exit command
                     elif msg_type in ("stop_session", "exit_game", "STOP_GAME", "STOP_SESSION"):
                         ts = datetime.now().strftime("%H:%M:%S")
-                        print(f"\n[{ts}] [STREAM] Received top-level '{msg_type}' request. Terminating game & stream immediately...")
+                        print(f"\n[{ts}] [STREAM] Received top-level '{msg_type}' request. Stopping capture pipeline first, then terminating game...")
+                        try:
+                            stream_manager.close_all()
+                        except Exception as e:
+                            print(f"[{ts}] [!] Error closing stream manager: {e}")
                         try:
                             host_agent.stop_game()
-                            stream_manager.close_all()
                         except Exception as exc:
                             print(f"[{ts}] [!] Error stopping game: {exc}")
 
@@ -423,9 +429,9 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                         print(f"\n[{ts}] [AGENT] Executing operation: {op}")
 
                         try:
-                            res = host_agent.dispatch(op, cmd_payload)
                             if op in ("STOP_GAME", "STOP_SESSION"):
                                 stream_manager.close_all()
+                            res = host_agent.dispatch(op, cmd_payload)
                             await ws.send(json.dumps({
                                 "type": "command_result",
                                 "correlation_id": corr_id,

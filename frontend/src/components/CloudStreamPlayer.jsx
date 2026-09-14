@@ -22,6 +22,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
   const [hudVisible, setHudVisible] = useState(true);
   const [gameExitedData, setGameExitedData] = useState(null);
   const [countdown, setCountdown] = useState(5);
+  const [isExiting, setIsExiting] = useState(false);
   const containerRef = useRef(null);
   const wsRef = useRef(null);
   const keySequenceRef = useRef(0);
@@ -49,6 +50,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
   }, [resetHudTimer]);
 
   const handleExitSession = useCallback(() => {
+    setIsExiting(true);
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       try {
         wsRef.current.send(JSON.stringify({
@@ -251,7 +253,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
       />
 
       <div className="stream-canvas-wrapper">
-        {!gameExitedData && gstreamerAvailable ? (
+        {isExiting ? null : !gameExitedData && gstreamerAvailable ? (
           <WebRTCPlayer
             serverIP={serverIP}
             apiBase={apiBase}

@@ -99,13 +99,13 @@ export default function Navbar({
 
         <div className="navbar-actions">
           {/* Integrated Top Search Input */}
-          <div className="navbar-search-box">
+          <div className={`navbar-search-box ${activeTab !== 'games' ? 'hide-on-mobile' : ''}`}>
             <span className="navbar-search-icon">
               <SearchIcon size={14} />
             </span>
             <input
               type="text"
-              placeholder="Search games..."
+              placeholder="Search..."
               value={searchQuery}
               onChange={(e) => {
                 if (onSearchChange) onSearchChange(e.target.value);

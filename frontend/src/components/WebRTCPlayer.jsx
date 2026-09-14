@@ -25,8 +25,20 @@ export default function WebRTCPlayer({ apiBase, quality = 'auto', showStats = tr
             statsTimerRef.current = null;
         }
         if (pcRef.current) {
-            pcRef.current.close();
+            try {
+                pcRef.current.close();
+            } catch {}
             pcRef.current = null;
+        }
+        if (videoRef.current) {
+            try {
+                videoRef.current.pause();
+                if (videoRef.current.srcObject) {
+                    const tracks = videoRef.current.srcObject.getTracks();
+                    tracks.forEach((track) => track.stop());
+                }
+                videoRef.current.srcObject = null;
+            } catch {}
         }
     }, []);
 

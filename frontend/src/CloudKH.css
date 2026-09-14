@@ -452,11 +452,14 @@
   }
 }
 
-@media (max-width: 680px) {
+@media (max-width: 768px) {
   .desktop-nav {
     display: none !important;
   }
   .desktop-only {
+    display: none !important;
+  }
+  .hide-on-mobile {
     display: none !important;
   }
   .navbar-actions {
@@ -465,17 +468,17 @@
     justify-content: flex-end;
   }
   .navbar-search-box {
-    flex: 1;
-    max-width: 200px;
+    flex: 0 1 150px;
+    max-width: 150px;
     width: auto;
   }
   .navbar-search-box:focus-within {
-    max-width: 220px;
+    max-width: 180px;
     width: auto;
   }
   .navbar-search-input {
     font-size: 11px;
-    padding: 6px 24px 6px 28px;
+    padding: 5px 20px 5px 26px;
   }
   .navbar-user-chip {
     padding: 2px;
@@ -1619,68 +1622,68 @@ input:-webkit-autofill:active {
 
 .countdown-timer-box {
   background: rgba(0, 0, 0, 0.4);
-  padding: 16px 20px;
-  border-radius: 14px;
+  padding: 8px 14px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .timer-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--text-2);
   letter-spacing: 0.5px;
 }
 
 .timer-digits {
-  font-size: 32px;
+  font-size: 20px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: #30d158;
-  text-shadow: 0 0 15px rgba(48, 209, 88, 0.5);
+  text-shadow: 0 0 10px rgba(48, 209, 88, 0.4);
 }
 
 .active-actions-row {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
   width: 100%;
 }
 
 .btn-launch-stream {
   flex: 1;
-  padding: 15px;
+  padding: 9px 16px;
   background: linear-gradient(135deg, #30d158, #1ea341);
   color: #000;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 800;
   border: none;
-  border-radius: 12px;
+  border-radius: 9px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   transition: transform 0.15s, box-shadow 0.15s;
-  box-shadow: 0 8px 24px rgba(48, 209, 88, 0.35);
+  box-shadow: 0 4px 16px rgba(48, 209, 88, 0.3);
 }
 
 .btn-launch-stream:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(48, 209, 88, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(48, 209, 88, 0.45);
 }
 
 .btn-cancel-active-session {
-  padding: 15px 22px;
+  padding: 9px 16px;
   background: rgba(255, 69, 58, 0.12);
   border: 1px solid rgba(255, 69, 58, 0.4);
   color: #ff453a;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
-  border-radius: 12px;
+  border-radius: 9px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -5534,40 +5537,57 @@ input:-webkit-autofill:active {
     font-size: 10px !important;
   }
   .active-booking-card {
+    display: flex !important;
     flex-direction: row !important;
-    padding: 8px !important;
-    gap: 8px !important;
-    border-radius: 10px !important;
+    align-items: center !important;
+    padding: 10px !important;
+    gap: 10px !important;
+    border-radius: 12px !important;
   }
   .booking-game-poster {
-    width: 70px !important;
-    height: 70px !important;
-    min-height: 70px !important;
-    border-radius: 6px !important;
+    width: 60px !important;
+    height: 60px !important;
+    min-height: 60px !important;
+    border-radius: 8px !important;
     flex-shrink: 0 !important;
   }
+  .active-card-body {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
   .active-game-name {
-    font-size: 14px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
     margin: 1px 0 !important;
   }
   .active-rig-title {
     font-size: 9px !important;
   }
   .countdown-timer-box {
-    padding: 3px 6px !important;
+    padding: 3px 8px !important;
     margin: 4px 0 !important;
-    border-radius: 5px !important;
+    border-radius: 6px !important;
   }
   .timer-label {
-    font-size: 7px !important;
+    font-size: 8px !important;
   }
   .timer-digits {
-    font-size: 15px !important;
+    font-size: 14px !important;
+  }
+  .active-actions-row {
+    display: flex !important;
+    gap: 6px !important;
   }
   .btn-launch-stream {
-    padding: 5px 10px !important;
-    font-size: 10px !important;
-    border-radius: 6px !important;
+    flex: 1 !important;
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+    border-radius: 7px !important;
+  }
+  .btn-cancel-active-session {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+    border-radius: 7px !important;
   }
   .upcoming-bookings-grid {
     grid-template-columns: 1fr !important;
@@ -5643,14 +5663,14 @@ input:-webkit-autofill:active {
   display: none;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 768px) and (orientation: portrait), (max-width: 768px) and (min-height: 521px) {
   .cloudkh-bottom-nav {
     display: flex !important;
     position: fixed !important;
     bottom: 0 !important;
     left: 0 !important;
     right: 0 !important;
-    height: 56px !important;
+    height: 52px !important;
     background: var(--navbar-bg, rgba(16, 27, 49, 0.96)) !important;
     backdrop-filter: blur(20px) !important;
     -webkit-backdrop-filter: blur(20px) !important;
@@ -5662,7 +5682,31 @@ input:-webkit-autofill:active {
     padding: 0 16px !important;
     padding-bottom: env(safe-area-inset-bottom, 0px) !important;
   }
+}
 
+/* Explicitly hide mobile bottom nav in landscape mode to eliminate dual navigation bars */
+@media (orientation: landscape) and (max-height: 520px), (max-height: 480px) {
+  .cloudkh-bottom-nav {
+    display: none !important;
+  }
+  .cloudkh-main-content {
+    padding-bottom: 12px !important;
+  }
+  .cloudkh-navbar {
+    padding: 4px 14px !important;
+    min-height: 42px !important;
+  }
+  .navbar-links.desktop-nav {
+    display: flex !important;
+    gap: 4px !important;
+  }
+  .nav-tab-btn {
+    padding: 4px 10px !important;
+    font-size: 11px !important;
+  }
+}
+
+@media (max-width: 768px) {
   .bottom-nav-item {
     flex: 1;
     display: flex;

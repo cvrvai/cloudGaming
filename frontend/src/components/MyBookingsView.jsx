@@ -200,7 +200,7 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
                       disabled={cancellingId === b.id}
                       title="Cancel session early and free up remaining time"
                     >
-                      {cancellingId === b.id ? 'Cancelling...' : 'Cancel Session'}
+                      {cancellingId === b.id ? 'Cancelling...' : 'Cancel'}
                     </button>
                   </div>
                 </div>
