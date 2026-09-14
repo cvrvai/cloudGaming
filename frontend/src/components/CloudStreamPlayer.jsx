@@ -33,6 +33,31 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
     }
   };
 
+  // Proactively ensure game process is launched on the host machine
+  useEffect(() => {
+    let triggered = false;
+    const ensureGameLaunched = async () => {
+      if (triggered || !sessionData?.booking_id) return;
+      triggered = true;
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          await fetch(`${apiBase}/api/session/verify`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ booking_id: sessionData.booking_id }),
+          });
+        }
+      } catch (e) {
+        console.debug('Session verify auto-launch check:', e);
+      }
+    };
+    ensureGameLaunched();
+  }, [apiBase, sessionData?.booking_id]);
+
   // Maintain persistent WebSocket connection to input service
   useEffect(() => {
     let ws = null;

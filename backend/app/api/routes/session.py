@@ -22,7 +22,7 @@ class AgentCommandRequest(BaseModel):
 
 
 @router.post("/verify")
-def verify_session_access(
+async def verify_session_access(
     req: VerifySessionRequest,
     current_user: Dict = Depends(get_current_user),
 ):
@@ -87,18 +87,16 @@ def verify_session_access(
         from app.services.streaming.manager import stream_manager
         if node_relay.is_node_connected(booking["machine_id"]):
             try:
-                import asyncio
-                asyncio.create_task(
-                    node_relay.forward_game_command(
-                        booking["machine_id"],
-                        "START_GAME",
-                        {
-                            "game_id": booking["game_id"],
-                            "user_id": booking["user_id"],
-                        },
-                    )
+                cmd_res = await node_relay.forward_game_command(
+                    booking["machine_id"],
+                    "START_GAME",
+                    {
+                        "game_id": booking["game_id"],
+                        "user_id": booking["user_id"],
+                    },
+                    timeout=8.0,
                 )
-                agent_launch_info = {"status": "command_dispatched_to_node", "node_id": booking["machine_id"]}
+                agent_launch_info = cmd_res.get("result", cmd_res)
             except Exception as e:
                 agent_launch_info = {"status": "warning", "error": str(e)}
         elif booking["is_host"] == 1 and stream_manager.available:
@@ -138,7 +136,7 @@ def verify_session_access(
 
 
 @router.post("/stop")
-def stop_session(
+async def stop_session(
     current_user: Dict = Depends(get_current_user),
 ):
     """End active streaming session, terminate game process, and archive saves."""
@@ -146,15 +144,17 @@ def stop_session(
     host_res = host_agent.stop_game()
 
     if node_relay.is_node_connected():
-        import asyncio
         for node_id in list(node_relay._nodes.keys()):
-            asyncio.create_task(node_relay.forward_game_command(node_id, "STOP_GAME"))
+            try:
+                await node_relay.forward_game_command(node_id, "STOP_GAME", timeout=4.0)
+            except Exception:
+                pass
 
     return {"status": "session_stopped", "host": host_res}
 
 
 @router.post("/agent/command")
-def dispatch_agent_command(
+async def dispatch_agent_command(
     req: AgentCommandRequest,
     admin_user: Dict = Depends(require_admin),
 ):

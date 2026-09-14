@@ -82,7 +82,7 @@ class NodeRelayManager:
         height: Optional[int] = None,
         fps: Optional[int] = None,
         bitrate: Optional[int] = None,
-        timeout: float = 12.0,
+        timeout: float = 20.0,
     ) -> dict:
         """Forward an SDP offer from a browser client to the specified gaming node, returning its SDP answer."""
         ws = self._nodes.get(node_id)
