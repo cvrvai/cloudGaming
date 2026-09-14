@@ -131,3 +131,114 @@ async def check_rate_limit(key: str, max_requests: int = 10, window_seconds: int
         return False
     _in_memory_cache[key] = (count + 1, expire_at)
     return True
+
+
+async def is_redis_online() -> bool:
+    """Check if Redis server is reachable."""
+    client = await get_redis_client()
+    if not client:
+        return False
+    try:
+        await client.ping()
+        return True
+    except Exception:
+        return False
+
+
+async def acquire_lock(lock_key: str, ttl_seconds: int = 10) -> bool:
+    """
+    Distributed mutual exclusion lock.
+    Returns True if lock acquired, False if already held.
+    """
+    client = await get_redis_client()
+    if client:
+        try:
+            # SET NX EX
+            res = await client.set(lock_key, "locked", nx=True, ex=ttl_seconds)
+            return bool(res)
+        except Exception as e:
+            logger.debug(f"[CACHE] Lock acquire error: {e}")
+
+    # In-memory lock fallback
+    now = time.time()
+    item = _in_memory_cache.get(lock_key)
+    if item and item[1] > now:
+        return False
+    _in_memory_cache[lock_key] = ("locked", now + ttl_seconds)
+    return True
+
+
+async def release_lock(lock_key: str) -> bool:
+    """Release distributed lock."""
+    return await cache_delete(lock_key)
+
+
+async def increment_dmaic_counter(metric: str, amount: int = 1) -> int:
+    """Increment real-time DMAIC Six Sigma telemetry metric."""
+    client = await get_redis_client()
+    key = f"dmaic:{metric}"
+    if client:
+        try:
+            return await client.incrby(key, amount)
+        except Exception:
+            pass
+
+    # In-memory fallback
+    item = _in_memory_cache.get(key)
+    current = int(item[0]) if item else 0
+    new_val = current + amount
+    _in_memory_cache[key] = (str(new_val), None)
+    return new_val
+
+
+async def record_dmaic_unique_user(user_id: Any) -> int:
+    """Record unique player in Redis HyperLogLog for Six Sigma population statistics."""
+    client = await get_redis_client()
+    key = "dmaic:unique_players_hll"
+    if client:
+        try:
+            await client.pfadd(key, str(user_id))
+            return await client.pfcount(key)
+        except Exception:
+            pass
+
+    # In-memory fallback
+    set_key = "dmaic:unique_players_set"
+    current_set = _in_memory_cache.setdefault(set_key, (set(), None))[0]
+    current_set.add(str(user_id))
+    return len(current_set)
+
+
+async def get_dmaic_redis_metrics() -> dict:
+    """Retrieve summarized DMAIC real-time telemetry metrics."""
+    client = await get_redis_client()
+    total_sessions = 0
+    today_sessions = 0
+    unique_users = 0
+    today_str = time.strftime("%Y-%m-%d")
+
+    if client:
+        try:
+            total_val = await client.get("dmaic:sessions:total")
+            total_sessions = int(total_val) if total_val else 0
+
+            today_val = await client.get(f"dmaic:sessions:{today_str}")
+            today_sessions = int(today_val) if today_val else 0
+
+            unique_users = await client.pfcount("dmaic:unique_players_hll")
+        except Exception as e:
+            logger.debug(f"[CACHE] Error fetching DMAIC metrics: {e}")
+    else:
+        tot = _in_memory_cache.get("dmaic:sessions:total")
+        total_sessions = int(tot[0]) if tot else 0
+        tod = _in_memory_cache.get(f"dmaic:sessions:{today_str}")
+        today_sessions = int(tod[0]) if tod else 0
+        s = _in_memory_cache.get("dmaic:unique_players_set")
+        unique_users = len(s[0]) if s else 0
+
+    return {
+        "redis_connected": await is_redis_online(),
+        "total_sessions_launched": total_sessions,
+        "today_sessions": today_sessions,
+        "unique_beta_players": unique_users,
+    }

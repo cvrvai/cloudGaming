@@ -39,50 +39,69 @@ class GameUpdateRequest(BaseModel):
 
 
 @router.get("")
-def list_games():
+async def list_games():
     """List all games in the platform catalog with node installation counts."""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT g.id, g.slug, g.title, g.title as name, g.genre, g.cover_url, g.cover_url as cover_image_url,
-                   g.description, g.size_gb, g.enabled, g.created_at, g.updated_at,
-                   COALESCE(
-                       json_agg(
-                           json_build_object(
-                               'node_id', ng.node_id,
-                               'enabled', ng.enabled,
-                               'status', ng.status,
-                               'machine_status', m.status
-                           )
-                       ) FILTER (WHERE ng.id IS NOT NULL), '[]'::json
-                   ) as node_installs
-            FROM games g
-            LEFT JOIN node_games ng ON g.id = ng.game_id
-            LEFT JOIN machines m ON ng.node_id = m.id
-            GROUP BY g.id
-            ORDER BY g.id DESC;
-            """
-        )
-        games = [dict(row) for row in cursor.fetchall()]
+    import json
+    from app.core.redis import cache_get, cache_set
 
-        # Format backward compatible fields and calculate online nodes
-        for g in games:
-            installs = g.pop("node_installs", []) or []
-            total_nodes = len(installs)
-            ready_count = 0
-            for inst in installs:
-                nid = inst.get("node_id")
-                if inst.get("enabled") and inst.get("status") == "ready":
-                    # Only count as ready if the node WebSocket relay is actually connected or machine is marked available
-                    if (nid and node_relay.is_node_connected(nid)) or inst.get("machine_status") == "available":
-                        ready_count += 1
-            g["ready_nodes_count"] = ready_count
-            g["installed_machines_count"] = total_nodes
-            g["is_online"] = ready_count > 0
-            g["installed_machines"] = f"{total_nodes} Gaming Rig{'s' if total_nodes != 1 else ''}" if total_nodes > 0 else "None yet"
+    # Check high-speed Redis cache
+    cached = await cache_get("catalog:games:raw")
+    if cached:
+        try:
+            games_raw = json.loads(cached)
+        except Exception:
+            games_raw = None
+    else:
+        games_raw = None
 
-        return games
+    if games_raw is None:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT g.id, g.slug, g.title, g.title as name, g.genre, g.cover_url, g.cover_url as cover_image_url,
+                       g.description, g.size_gb, g.enabled, g.created_at, g.updated_at,
+                       COALESCE(
+                           json_agg(
+                               json_build_object(
+                                   'node_id', ng.node_id,
+                                   'enabled', ng.enabled,
+                                   'status', ng.status,
+                                   'machine_status', m.status
+                               )
+                           ) FILTER (WHERE ng.id IS NOT NULL), '[]'::json
+                       ) as node_installs
+                FROM games g
+                LEFT JOIN node_games ng ON g.id = ng.game_id
+                LEFT JOIN machines m ON ng.node_id = m.id
+                GROUP BY g.id
+                ORDER BY g.id DESC;
+                """
+            )
+            games_raw = [dict(row) for row in cursor.fetchall()]
+            # Cache in Redis with 30s TTL
+            await cache_set("catalog:games:raw", json.dumps(games_raw, default=str), ttl_seconds=30)
+
+    import copy
+    games = copy.deepcopy(games_raw)
+
+    # Format backward compatible fields and calculate live online nodes
+    for g in games:
+        installs = g.pop("node_installs", []) or []
+        total_nodes = len(installs)
+        ready_count = 0
+        for inst in installs:
+            nid = inst.get("node_id")
+            if inst.get("enabled") and inst.get("status") == "ready":
+                # Only count as ready if the node WebSocket relay is actually connected or machine is marked available
+                if (nid and node_relay.is_node_connected(nid)) or inst.get("machine_status") == "available":
+                    ready_count += 1
+        g["ready_nodes_count"] = ready_count
+        g["installed_machines_count"] = total_nodes
+        g["is_online"] = ready_count > 0
+        g["installed_machines"] = f"{total_nodes} Gaming Rig{'s' if total_nodes != 1 else ''}" if total_nodes > 0 else "None yet"
+
+    return games
 
 
 @router.get("/{game_id}")
@@ -119,11 +138,13 @@ def get_game(game_id: str):
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-def add_game(
+async def add_game(
     req: GameCreateRequest,
     admin_user: Dict = Depends(require_admin),
 ):
     """Admin-only: Add a new game to the central platform catalog."""
+    from app.core.redis import cache_delete
+    await cache_delete("catalog:games:raw")
     now_iso = datetime.now(timezone.utc).isoformat()
     slug_val = req.slug.strip().lower() if req.slug else _slugify(req.title)
 
@@ -176,12 +197,14 @@ def add_game(
 
 
 @router.put("/{game_id}")
-def update_game(
+async def update_game(
     game_id: int,
     req: GameUpdateRequest,
     admin_user: Dict = Depends(require_admin),
 ):
     """Admin-only: Update an existing game in the catalog."""
+    from app.core.redis import cache_delete
+    await cache_delete("catalog:games:raw")
     now_iso = datetime.now(timezone.utc).isoformat()
     with get_db() as conn:
         cursor = conn.cursor()
@@ -230,11 +253,13 @@ def update_game(
 
 
 @router.delete("/{game_id}")
-def delete_game(
+async def delete_game(
     game_id: int,
     admin_user: Dict = Depends(require_admin),
 ):
     """Admin-only: Remove a game from the platform catalog."""
+    from app.core.redis import cache_delete
+    await cache_delete("catalog:games:raw")
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM games WHERE id = %s;", (game_id,))

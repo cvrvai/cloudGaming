@@ -20,11 +20,20 @@ class CreateBookingRequest(BaseModel):
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-def create_booking(
+async def create_booking(
     req: CreateBookingRequest,
     current_user: Dict = Depends(get_current_user),
 ):
     """Create a conflict-free reservation for a gaming PC (FR-03, FR-04, NFR-02)."""
+    # 1. Anti-Spam Rate Limiter: Max 5 booking requests per minute per user
+    from app.core.redis import check_rate_limit, acquire_lock, release_lock, increment_dmaic_counter, record_dmaic_unique_user
+    allowed = await check_rate_limit(f"rate:booking:{current_user['id']}", max_requests=5, window_seconds=60)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many booking requests. Please wait 1 minute before booking again.",
+        )
+
     try:
         start_dt = datetime.fromisoformat(req.start_time.replace("Z", "+00:00"))
         end_dt = datetime.fromisoformat(req.end_time.replace("Z", "+00:00"))
@@ -85,6 +94,15 @@ def create_booking(
     start_iso = start_dt.isoformat()
     end_iso = end_dt.isoformat()
 
+    # 2. Concurrency Lock: Prevent simultaneous double-booking on the exact same rig
+    target_node = req.machine_id or 2
+    lock_key = f"lock:slot:machine:{target_node}"
+    if not await acquire_lock(lock_key, ttl_seconds=6):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Gaming rig slot is currently being claimed by another user. Please try again in a few seconds.",
+        )
+
     try:
         booking = create_booking_atomic(
             user_id=current_user["id"],
@@ -94,6 +112,10 @@ def create_booking(
             start_iso=start_iso,
             end_iso=end_iso,
         )
+        # Record real-time Lean Six Sigma DMAIC telemetry
+        await increment_dmaic_counter("sessions:total")
+        await increment_dmaic_counter(f"sessions:{datetime.now().strftime('%Y-%m-%d')}")
+        await record_dmaic_unique_user(current_user["id"])
         return booking
     except BookingConflictError as exc:
         raise HTTPException(
@@ -105,6 +127,8 @@ def create_booking(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         )
+    finally:
+        await release_lock(lock_key)
 
 
 @router.get("/quota")

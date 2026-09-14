@@ -34,7 +34,7 @@ class LogTestRecordRequest(BaseModel):
 
 
 @router.get("/metrics")
-def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
+async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     """Calculate real-time Lean Six Sigma DMAIC Critical to Quality (CTQ) metrics.
     
     1. Choonvai: CTQ 1 - Cloud Gaming Latency & Stream Quality (target <= 100ms)
@@ -42,6 +42,7 @@ def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     3. Lim Hokann: CTQ 3 - Booking Waiting Time & Rig Capacity
     4. Hour: CTQ 4 - Successful Session Completion Rate (target >= 95%)
     """
+    from app.core.redis import get_dmaic_redis_metrics
     now_iso = datetime.now(timezone.utc).isoformat()
 
     with get_db() as conn:
@@ -164,6 +165,7 @@ def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
             "pass_status": completion_rate >= 95.0,
             "failure_breakdown": failure_breakdown,
         },
+        "realtime_redis_telemetry": await get_dmaic_redis_metrics(),
         "dmaic_meta": {
             "project_name": "CloudKH Cloud Gaming MVP",
             "organization": "CloudKH",

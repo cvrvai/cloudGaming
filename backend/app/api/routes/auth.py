@@ -75,31 +75,21 @@ class ChangePasswordRequest(BaseModel):
 
 
 @router.post("/register")
-def register(req: RegisterRequest, request: Request):
+async def register(req: RegisterRequest, request: Request):
     """Register a new player/user account (FR-01)."""
     email_clean = req.email.lower().strip()
     name_clean = req.name.strip()
     client_ip = request.client.host if request.client else None
 
-    # Anti-Spam Protection: Limit to max 3 registrations per IP per 24 hours
+    # Anti-Spam Protection via Redis Rate Limiter: Max 3 accounts per 24 hours per IP
     if client_ip and client_ip not in ("127.0.0.1", "localhost", "testclient"):
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT COUNT(*) as count FROM audit_logs
-                WHERE action = 'USER_REGISTERED'
-                  AND ip = %s
-                  AND timestamp::timestamptz > (NOW() - INTERVAL '24 hours');
-                """,
-                (client_ip,),
+        from app.core.redis import check_rate_limit
+        allowed = await check_rate_limit(f"rate:register:{client_ip}", max_requests=3, window_seconds=86400)
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Registration limit reached for this network (max 3 accounts per day). To maintain fair gaming rig capacity during beta testing, please sign in to your existing account.",
             )
-            reg_count = cursor.fetchone()["count"]
-            if reg_count >= 3:
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="Registration limit reached for this network (max 3 accounts per day). To maintain fair gaming rig capacity during beta testing, please sign in to your existing account.",
-                )
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -151,10 +141,20 @@ def register(req: RegisterRequest, request: Request):
 
 
 @router.post("/login")
-def login(req: LoginRequest, request: Request):
+async def login(req: LoginRequest, request: Request):
     """Authenticate credentials; returns user token for students, or MFA challenge for administrators."""
     email_clean = req.email.lower().strip()
     client_ip = request.client.host if request.client else None
+
+    # Redis Anti-Brute-Force Rate Limiting (max 10 login attempts per 5 minutes per email/IP)
+    if client_ip and client_ip not in ("127.0.0.1", "localhost", "testclient"):
+        from app.core.redis import check_rate_limit
+        allowed = await check_rate_limit(f"rate:login:{email_clean}:{client_ip}", max_requests=10, window_seconds=300)
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many login attempts. Please wait 5 minutes before trying again.",
+            )
 
     with get_db() as conn:
         cursor = conn.cursor()

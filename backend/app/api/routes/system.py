@@ -24,6 +24,9 @@ async def system_info(machine_id: Optional[int] = None) -> dict:
         node_available = True
         active_node = node_relay.get_any_connected_node_id()
 
+    from app.core.redis import is_redis_online
+    redis_online = await is_redis_online()
+
     return {
         "server_ip": get_local_ip(),
         "port": settings.port,
@@ -37,4 +40,5 @@ async def system_info(machine_id: Optional[int] = None) -> dict:
         "gstreamer_available": node_available,
         "node_connected": node_relay.is_node_connected(machine_id),
         "active_node_id": active_node,
+        "redis_connected": redis_online,
     }
