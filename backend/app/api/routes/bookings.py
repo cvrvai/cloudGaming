@@ -131,15 +131,17 @@ def get_my_bookings(current_user: Dict = Depends(get_current_user)):
 
 
 @router.delete("/{booking_id}")
-def cancel_booking(
+async def cancel_booking(
     booking_id: int,
     current_user: Dict = Depends(get_current_user),
 ):
-    """Cancel a confirmed booking."""
+    """Cancel a confirmed booking, freeing remaining reserved time and terminating active stream if running."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, user_id, status, start_time FROM bookings WHERE id = %s;",
+            "SELECT id, user_id, machine_id, game_id, status, start_time, end_time FROM bookings WHERE id = %s;",
             (booking_id,),
         )
         booking = cursor.fetchone()
@@ -152,13 +154,39 @@ def cancel_booking(
         if booking["status"] != "confirmed":
             raise HTTPException(status_code=400, detail=f"Booking is already {booking['status']}.")
 
-        cursor.execute(
-            "UPDATE bookings SET status = 'cancelled' WHERE id = %s;",
-            (booking_id,),
-        )
+        is_active = booking["start_time"] <= now_iso <= booking["end_time"]
+
+        # If booking is actively running, truncate end_time to now so remaining time slot is immediately released!
+        if is_active:
+            cursor.execute(
+                "UPDATE bookings SET status = 'cancelled', end_time = %s WHERE id = %s;",
+                (now_iso, booking_id),
+            )
+        else:
+            cursor.execute(
+                "UPDATE bookings SET status = 'cancelled' WHERE id = %s;",
+                (booking_id,),
+            )
         conn.commit()
 
-    return {"message": "Reservation cancelled successfully."}
+    # If this was an active session, stop game process and tear down capture pipeline
+    if is_active:
+        try:
+            from app.services.agent import host_agent
+            from app.services.streaming.manager import stream_manager
+            from app.services.streaming.node_relay import node_relay
+
+            if stream_manager.available:
+                stream_manager.close_all()
+                host_agent.stop_game()
+
+            target_machine = booking.get("machine_id")
+            if target_machine and node_relay.is_node_connected(target_machine):
+                await node_relay.forward_game_command(target_machine, "STOP_GAME", timeout=4.0)
+        except Exception:
+            pass
+
+    return {"message": "Reservation cancelled and session ended successfully. Remaining time slot released."}
 
 
 @router.get("/admin/all")

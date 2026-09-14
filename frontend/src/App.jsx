@@ -74,9 +74,15 @@ function CloudKHPlatform() {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
         });
+        if (activeSession?.booking_id) {
+          await fetch(`${API_BASE}/api/bookings/${activeSession.booking_id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        }
       }
     } catch (e) {
-      console.warn('Failed to notify session stop:', e);
+      console.warn('Failed to notify session stop or release booking:', e);
     }
     setActiveSession(null);
     setActiveTab('bookings');

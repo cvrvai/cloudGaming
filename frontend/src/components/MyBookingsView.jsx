@@ -46,8 +46,11 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
     return () => clearInterval(interval);
   }, [token]);
 
-  const handleCancelBooking = async (bookingId) => {
-    if (!window.confirm('Are you sure you want to cancel this reservation?')) return;
+  const handleCancelBooking = async (bookingId, isActive = false) => {
+    const confirmMsg = isActive
+      ? 'Cancel this active session early? This will end the stream immediately, free up the gaming rig, and save remaining time.'
+      : 'Are you sure you want to cancel this reservation?';
+    if (!window.confirm(confirmMsg)) return;
     setCancellingId(bookingId);
     try {
       const res = await fetch(`${API_BASE}/api/bookings/${bookingId}`, {
@@ -147,6 +150,14 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
                       onClick={() => onLaunchSession(b)}
                     >
                       <RocketIcon size={16} /> Launch Stream
+                    </button>
+                    <button
+                      className="btn-cancel-active-session"
+                      onClick={() => handleCancelBooking(b.id, true)}
+                      disabled={cancellingId === b.id}
+                      title="Cancel session early and free up remaining time"
+                    >
+                      {cancellingId === b.id ? 'Cancelling...' : 'Cancel Session'}
                     </button>
                   </div>
                 </div>

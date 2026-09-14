@@ -1643,8 +1643,15 @@ input:-webkit-autofill:active {
   text-shadow: 0 0 15px rgba(48, 209, 88, 0.5);
 }
 
-.btn-launch-stream {
+.active-actions-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
   width: 100%;
+}
+
+.btn-launch-stream {
+  flex: 1;
   padding: 15px;
   background: linear-gradient(135deg, #30d158, #1ea341);
   color: #000;
@@ -1653,6 +1660,10 @@ input:-webkit-autofill:active {
   border: none;
   border-radius: 12px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   transition: transform 0.15s, box-shadow 0.15s;
   box-shadow: 0 8px 24px rgba(48, 209, 88, 0.35);
 }
@@ -1660,6 +1671,35 @@ input:-webkit-autofill:active {
 .btn-launch-stream:hover {
   transform: translateY(-2px);
   box-shadow: 0 12px 32px rgba(48, 209, 88, 0.5);
+}
+
+.btn-cancel-active-session {
+  padding: 15px 22px;
+  background: rgba(255, 69, 58, 0.12);
+  border: 1px solid rgba(255, 69, 58, 0.4);
+  color: #ff453a;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.btn-cancel-active-session:hover:not(:disabled) {
+  background: rgba(255, 69, 58, 0.25);
+  border-color: #ff453a;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(255, 69, 58, 0.35);
+}
+
+.btn-cancel-active-session:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .upcoming-bookings-grid {
