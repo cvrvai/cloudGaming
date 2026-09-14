@@ -169,22 +169,27 @@ async def cancel_booking(
             )
         conn.commit()
 
-    # If this was an active session, stop game process and tear down capture pipeline
-    if is_active:
-        try:
-            from app.services.agent import host_agent
-            from app.services.streaming.manager import stream_manager
-            from app.services.streaming.node_relay import node_relay
+    # Stop game process and tear down capture pipeline for this booking
+    try:
+        from app.services.agent import host_agent
+        from app.services.streaming.manager import stream_manager
+        from app.services.streaming.node_relay import node_relay
 
-            if stream_manager.available:
-                stream_manager.close_all()
-                host_agent.stop_game()
+        if stream_manager.available:
+            stream_manager.close_all()
+        host_agent.stop_game()
 
-            target_machine = booking.get("machine_id")
-            if target_machine and node_relay.is_node_connected(target_machine):
-                await node_relay.forward_game_command(target_machine, "STOP_GAME", timeout=4.0)
-        except Exception:
-            pass
+        target_machine = booking.get("machine_id")
+        if target_machine and node_relay.is_node_connected(target_machine):
+            await node_relay.forward_game_command(target_machine, "STOP_GAME", timeout=4.0)
+        elif node_relay.is_node_connected():
+            for nid in list(node_relay._nodes.keys()):
+                try:
+                    await node_relay.forward_game_command(nid, "STOP_GAME", timeout=4.0)
+                except Exception:
+                    pass
+    except Exception as exc:
+        logger.debug("Failed to notify nodes of booking cancellation: %s", exc)
 
     return {"message": "Reservation cancelled and session ended successfully. Remaining time slot released."}
 

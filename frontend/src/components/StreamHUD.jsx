@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
-import { ClockIcon, HourglassIcon } from './Icons';
+import { ClockIcon, HourglassIcon, GamepadIcon, MouseIcon, MaximizeIcon, MinimizeIcon } from './Icons';
 
-export default function StreamHUD({ sessionData, onSessionEnd }) {
+export default function StreamHUD({
+  sessionData,
+  onSessionEnd,
+  hudVisible = true,
+  onShowHud,
+  inputMode = 'desktop',
+  onToggleInputMode,
+  isFullscreen = false,
+  onToggleFullscreen,
+}) {
   const [remainingSeconds, setRemainingSeconds] = useState(
     sessionData?.remaining_seconds || 60
   );
@@ -31,24 +40,74 @@ export default function StreamHUD({ sessionData, onSessionEnd }) {
 
   return (
     <>
-      <div className={`stream-top-hud ${isWarning ? 'timer-warning-pulse' : ''}`}>
+      {/* Subtle top-center notch/tab to summon HUD when faded out */}
+      {!hudVisible && (
+        <button
+          type="button"
+          className="hud-summon-tab"
+          onClick={onShowHud}
+          title="Tap to reveal controls"
+          aria-label="Reveal stream controls"
+        >
+          <span className="hud-summon-dot" />
+          <span className="hud-summon-time">{timeFormatted}</span>
+        </button>
+      )}
+
+      {/* Main consolidated floating HUD */}
+      <div
+        className={`stream-top-hud ${hudVisible ? 'hud-visible' : 'hud-hidden'} ${isWarning ? 'timer-warning-pulse' : ''}`}
+        role="region"
+        aria-label="Stream controls"
+      >
         <div className="hud-machine-meta">
           <span className="hud-live-dot" />
-          <span className="hud-rig-name">{sessionData?.machine_name || 'Gaming Rig'}</span>
-          <span className="hud-user-tag">{sessionData?.user_name}</span>
+          <span className="hud-rig-name">{sessionData?.machine_name || 'Host Rig'}</span>
         </div>
 
-        <div className="hud-timer-pill">
+        <div className="hud-timer-pill" title="Remaining session time">
           <span className="hud-timer-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
-            <ClockIcon size={14} />
+            <ClockIcon size={13} />
           </span>
           <span className="hud-time-val">{timeFormatted}</span>
           {isWarning && <span className="hud-warn-badge">Ending Soon</span>}
         </div>
 
-        <button className="hud-exit-btn" onClick={onSessionEnd} title="Exit Game Stream">
-          Exit Session
-        </button>
+        <div className="hud-actions-group">
+          {onToggleInputMode && (
+            <button
+              type="button"
+              className="hud-icon-btn"
+              onClick={onToggleInputMode}
+              title={inputMode === 'controller' ? 'Switch to Keyboard & Mouse' : 'Switch to Virtual Gamepad'}
+              aria-label="Toggle input mode"
+            >
+              {inputMode === 'controller' ? <GamepadIcon size={15} /> : <MouseIcon size={15} />}
+              <span className="hud-btn-text">{inputMode === 'controller' ? 'Gamepad' : 'Keys'}</span>
+            </button>
+          )}
+
+          {onToggleFullscreen && (
+            <button
+              type="button"
+              className="hud-icon-btn"
+              onClick={onToggleFullscreen}
+              title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+              aria-label="Toggle fullscreen"
+            >
+              {isFullscreen ? <MinimizeIcon size={14} /> : <MaximizeIcon size={14} />}
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="hud-exit-btn"
+            onClick={onSessionEnd}
+            title="Exit game & terminate remote session"
+          >
+            Exit
+          </button>
+        </div>
       </div>
 
       {/* Session Cutoff Modal (FR-05 & MoSCoW MVP Success Criteria) */}
@@ -61,14 +120,14 @@ export default function StreamHUD({ sessionData, onSessionEnd }) {
             <h2>Session Time Concluded</h2>
             <p className="cutoff-message">
               Your reserved time slot on <strong>{sessionData?.machine_name}</strong> has reached its scheduled
-              conclusion. The stream has been cleanly ended to release the rig for the next student.
+              conclusion. The game process was terminated immediately to release the rig for the next student.
             </p>
             <div className="cutoff-meta-summary">
               <span>Machine: {sessionData?.machine_name}</span>
               <span>Student: {sessionData?.user_name}</span>
-              <span>Status: Slot Completed</span>
+              <span>Status: Slot Completed & Game Exited</span>
             </div>
-            <button className="btn-primary cutoff-return-btn" onClick={onSessionEnd}>
+            <button type="button" className="btn-primary cutoff-return-btn" onClick={onSessionEnd}>
               Return to Dashboard
             </button>
           </div>

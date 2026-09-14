@@ -1858,78 +1858,136 @@ input:-webkit-autofill:active {
 }
 
 /* Stream HUD Floating Bar */
+/* Stream HUD Floating Bar */
 .stream-top-hud {
   position: fixed;
-  top: 16px;
+  top: 14px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10000;
-  background: rgba(13, 16, 23, 0.85);
+  background: rgba(10, 14, 23, 0.85);
   backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-  padding: 8px 18px;
-  border-radius: 30px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+  padding: 6px 14px;
+  border-radius: 999px;
   display: flex;
   align-items: center;
-  gap: 20px;
-  transition: border-color 0.3s;
+  gap: 12px;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.3s;
+  user-select: none;
+}
+
+.stream-top-hud.hud-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -12px);
+}
+
+.stream-top-hud.hud-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
+.hud-summon-tab {
+  position: fixed;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  background: rgba(10, 14, 23, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 3px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.hud-summon-tab:hover {
+  background: rgba(20, 26, 40, 0.9);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translate(-50%, 2px);
+}
+
+.hud-summon-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #30d158;
+  box-shadow: 0 0 6px #30d158;
+}
+
+.hud-summon-time {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.75);
+  font-variant-numeric: tabular-nums;
 }
 
 .hud-machine-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 }
 
 .hud-live-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: #30d158;
   box-shadow: 0 0 8px #30d158;
 }
 
 .hud-rig-name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: #fff;
 }
 
 .hud-user-tag {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-3);
   background: rgba(255, 255, 255, 0.08);
-  padding: 2px 6px;
+  padding: 1px 5px;
   border-radius: 4px;
 }
 
 .hud-timer-pill {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: rgba(0, 0, 0, 0.4);
-  padding: 4px 10px;
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 3px 9px;
   border-radius: 20px;
 }
 
 .hud-timer-icon {
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .hud-time-val {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: #30d158;
 }
 
 .hud-warn-badge {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
   background: #ffd60a;
   color: #000;
-  padding: 1px 5px;
+  padding: 1px 4px;
   border-radius: 4px;
 }
 
@@ -1944,19 +2002,81 @@ input:-webkit-autofill:active {
   100% { box-shadow: 0 0 10px rgba(255, 214, 10, 0.3); }
 }
 
+.hud-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.hud-icon-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.85);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hud-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
 .hud-exit-btn {
   background: rgba(255, 69, 58, 0.2);
-  border: 1px solid rgba(255, 69, 58, 0.4);
-  color: #ff453a;
-  font-size: 12px;
+  border: 1px solid rgba(255, 69, 58, 0.45);
+  color: #ff5b52;
+  font-size: 11px;
   font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
   cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .hud-exit-btn:hover {
-  background: rgba(255, 69, 58, 0.35);
+  background: rgba(255, 69, 58, 0.4);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(255, 69, 58, 0.4);
+}
+
+@media (max-width: 768px), (max-height: 500px) {
+  .stream-top-hud {
+    top: 6px;
+    padding: 3px 8px;
+    gap: 6px;
+  }
+
+  .hud-rig-name {
+    font-size: 11px;
+  }
+
+  .hud-time-val {
+    font-size: 11px;
+  }
+
+  .hud-btn-text {
+    display: none;
+  }
+
+  .hud-icon-btn {
+    padding: 3px 6px;
+  }
+
+  .hud-exit-btn {
+    padding: 2px 7px;
+    font-size: 10px;
+  }
 }
 
 /* Cutoff Modal */
@@ -2434,6 +2554,20 @@ input:-webkit-autofill:active {
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   z-index: 10001;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.stream-bottom-controls.hud-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 14px);
+}
+
+.stream-bottom-controls.hud-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
 }
 
 .stream-control-btn {

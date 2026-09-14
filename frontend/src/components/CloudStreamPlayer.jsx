@@ -5,16 +5,62 @@ import GamepadController from './GamepadController';
 import { AlertTriangleIcon, RefreshIcon, MouseIcon, GamepadIcon, CheckIcon, MaximizeIcon, MinimizeIcon } from './Icons';
 import { INPUT_WS_URL } from '../config';
 
+const isTouchDevice = () => {
+  if (typeof window === 'undefined') return false;
+  return (
+    'ontouchstart' in window ||
+    navigator.maxTouchPoints > 0 ||
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  );
+};
+
 export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, serverIP }) {
   const [gstreamerAvailable, setGstreamerAvailable] = useState(null); // null: checking, true: ok, false: offline
-  const [inputMode, setInputMode] = useState('desktop'); // desktop | controller
+  const [inputMode, setInputMode] = useState(() => (isTouchDevice() ? 'controller' : 'desktop')); // auto-detect mobile
   const [wsConnected, setWsConnected] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hudVisible, setHudVisible] = useState(true);
   const [gameExitedData, setGameExitedData] = useState(null);
   const [countdown, setCountdown] = useState(5);
   const containerRef = useRef(null);
   const wsRef = useRef(null);
   const keySequenceRef = useRef(0);
+  const hudTimerRef = useRef(null);
+
+  // Auto-hide HUD after 3.5 seconds of inactivity
+  const resetHudTimer = useCallback(() => {
+    setHudVisible(true);
+    if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
+    hudTimerRef.current = setTimeout(() => {
+      setHudVisible(false);
+    }, 3500);
+  }, []);
+
+  useEffect(() => {
+    resetHudTimer();
+    return () => {
+      if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
+    };
+  }, [resetHudTimer]);
+
+  const toggleInputMode = useCallback(() => {
+    setInputMode((prev) => (prev === 'controller' ? 'desktop' : 'controller'));
+    resetHudTimer();
+  }, [resetHudTimer]);
+
+  const handleExitSession = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      try {
+        wsRef.current.send(JSON.stringify({
+          type: 'stop_session',
+          node_id: sessionData?.machine_id,
+        }));
+      } catch (e) {
+        console.warn('Failed to send stop_session over input WS:', e);
+      }
+    }
+    onSessionEnd?.();
+  }, [onSessionEnd, sessionData?.machine_id]);
 
   // Fullscreen state listener
   useEffect(() => {
@@ -26,6 +72,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
   }, []);
 
   const toggleFullscreen = () => {
+    resetHudTimer();
     if (!document.fullscreenElement) {
       containerRef.current?.requestFullscreen().catch(() => {});
     } else {
@@ -186,8 +233,22 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
   }, [apiBase, sessionData]);
 
   return (
-    <div className="cloud-stream-player-container" ref={containerRef}>
-      <StreamHUD sessionData={sessionData} onSessionEnd={onSessionEnd} />
+    <div
+      className="cloud-stream-player-container"
+      ref={containerRef}
+      onMouseMove={resetHudTimer}
+      onTouchStart={resetHudTimer}
+    >
+      <StreamHUD
+        sessionData={sessionData}
+        onSessionEnd={handleExitSession}
+        hudVisible={hudVisible}
+        onShowHud={resetHudTimer}
+        inputMode={inputMode}
+        onToggleInputMode={toggleInputMode}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={toggleFullscreen}
+      />
 
       <div className="stream-canvas-wrapper">
         {!gameExitedData && gstreamerAvailable ? (
@@ -196,7 +257,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
             apiBase={apiBase}
             machineId={sessionData?.machine_id}
             quality="auto"
-            showStats={true}
+            showStats={false}
           />
         ) : gameExitedData ? (
           <div className="stream-connecting-box glass-panel" style={{ maxWidth: '460px', padding: '28px' }}>
@@ -236,7 +297,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
                 <RefreshIcon size={14} />
                 <span>Retry Connection</span>
               </button>
-              <button className="btn-secondary" onClick={onSessionEnd} style={{ padding: '10px 20px' }}>
+              <button className="btn-secondary" onClick={handleExitSession} style={{ padding: '10px 20px' }}>
                 Exit Stream
               </button>
             </div>
@@ -244,33 +305,35 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
         )}
       </div>
 
-      <div className="stream-bottom-controls">
-        <button
-          className={`stream-control-btn ${inputMode === 'desktop' ? 'active' : ''}`}
-          onClick={() => setInputMode('desktop')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-        >
-          <MouseIcon size={16} />
-          <span>Keyboard & Mouse</span>
-        </button>
-        <button
-          className={`stream-control-btn ${inputMode === 'controller' ? 'active' : ''}`}
-          onClick={() => setInputMode('controller')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-        >
-          <GamepadIcon size={16} />
-          <span>Virtual Gamepad</span>
-        </button>
-        <button
-          className="stream-control-btn"
-          onClick={toggleFullscreen}
-          title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-        >
-          {isFullscreen ? <MinimizeIcon size={16} /> : <MaximizeIcon size={16} />}
-          <span>{isFullscreen ? 'Exit Full' : 'Fullscreen'}</span>
-        </button>
-      </div>
+      {inputMode === 'desktop' && (
+        <div className={`stream-bottom-controls ${hudVisible ? 'hud-visible' : 'hud-hidden'}`}>
+          <button
+            className="stream-control-btn active"
+            onClick={() => { setInputMode('desktop'); resetHudTimer(); }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+          >
+            <MouseIcon size={16} />
+            <span>Keyboard & Mouse</span>
+          </button>
+          <button
+            className="stream-control-btn"
+            onClick={() => { setInputMode('controller'); resetHudTimer(); }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+          >
+            <GamepadIcon size={16} />
+            <span>Virtual Gamepad</span>
+          </button>
+          <button
+            className="stream-control-btn"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+          >
+            {isFullscreen ? <MinimizeIcon size={16} /> : <MaximizeIcon size={16} />}
+            <span>{isFullscreen ? 'Exit Full' : 'Fullscreen'}</span>
+          </button>
+        </div>
+      )}
 
       {inputMode === 'controller' && (
         <GamepadController
@@ -281,8 +344,9 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
           inputMode="controller"
           apiBase={apiBase}
           serverIP={serverIP}
-          controllerScale={0.85}
-          controllerOpacity={0.8}
+          controllerScale={0.88}
+          controllerOpacity={0.78}
+          showStatusBar={false}
           visibleControls={{
             lt: true, rt: true,
             lb: true, rb: true,

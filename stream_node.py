@@ -394,6 +394,24 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                                 payload.get("button", "left"),
                                 bool(payload.get("pressed", False)),
                             )
+                        elif inp in ("stop_session", "exit_game", "STOP_GAME"):
+                            ts = datetime.now().strftime("%H:%M:%S")
+                            print(f"\n[{ts}] [STREAM] Received '{inp}' signal via input channel. Stopping game & stream immediately...")
+                            try:
+                                host_agent.stop_game()
+                                stream_manager.close_all()
+                            except Exception as exc:
+                                print(f"[{ts}] [!] Error stopping game on client request: {exc}")
+
+                    # Handle direct session stop or exit command
+                    elif msg_type in ("stop_session", "exit_game", "STOP_GAME", "STOP_SESSION"):
+                        ts = datetime.now().strftime("%H:%M:%S")
+                        print(f"\n[{ts}] [STREAM] Received top-level '{msg_type}' request. Terminating game & stream immediately...")
+                        try:
+                            host_agent.stop_game()
+                            stream_manager.close_all()
+                        except Exception as exc:
+                            print(f"[{ts}] [!] Error stopping game: {exc}")
 
                     # Handle game execution command from gatekeeper
                     elif msg_type == "agent_command":

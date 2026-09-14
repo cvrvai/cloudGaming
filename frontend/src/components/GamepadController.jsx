@@ -117,7 +117,7 @@ export default function GamepadController({
 
     return (
         <div className="gamepad-controller">
-            {(showStatusBar || !menuDockVisible) && (
+            {(showStatusBar || (onShowMenuDock && !menuDockVisible)) && (
                 <div className="connection-pill" aria-label={`Video ${videoStatusLabel}, controller ${controllerStatusLabel}`}>
                     {showStatusBar && (
                         <>
@@ -140,7 +140,7 @@ export default function GamepadController({
                             )}
                         </>
                     )}
-                    {!menuDockVisible && (
+                    {onShowMenuDock && !menuDockVisible && (
                         <button
                             type="button"
                             onClick={() => onShowMenuDock?.()}

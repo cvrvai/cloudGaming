@@ -560,9 +560,7 @@ class GamingPCAgent:
         """Terminate the active game process and archive user save state."""
         with self._lock:
             info = self._active_game_info
-            if not self._active_process and not info and not self.is_game_running():
-                return {"status": "no_active_game"}
-
+            logger.info("[Agent] stop_game requested. Initiating process termination...")
             self._terminate_active_process()
             self._active_game_info = None
             self._watchdog_active = False
@@ -584,10 +582,12 @@ class GamingPCAgent:
         }
 
     def _terminate_active_process(self) -> None:
+        """Forcefully terminate active game process via process handle, window PID, and taskkill."""
+        logger.info("[Agent] Forcefully terminating active game process and child trees...")
         if self._active_process:
             try:
                 self._active_process.terminate()
-                self._active_process.wait(timeout=3)
+                self._active_process.wait(timeout=2)
             except Exception:
                 try:
                     self._active_process.kill()
@@ -595,14 +595,53 @@ class GamingPCAgent:
                     pass
             self._active_process = None
 
-        if sys.platform == "win32" and self._authorized_game_exes:
-            for exe in list(self._authorized_game_exes):
-                if exe.lower() in ("steam.exe", "steamwebhelper.exe", "steamservice.exe", "explorer.exe"):
-                    continue
-                try:
-                    subprocess.run(["taskkill", "/F", "/IM", exe, "/T"], capture_output=True, timeout=3)
-                except Exception:
-                    pass
+        if sys.platform == "win32":
+            import ctypes
+            from ctypes import wintypes
+
+            # 1. Attempt to find and kill active game window PID directly
+            try:
+                hwnd = self.get_active_game_window_handle()
+                if hwnd:
+                    pid = wintypes.DWORD()
+                    ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                    if pid.value > 0:
+                        logger.info("[Agent] Killing active game window HWND 0x%x (PID %d)...", hwnd, pid.value)
+                        subprocess.run(["taskkill", "/F", "/PID", str(pid.value), "/T"], capture_output=True, timeout=4)
+            except Exception as exc:
+                logger.debug("[Agent] Error killing by window PID: %s", exc)
+
+            # 2. Refresh authorized game executables from DB
+            try:
+                self._load_authorized_game_exes()
+            except Exception:
+                pass
+
+            # 3. Kill all authorized game executables
+            protected_exes = {
+                "steam.exe", "steamwebhelper.exe", "steamservice.exe",
+                "explorer.exe", "python.exe", "uvicorn.exe", "node.exe",
+                "cmd.exe", "powershell.exe", "conhost.exe", "code.exe"
+            }
+            if self._authorized_game_exes:
+                for exe in list(self._authorized_game_exes):
+                    if exe.lower() in protected_exes:
+                        continue
+                    try:
+                        logger.info("[Agent] Executing taskkill /F /IM %s /T", exe)
+                        subprocess.run(["taskkill", "/F", "/IM", exe, "/T"], capture_output=True, timeout=3)
+                    except Exception:
+                        pass
+
+            # 4. Search and terminate any remaining processes matching game names or shipping binaries
+            try:
+                running = _get_running_process_names()
+                for r_exe in running:
+                    if any(k in r_exe for k in ("msar", "metalslug", "shipping")) and r_exe not in protected_exes:
+                        logger.info("[Agent] Killing matched running game process: %s", r_exe)
+                        subprocess.run(["taskkill", "/F", "/IM", r_exe, "/T"], capture_output=True, timeout=3)
+            except Exception as exc:
+                logger.debug("[Agent] Error checking running process names: %s", exc)
 
     def get_status(self) -> Dict[str, Any]:
         """Return agent status including any currently running game."""
