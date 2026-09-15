@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import StreamHUD from './StreamHUD';
 import WebRTCPlayer from './WebRTCPlayer';
 import GamepadController from './GamepadController';
+import SessionFeedbackModal from './SessionFeedbackModal';
 import { AlertTriangleIcon, RefreshIcon, GamepadIcon, CheckIcon } from './Icons';
 import { INPUT_WS_URL } from '../config';
 
@@ -44,8 +45,9 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
   const [gameExitedData, setGameExitedData] = useState(null);
-  const [countdown, setCountdown] = useState(5);
   const [isExiting, setIsExiting] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const containerRef = useRef(null);
   const wsRef = useRef(null);
@@ -87,9 +89,10 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
     }
   }, []);
 
-  // Transmit cryptographically signed telemetry report to backend on session completion
-  const sendSessionTelemetry = useCallback((reason = 'normal_exit', completed = true) => {
-    if (hasSubmittedTelemetryRef.current) return;
+  // Transmit the telemetry row and optional Verbatim VOC together so the
+  // qualitative feedback stays tied to the same CTQ measurements.
+  const sendSessionTelemetry = useCallback(async (reason = 'normal_exit', completed = true, feedback = {}) => {
+    if (hasSubmittedTelemetryRef.current) return null;
     hasSubmittedTelemetryRef.current = true;
 
     const durationSec = Math.max(1, (Date.now() - sessionStartTimeRef.current) / 1000);
@@ -111,7 +114,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
     }
 
     const token = localStorage.getItem('token');
-    if (!token) return;
+    if (!token) return null;
 
     const payload = {
       booking_id: sessionData?.booking_id,
@@ -124,10 +127,13 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
       failure_reason: completed ? null : reason,
       duration_seconds: durationSec,
       phase: 'V2_Improved',
+      user_rating: feedback.user_rating || null,
+      experience_tag: feedback.experience_tag || null,
+      user_comment: feedback.user_comment || null,
     };
 
     try {
-      fetch(`${apiBase}/api/session/telemetry`, {
+      const response = await fetch(`${apiBase}/api/session/telemetry`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -135,16 +141,21 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
         },
         body: JSON.stringify(payload),
         keepalive: true,
-      }).catch((e) => console.debug('Telemetry upload:', e));
+      });
+      if (!response.ok) {
+        throw new Error(`Telemetry upload failed (${response.status})`);
+      }
+      return response.json();
     } catch (e) {
       console.debug('Telemetry error:', e);
+      return null;
     }
   }, [apiBase, sessionData?.booking_id]);
 
   // Auto-close remote game if user navigates away, closes tab, or leaves browser
   useEffect(() => {
     const handleBrowserLeave = () => {
-      sendSessionTelemetry('browser_leave', true);
+      void sendSessionTelemetry('browser_leave', true);
       const token = localStorage.getItem('token');
       if (!token) return;
       try {
@@ -188,8 +199,8 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
   }, [resetHudTimer]);
 
   const handleExitSession = useCallback(() => {
+    if (feedbackOpen) return;
     setIsExiting(true);
-    sendSessionTelemetry('user_exit', true);
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       try {
         wsRef.current.send(JSON.stringify({
@@ -200,8 +211,18 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
         console.warn('Failed to send stop_session over input WS:', e);
       }
     }
+    setFeedbackOpen(true);
+  }, [feedbackOpen, sessionData?.machine_id]);
+
+  const finishSessionWithFeedback = useCallback(async (feedback = {}) => {
+    setFeedbackSubmitting(true);
+    await sendSessionTelemetry(gameExitedData ? 'game_closed' : 'user_exit', true, feedback);
     onSessionEnd?.();
-  }, [onSessionEnd, sessionData?.machine_id, sendSessionTelemetry]);
+  }, [gameExitedData, onSessionEnd, sendSessionTelemetry]);
+
+  const skipSessionFeedback = useCallback(() => {
+    void finishSessionWithFeedback();
+  }, [finishSessionWithFeedback]);
 
   // Fullscreen state listener
   useEffect(() => {
@@ -284,7 +305,8 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
             const data = JSON.parse(event.data);
             if (data.type === 'game_exited') {
               setGameExitedData(data);
-              sendSessionTelemetry('game_closed', true);
+              setIsExiting(true);
+              setFeedbackOpen(true);
             }
           } catch (e) {}
         };
@@ -315,22 +337,6 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
       wsRef.current = null;
     };
   }, []);
-
-  // Auto-return countdown when game exits
-  useEffect(() => {
-    if (!gameExitedData) return;
-    const interval = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          onSessionEnd();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [gameExitedData, onSessionEnd]);
 
   // Native HTML5 Gamepad API Auto-Detection & Real-Time Polling
   useEffect(() => {
@@ -636,41 +642,13 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
         />
       )}
 
-      {/* Game Exited / Process Termination Kiosk Modal */}
-      {gameExitedData && (
-        <div className="cutoff-modal-backdrop">
-          <div className="cutoff-modal-dialog glass-panel" style={{ textAlign: 'center', maxWidth: '480px' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
-              <div style={{
-                width: 60, height: 60, borderRadius: '50%', background: 'rgba(74, 222, 128, 0.15)',
-                border: '1px solid rgba(74, 222, 128, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4ade80'
-              }}>
-                <CheckIcon size={32} />
-              </div>
-            </div>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 600, marginBottom: '8px' }}>Game Session Ended</h2>
-            <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.95rem', lineHeight: '1.5', margin: '0 0 16px 0' }}>
-              <strong>{gameExitedData.title || sessionData?.game_title || 'The game'}</strong> has closed.
-              The video stream was terminated immediately to prevent streaming the Windows desktop interface.
-            </p>
-            <div style={{
-              background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: '14px 18px',
-              border: '1px solid rgba(255,255,255,0.1)', marginBottom: '20px', fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span>Save Game Status:</span>
-                <span style={{ color: '#4ade80', fontWeight: 600 }}>Secured & Archived</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Desktop Capture:</span>
-                <span style={{ color: '#94a3b8' }}>Blocked & Terminated</span>
-              </div>
-            </div>
-            <button className="btn-primary" onClick={onSessionEnd} style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }}>
-              Return to Dashboard ({countdown}s)
-            </button>
-          </div>
-        </div>
+      {feedbackOpen && (
+        <SessionFeedbackModal
+          sessionData={sessionData}
+          onSubmit={finishSessionWithFeedback}
+          onSkip={skipSessionFeedback}
+          submitting={feedbackSubmitting}
+        />
       )}
     </div>
   );

@@ -197,6 +197,20 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
         """)
         t_stats = dict(cursor.fetchone())
 
+        # Verbatim Voice of Customer summary. Keep qualitative feedback
+        # separate from the objective CTQ measurements while exposing enough
+        # aggregate data for the DMAIC dashboard and presentation evidence.
+        cursor.execute("""
+            SELECT COUNT(user_rating) as feedback_count,
+                   COALESCE(AVG(user_rating), 0.0) as mean_rating,
+                   COUNT(CASE WHEN experience_tag = 'smooth' THEN 1 END) as smooth_count,
+                   COUNT(CASE WHEN experience_tag = 'mixed' THEN 1 END) as mixed_count,
+                   COUNT(CASE WHEN experience_tag = 'laggy' THEN 1 END) as laggy_count,
+                   COUNT(CASE WHEN user_comment IS NOT NULL AND BTRIM(user_comment) <> '' THEN 1 END) as comment_count
+            FROM session_telemetry;
+        """)
+        voc_stats = dict(cursor.fetchone())
+
         # Failure categorization breakdown for CTQ 4
         cursor.execute("""
             SELECT COALESCE(failure_reason, 'Unspecified') as reason, COUNT(*) as count
@@ -409,6 +423,16 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
         }
 
     return {
+        "voice_of_customer": {
+            "feedback_count": int(voc_stats["feedback_count"] or 0),
+            "mean_rating": round(float(voc_stats["mean_rating"] or 0.0), 1),
+            "response_rate_pct": round((int(voc_stats["feedback_count"] or 0) / total_sessions) * 100.0, 1) if total_sessions > 0 else 0.0,
+            "smooth_count": int(voc_stats["smooth_count"] or 0),
+            "mixed_count": int(voc_stats["mixed_count"] or 0),
+            "laggy_count": int(voc_stats["laggy_count"] or 0),
+            "comment_count": int(voc_stats["comment_count"] or 0),
+            "measurement": "Participant rating and verbatim comment captured at session completion",
+        },
         "ctq1_latency": {
             "owner": "Sean Pheavyraksonya",
             "target": "<= 100 ms mean latency",
@@ -695,6 +719,10 @@ def export_dmaic_dataset_csv(
         "Disconnects",
         "Completed?",
         "Failure Reason",
+        "User Rating (1-5)",
+        "Experience Tag",
+        "User Comment",
+        "Feedback Logged At",
         "PC Idle Time (min)",
         "Power Usage (kWh)",
         "Energy Cost ($)",
@@ -721,6 +749,10 @@ def export_dmaic_dataset_csv(
             r.get("disconnects_count", 0),
             "YES" if r.get("completed") else "NO",
             r.get("failure_reason") or "None",
+            r.get("user_rating") or "",
+            r.get("experience_tag") or "",
+            r.get("user_comment") or "",
+            r.get("feedback_submitted_at") or "",
             r.get("pc_idle_minutes", 0),
             r.get("power_kwh", 0),
             r.get("energy_cost_usd", 0),

@@ -3743,6 +3743,125 @@ body.dmaic-white-page-mode .cloudkh-main-content {
   font-size: 10px;
 }
 
+.voc-feedback-cell {
+  font-size: 10.5px;
+  color: #dbeafe;
+  vertical-align: middle;
+}
+
+.voc-summary-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-left: 3px solid #5ea2ff;
+  background: rgba(94, 162, 255, 0.08);
+  color: var(--text-muted, #94a3b8);
+  font-size: 11px;
+}
+
+.voc-summary-strip strong {
+  color: #dbeafe;
+  font-size: 11px;
+}
+
+.voc-summary-strip b {
+  color: #fff;
+}
+
+.dmaic-white-container .voc-summary-strip {
+  background: #eff6ff;
+  color: #64748b;
+}
+
+.dmaic-white-container .voc-summary-strip strong,
+.dmaic-white-container .voc-summary-strip b {
+  color: #1e3a5f;
+}
+
+.voc-feedback-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+
+.voc-rating {
+  color: #ffd60a;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.voc-tag {
+  padding: 2px 6px;
+  border: 1px solid rgba(94, 162, 255, 0.38);
+  border-radius: 5px;
+  background: rgba(94, 162, 255, 0.12);
+  color: #9cc7ff;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.voc-tag.laggy {
+  border-color: rgba(255, 139, 132, 0.4);
+  background: rgba(255, 69, 58, 0.12);
+  color: #ffaaa3;
+}
+
+.voc-tag.smooth {
+  border-color: rgba(74, 222, 128, 0.38);
+  background: rgba(74, 222, 128, 0.1);
+  color: #86efac;
+}
+
+.voc-comment-details summary {
+  width: fit-content;
+  color: #7db8ff;
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.voc-comment-details summary:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.voc-comment-details p {
+  max-width: 210px;
+  margin: 6px 0 0;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 10.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.voc-no-comment,
+.voc-feedback-summary-cell {
+  color: var(--text-muted, #94a3b8);
+  font-size: 10px;
+}
+
+.voc-feedback-summary-cell {
+  text-align: center;
+}
+
+.dmaic-white-container .voc-feedback-cell {
+  color: #334155;
+}
+
+.dmaic-white-container .voc-no-comment,
+.dmaic-white-container .voc-feedback-summary-cell {
+  color: #64748b;
+}
+
+.dmaic-white-container .voc-comment-details p {
+  color: #475569;
+}
+
 .pc-status-pill-table {
   display: inline-flex;
   align-items: center;

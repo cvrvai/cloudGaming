@@ -110,6 +110,18 @@ const formatEnergyKwh = (kwh) => {
   return value > 0 && value < 0.01 ? value.toFixed(4) : value.toFixed(3);
 };
 
+const formatFeedbackStars = (rating) => {
+  const value = Math.max(0, Math.min(5, Number(rating) || 0));
+  return value ? `${'★'.repeat(value)}${'☆'.repeat(5 - value)}` : 'No rating';
+};
+
+const formatExperienceTag = (tag) => {
+  if (tag === 'smooth') return 'Smooth';
+  if (tag === 'mixed') return 'Mostly okay';
+  if (tag === 'laggy') return 'Laggy';
+  return '';
+};
+
 const getCtqStatusClass = (status) => {
   if (status === 'PASS') return 'pass';
   if (status === 'NO DATA') return 'no-data';
@@ -130,6 +142,28 @@ function PowerMeasurementGuide({ watts = 0, hours = 0 }) {
         <span className="power-measurement-example">
           Example: {formatWattRate(rate)} × {duration.toFixed(2)} h = {formatEnergyKwh(energy)} kWh.
         </span>
+      )}
+    </div>
+  );
+}
+
+function VoiceOfCustomerSummary({ stats }) {
+  const feedbackCount = Number(stats?.feedback_count) || 0;
+  if (!stats) return null;
+
+  return (
+    <div className="voc-summary-strip" role="note">
+      <strong>Voice of Customer</strong>
+      {feedbackCount > 0 ? (
+        <>
+          <span>{feedbackCount} response{feedbackCount === 1 ? '' : 's'}</span>
+          <span>Average rating: <b>{Number(stats.mean_rating || 0).toFixed(1)}/5</b></span>
+          <span>Smooth: <b>{stats.smooth_count || 0}</b></span>
+          <span>Laggy: <b>{stats.laggy_count || 0}</b></span>
+          <span>Written comments: <b>{stats.comment_count || 0}</b></span>
+        </>
+      ) : (
+        <span>No participant feedback collected yet.</span>
       )}
     </div>
   );
@@ -1449,6 +1483,9 @@ export default function AdminDashboard() {
   const totalSessionKwh = sessionTimelineRecords.reduce((sum, r) => sum + (r.power_kwh || 0), 0);
   const totalSessionUsd = sessionTimelineRecords.reduce((sum, r) => sum + (r.energy_cost_usd || 0), 0);
   const totalSessionPass = sessionTimelineRecords.filter((r) => r.ctq_overall_pass ?? r.completed).length;
+  const sessionsWithFeedback = sessionTimelineRecords.filter(
+    (r) => r.user_rating || r.experience_tag || r.user_comment
+  ).length;
 
   const filteredDmaicRecords = dmaicRecords.filter((r) => dmaicPhaseFilter === 'all' || r.phase === dmaicPhaseFilter);
   const nDmaic = filteredDmaicRecords.length;
@@ -1935,6 +1972,7 @@ export default function AdminDashboard() {
                 watts={ctq2ActiveWatts}
                 hours={ctq2Power.gaming_hours}
               />
+              <VoiceOfCustomerSummary stats={dmaicMetrics?.voice_of_customer} />
               <div className="tab-section-header compact" style={{ marginTop: '20px', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   <h2 className="section-heading-compact" style={{ fontSize: '1.2rem', margin: 0, fontWeight: 700 }}>
@@ -2006,12 +2044,13 @@ export default function AdminDashboard() {
                           <th style={{ minWidth: '120px', textAlign: 'right' }}>Energy Consumed</th>
                           <th style={{ minWidth: '120px', textAlign: 'right' }}>EDC Cost</th>
                           <th style={{ minWidth: '130px', textAlign: 'center' }}>CTQ Quality</th>
+                          <th style={{ minWidth: '220px' }}>Voice of Customer</th>
                         </tr>
                       </thead>
                       <tbody>
                         {sessionTimelineRecords.length === 0 ? (
                           <tr>
-                            <td colSpan={9} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted, #94a3b8)' }}>
+                            <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted, #94a3b8)' }}>
                               No gaming sessions recorded for this selection.
                             </td>
                           </tr>
@@ -2105,6 +2144,30 @@ export default function AdminDashboard() {
                                     </span>
                                   )}
                                 </td>
+                                <td className="voc-feedback-cell">
+                                  {row.user_rating || row.experience_tag || row.user_comment ? (
+                                    <>
+                                      <div className="voc-feedback-meta">
+                                        {row.user_rating ? <span className="voc-rating">{formatFeedbackStars(row.user_rating)}</span> : null}
+                                        {row.experience_tag ? (
+                                          <span className={`voc-tag ${row.experience_tag}`}>
+                                            {formatExperienceTag(row.experience_tag)}
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                      {row.user_comment ? (
+                                        <details className="voc-comment-details">
+                                          <summary>View participant comment</summary>
+                                          <p>{row.user_comment}</p>
+                                        </details>
+                                      ) : (
+                                        <span className="voc-no-comment">No written comment</span>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span className="voc-no-comment">No feedback collected</span>
+                                  )}
+                                </td>
                               </tr>
                             );
                           })
@@ -2139,6 +2202,9 @@ export default function AdminDashboard() {
                               <span className="pc-status-pill-table online">
                                 {Math.round((totalSessionPass / sessionTimelineRecords.length) * 100)}% PASS
                               </span>
+                            </td>
+                            <td className="voc-feedback-summary-cell">
+                              {sessionsWithFeedback} / {sessionTimelineRecords.length} feedback responses
                             </td>
                           </tr>
                         </tfoot>

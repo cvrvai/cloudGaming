@@ -1,6 +1,6 @@
 """Session Access Control & Stream Launcher Gatekeeper (FR-05, User Story 2)."""
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -165,6 +165,12 @@ class ClientTelemetryReport(BaseModel):
     failure_reason: Optional[str] = None
     duration_seconds: float = Field(0.0, description="Duration of stream in seconds")
     phase: Optional[str] = Field("V2_Improved", description="DMAIC phase tag")
+    user_rating: Optional[int] = Field(None, ge=1, le=5, description="Optional Verbatim VOC rating from 1 to 5")
+    experience_tag: Optional[Literal["smooth", "mixed", "laggy"]] = Field(
+        None,
+        description="Optional qualitative stream tag selected by the player",
+    )
+    user_comment: Optional[str] = Field(None, max_length=1000, description="Optional Verbatim Voice of Customer comment")
 
 
 @router.post("/telemetry")
@@ -242,8 +248,17 @@ async def record_live_session_telemetry(
         power_kwh = round((active_watts * duration_hrs) / 1000.0, 3)
         cost_usd = round(power_kwh * EDC_TARIFF_USD_PER_KWH, 3)
 
+        feedback_comment = req.user_comment.strip() if req.user_comment else None
+        if feedback_comment == "":
+            feedback_comment = None
+        feedback_submitted_at = now_iso if (req.user_rating or req.experience_tag or feedback_comment) else None
+
         # Generate Cryptographic Integrity Hash (SHA-256 for academic/audit verification)
-        integrity_payload = f"{test_id}:{user_id or 'guest'}:{valid_booking_id}:{req.avg_latency_ms}:{req.avg_fps}:{now_iso}"
+        integrity_payload = (
+            f"{test_id}:{user_id or 'guest'}:{valid_booking_id}:{req.avg_latency_ms}:"
+            f"{req.avg_fps}:{req.user_rating or ''}:{req.experience_tag or ''}:"
+            f"{feedback_comment or ''}:{now_iso}"
+        )
         integrity_hash = hashlib.sha256(integrity_payload.encode()).hexdigest()
 
         cursor.execute(
@@ -254,6 +269,7 @@ async def record_live_session_telemetry(
                 avg_latency_ms, max_latency_ms, avg_fps, packet_loss_pct,
                 disconnects_count, completed, failure_reason, pc_idle_minutes,
                 power_kwh, energy_cost_usd, duration_seconds, phase, source, integrity_hash,
+                user_rating, experience_tag, user_comment, feedback_submitted_at,
                 notes, created_at
             ) VALUES (
                 %s, %s, %s, %s, %s,
@@ -261,6 +277,7 @@ async def record_live_session_telemetry(
                 %s, %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s,
                 %s, %s
             ) RETURNING *;
             """,
@@ -270,6 +287,7 @@ async def record_live_session_telemetry(
                 req.avg_latency_ms, req.max_latency_ms, req.avg_fps, req.packet_loss_pct,
                 req.disconnects_count, req.completed, req.failure_reason, 0.0,
                 power_kwh, cost_usd, float(req.duration_seconds), req.phase or "V2_Improved", "automated_stream", integrity_hash,
+                req.user_rating, req.experience_tag, feedback_comment, feedback_submitted_at,
                 f"Live WebRTC stream on {game_title} (duration: {int(req.duration_seconds)}s)", now_iso,
             ),
         )

@@ -244,6 +244,10 @@ def init_db() -> None:
             phase TEXT DEFAULT 'V1_Baseline',
             source TEXT DEFAULT 'automated_stream',
             integrity_hash TEXT,
+            user_rating SMALLINT,
+            experience_tag TEXT,
+            user_comment TEXT,
+            feedback_submitted_at TEXT,
             notes TEXT,
             created_at TEXT NOT NULL
         );
@@ -256,6 +260,13 @@ def init_db() -> None:
         cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS integrity_hash TEXT;")
         cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'automated_stream';")
         cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS duration_seconds DOUBLE PRECISION DEFAULT 0.0;")
+        # Verbatim Voice of Customer (VOC) captured after a completed session.
+        # Keep these nullable so automated/admin observations remain valid when
+        # no participant feedback was collected.
+        cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS user_rating SMALLINT;")
+        cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS experience_tag TEXT;")
+        cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS user_comment TEXT;")
+        cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS feedback_submitted_at TEXT;")
 
         # 8. Enable Row Level Security (RLS) on all public tables
         for tbl in ["users", "machines", "games", "node_games", "bookings", "machine_pairings", "audit_logs", "session_telemetry"]:
