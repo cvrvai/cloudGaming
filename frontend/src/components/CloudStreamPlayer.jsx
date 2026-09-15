@@ -210,6 +210,8 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
   const handleExitSession = useCallback(() => {
     if (feedbackOpen) return;
     setIsExiting(true);
+
+    // 1. Send stop_session over WebSocket input relay
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       try {
         wsRef.current.send(JSON.stringify({
@@ -220,8 +222,21 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
         console.warn('Failed to send stop_session over input WS:', e);
       }
     }
+
+    // 2. Direct REST API stop call to guarantee remote PC game termination
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${apiBase}/api/session/stop`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      }).catch((e) => console.warn('Failed to stop session via API:', e));
+    }
+
     setFeedbackOpen(true);
-  }, [feedbackOpen, sessionData?.machine_id]);
+  }, [apiBase, feedbackOpen, sessionData?.machine_id]);
 
   const finishSessionWithFeedback = useCallback(async (feedback = {}) => {
     setFeedbackSubmitting(true);

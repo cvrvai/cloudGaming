@@ -208,6 +208,15 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
         gst_status = "OFFLINE"
     print(f"  GStreamer:   {gst_status}")
     print(f"  Status:      ONLINE & READY FOR SESSIONS")
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            if not ctypes.windll.shell32.IsUserAnAdmin():
+                print("  Privilege:   STANDARD (Non-Admin - [!] Run as Administrator for games requiring elevation)")
+            else:
+                print("  Privilege:   ADMINISTRATOR (Full Elevation)")
+        except Exception:
+            pass
     print("=" * 62)
     print("\n[*] Streaming daemon active. Press Ctrl+C to stop.\n")
 

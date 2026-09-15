@@ -536,8 +536,38 @@ class GamingPCAgent:
                     if sys.platform == "win32":
                         threading.Thread(target=self._focus_game_window, daemon=True).start()
                 except Exception as e:
-                    logger.warning("Failed to launch physical executable: %s", e)
-                    simulated = True
+                    elevated_ok = False
+                    # WinError 740: The requested operation requires elevation
+                    if sys.platform == "win32" and (getattr(e, "winerror", None) == 740 or "740" in str(e)):
+                        logger.warning("Physical executable requires elevation [WinError 740]. Attempting ShellExecuteW 'runas'...")
+                        try:
+                            import ctypes
+                            ret = ctypes.windll.shell32.ShellExecuteW(
+                                None,
+                                "runas",
+                                str(exe_path),
+                                args_str or None,
+                                str(cwd) if cwd else None,
+                                1,  # SW_SHOWNORMAL
+                            )
+                            if ret > 32:
+                                elevated_ok = True
+                                logger.info("Launched elevated game '%s' via ShellExecuteW: %s", config["title"], exe_path)
+                                self._start_process_watchdog(config["title"], config["game_id"])
+                                threading.Thread(target=self._focus_game_window, daemon=True).start()
+                            else:
+                                logger.error("ShellExecuteW 'runas' failed with code %s", ret)
+                        except Exception as shell_err:
+                            logger.error("ShellExecuteW elevation exception: %s", shell_err)
+
+                    if not elevated_ok:
+                        logger.error("Failed to launch physical executable: %s", e)
+                        return {
+                            "status": "error",
+                            "error": f"Failed to launch game: {e}. The game requires elevation. Please run Command Prompt as Administrator!",
+                            "game_id": config["game_id"],
+                            "title": config["title"],
+                        }
             else:
                 logger.info(
                     "Admin-configured executable path '%s' not present on disk; running in simulated mode.",
