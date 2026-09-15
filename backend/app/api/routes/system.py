@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.core.config import settings
 from app.services.streaming.manager import stream_manager
 from app.services.streaming.node_relay import node_relay
+from app.services.turn import get_ice_configuration
 from app.utils.network import get_local_ip
 
 router = APIRouter(prefix="/system", tags=["system"])
@@ -26,11 +27,13 @@ async def system_info(machine_id: Optional[int] = None) -> dict:
 
     from app.core.redis import is_redis_online
     redis_online = await is_redis_online()
+    ice_servers, _ = await get_ice_configuration()
 
     return {
         "server_ip": get_local_ip(),
         "port": settings.port,
         "stun_server": settings.stun_server,
+        "ice_servers": ice_servers,
         "video": {
             "width": settings.video_width,
             "height": settings.video_height,

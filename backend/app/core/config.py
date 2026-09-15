@@ -1,6 +1,7 @@
 """Centralized application settings loaded from backend/.env."""
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import quote
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -42,6 +43,17 @@ class Settings(BaseSettings):
 
     # WebRTC
     stun_server: str = "stun://stun.l.google.com:19302"
+    # Optional public TURN relay. Use a provider-issued hostname and
+    # short-lived credentials for internet/mobile streaming.
+    turn_server: str = ""
+    turn_username: str = ""
+    turn_credential: str = ""
+    # Optional Cloudflare Realtime TURN credential generator. Keep this API
+    # token server-side; only the generated short-lived ICE credentials leave
+    # the backend.
+    cloudflare_turn_key_id: str = ""
+    cloudflare_turn_api_token: str = ""
+    cloudflare_turn_ttl: int = 3600
 
     # Input
     input_mode: str = "auto"  # auto | keyboard
@@ -53,6 +65,52 @@ class Settings(BaseSettings):
     @property
     def video_bitrate_kbps(self) -> int:
         return self.video_bitrate // 1000
+
+    @property
+    def turn_uri(self) -> str:
+        """Return the GStreamer TURN URI, or an empty string when disabled."""
+        server = self.turn_server.strip()
+        username = self.turn_username.strip()
+        credential = self.turn_credential.strip()
+        if not server or not username or not credential:
+            return ""
+
+        if server.startswith("turn://") or server.startswith("turns://"):
+            scheme, host = server.split("://", 1)
+        elif server.startswith("turn:") or server.startswith("turns:"):
+            scheme, host = server.split(":", 1)
+        else:
+            scheme, host = "turn", server
+
+        return (
+            f"{scheme}://{quote(username, safe='')}:{quote(credential, safe='')}"
+            f"@{host.lstrip('/')}"
+        )
+
+    @property
+    def browser_ice_servers(self) -> list[dict]:
+        """Return browser-compatible ICE server objects for system metadata."""
+        servers = []
+        stun = self.stun_server.strip()
+        if stun:
+            servers.append({"urls": stun.replace("stun://", "stun:", 1)})
+
+        server = self.turn_server.strip()
+        username = self.turn_username.strip()
+        credential = self.turn_credential.strip()
+        if server and username and credential:
+            if server.startswith("turn://") or server.startswith("turns://"):
+                scheme, host = server.split("://", 1)
+            elif server.startswith("turn:") or server.startswith("turns:"):
+                scheme, host = server.split(":", 1)
+            else:
+                scheme, host = "turn", server
+            servers.append({
+                "urls": f"{scheme}:{host}",
+                "username": username,
+                "credential": credential,
+            })
+        return servers
 
 
 @lru_cache

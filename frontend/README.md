@@ -59,9 +59,25 @@ keyboard and mouse input to this computer.
    `https://cloudkh.space` after Access signs you in.
 
 The Cloudflare Tunnel carries only the app, signaling, and controller traffic.
-For remote video, WebRTC still needs a working ICE path. The default STUN
-server may be sufficient on permissive NATs; configure a TURN server in
-`backend/.env` if the stream remains stuck at connecting on mobile data.
+For remote video, WebRTC still needs a working ICE path. The frontend now
+waits for the complete one-shot ICE offer and receives the ICE server list from
+`/api/system/info`. STUN may be sufficient on permissive NATs; configure the
+same TURN provider in the node/backend `.env` when the stream must work on
+public or mobile networks:
+
+```env
+STUN_SERVER=stun://stun.l.google.com:19302
+TURN_SERVER=turn:turn.example.com:3478
+TURN_USERNAME=temporary-user
+TURN_CREDENTIAL=temporary-password
+```
+
+TURN credentials are delivered to the browser because the browser must use the
+relay. For Cloudflare Realtime, set `CLOUDFLARE_TURN_KEY_ID` to the TURN key
+`uid` and `CLOUDFLARE_TURN_API_TOKEN` to the TURN key's one-time bearer token
+(`key`) in the backend environment; the backend generates short-lived
+credentials and forwards the matching relay URI to the node. Keep that token
+server-side and do not commit `.env` files.
 
 ## Key files
 

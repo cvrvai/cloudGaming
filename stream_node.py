@@ -351,6 +351,7 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                                 fps=offer.get("fps"),
                                 bitrate=offer.get("bitrate"),
                                 window_handle=None,
+                                turn_server=offer.get("turn_server") or "",
                             )
                             await ws.send(json.dumps({
                                 "type": "stream_answer",

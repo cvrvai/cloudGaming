@@ -1,6 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getQualityParams } from '../quality';
 
+const DEFAULT_ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+
+function waitForIceGatheringComplete(peerConnection, timeoutMs = 5000) {
+    if (peerConnection.iceGatheringState === 'complete') return Promise.resolve();
+
+    return new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+            if (settled) return;
+            settled = true;
+            peerConnection.removeEventListener('icegatheringstatechange', handleStateChange);
+            clearTimeout(timeoutId);
+            resolve();
+        };
+        const handleStateChange = () => {
+            if (peerConnection.iceGatheringState === 'complete') finish();
+        };
+        const timeoutId = setTimeout(finish, timeoutMs);
+        peerConnection.addEventListener('icegatheringstatechange', handleStateChange);
+    });
+}
+
 /**
  * Native WebRTC video player.
  *
@@ -14,6 +36,7 @@ export default function WebRTCPlayer({
     quality = 'auto',
     showStats = true,
     stunServer = 'stun:stun.l.google.com:19302',
+    iceServers,
     machineId,
     isMuted = true,
     onToggleMute,
@@ -71,7 +94,10 @@ export default function WebRTCPlayer({
         setStatus('connecting');
         setErrorDetail('');
 
-        const pc = new RTCPeerConnection({ iceServers: [{ urls: stunServer }] });
+        const configuredIceServers = Array.isArray(iceServers) && iceServers.length > 0
+            ? iceServers
+            : [{ urls: stunServer }, ...DEFAULT_ICE_SERVERS.filter((server) => server.urls !== stunServer)];
+        const pc = new RTCPeerConnection({ iceServers: configuredIceServers });
         pcRef.current = pc;
 
         pc.ontrack = (event) => {
@@ -182,6 +208,11 @@ export default function WebRTCPlayer({
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
 
+            // This endpoint uses one-shot SDP exchange (no trickle ICE). Wait
+            // until the offer contains the browser's host/srflx/TURN candidates
+            // before sending it to the cloud relay.
+            await waitForIceGatheringComplete(pc);
+
             const response = await fetch(`${apiBase}/api/stream/offer`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -213,7 +244,7 @@ export default function WebRTCPlayer({
             cleanup();
             scheduleReconnect(connect);
         }
-    }, [apiBase, quality, stunServer, cleanup, scheduleReconnect]);
+    }, [apiBase, quality, stunServer, iceServers, cleanup, scheduleReconnect]);
 
     useEffect(() => {
         connect();

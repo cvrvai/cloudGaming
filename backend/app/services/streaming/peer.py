@@ -67,6 +67,7 @@ class GStreamerWebRTCPeer:
         stun_server: str,
         on_closed=None,
         window_handle: Optional[int] = None,
+        turn_server: str = "",
     ):
         self.pc_id = pc_id
         self.width = max(2, width - (width % 2))
@@ -78,6 +79,7 @@ class GStreamerWebRTCPeer:
         self.stun_server = stun_server
         self.on_closed = on_closed
         self.window_handle = window_handle
+        self.turn_server = turn_server
         self.pipeline: Optional["Gst.Pipeline"] = None
         self.webrtc: Optional["Gst.Element"] = None
         self._q_out: Optional["Gst.Element"] = None
@@ -233,6 +235,12 @@ class GStreamerWebRTCPeer:
         if webrtc is None:
             raise RuntimeError("Failed to create webrtcbin")
         webrtc.set_property("stun-server", self.stun_server)
+        if self.turn_server:
+            try:
+                added = webrtc.emit("add-turn-server", self.turn_server)
+                logger.info("[%s] TURN relay configured (accepted=%s)", self.pc_id, added)
+            except Exception as exc:
+                logger.warning("[%s] TURN relay could not be configured: %s", self.pc_id, exc)
         pipeline.add(webrtc)
 
         q_out = pipeline.get_by_name("q_out")

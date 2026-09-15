@@ -89,6 +89,7 @@ class StreamManager:
         fps=None,
         bitrate=None,
         window_handle=None,
+        turn_server=None,
     ) -> dict:
         """Create a new peer for a browser offer and return the SDP answer.
 
@@ -133,6 +134,7 @@ class StreamManager:
             monitor_index=settings.monitor_index,
             capture_use_damage=settings.capture_use_damage,
             stun_server=settings.stun_server,
+            turn_server=turn_server or settings.turn_uri,
             on_closed=self._remove_peer,
             window_handle=window_handle,
         )

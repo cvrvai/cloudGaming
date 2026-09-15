@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.services.streaming.manager import stream_manager
 from app.services.streaming.node_relay import node_relay
+from app.services.turn import get_ice_configuration
 
 logger = logging.getLogger("api.stream")
 
@@ -51,6 +52,7 @@ async def create_stream(offer: SdpOffer) -> dict:
         if game_hwnd:
             host_agent.bring_game_to_foreground(game_hwnd)
         try:
+            _, turn_uri = await get_ice_configuration()
             return await stream_manager.create_peer_answer(
                 offer.sdp,
                 width=offer.width,
@@ -58,6 +60,7 @@ async def create_stream(offer: SdpOffer) -> dict:
                 fps=offer.fps,
                 bitrate=offer.bitrate,
                 window_handle=None,
+                turn_server=turn_uri,
             )
         except Exception as exc:
             logger.exception("Failed to negotiate local stream")
@@ -67,6 +70,7 @@ async def create_stream(offer: SdpOffer) -> dict:
     target_node_id = offer.node_id or offer.machine_id or node_relay.get_any_connected_node_id()
     if target_node_id and node_relay.is_node_connected(target_node_id):
         try:
+            _, turn_uri = await get_ice_configuration()
             answer = await node_relay.relay_offer(
                 target_node_id,
                 offer.sdp,
@@ -74,6 +78,7 @@ async def create_stream(offer: SdpOffer) -> dict:
                 height=offer.height,
                 fps=offer.fps,
                 bitrate=offer.bitrate,
+                turn_server=turn_uri,
             )
             return answer
         except Exception as exc:

@@ -36,6 +36,7 @@ const GAMEPAD_BUTTON_MAP = [
 
 export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, serverIP }) {
   const [gstreamerAvailable, setGstreamerAvailable] = useState(null); // null: checking, true: ok, false: offline
+  const [iceServers, setIceServers] = useState(undefined);
   const [hasGamepad, setHasGamepad] = useState(false);
   const [gamepadName, setGamepadName] = useState('');
   const [gamepadToast, setGamepadToast] = useState(null);
@@ -506,6 +507,12 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
       if (res.ok) {
         const data = await res.json();
         setGstreamerAvailable(!!data.gstreamer_available);
+        if (Array.isArray(data.ice_servers) && data.ice_servers.length > 0) {
+          setIceServers((current) => {
+            const next = JSON.stringify(data.ice_servers);
+            return JSON.stringify(current) === next ? current : data.ice_servers;
+          });
+        }
       } else {
         setGstreamerAvailable(false);
       }
@@ -553,6 +560,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
             serverIP={serverIP}
             apiBase={apiBase}
             machineId={sessionData?.machine_id}
+            iceServers={iceServers}
             quality="auto"
             showStats={false}
             isMuted={isMuted}
