@@ -23,6 +23,10 @@ import {
   UserIcon,
   ZapIcon,
   TableIcon,
+  PlayIcon,
+  ClockIcon,
+  PowerIcon,
+  SquareIcon,
 } from './Icons';
 
 // In-memory module cache for instant admin tab/page navigation
@@ -115,6 +119,7 @@ export default function AdminDashboard() {
   const [dailyRigFilter, setDailyRigFilter] = useState('all');
   const [dmaicWhiteBg, setDmaicWhiteBg] = useState(true); // Default to clean white background for academic review / teacher presentation
   const [backendError, setBackendError] = useState(null);
+  const [timeTick, setTimeTick] = useState(Date.now());
 
   const fetchAllAdminData = async () => {
     if (!token) {
@@ -361,6 +366,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchAllAdminData();
     const interval = setInterval(fetchAllAdminData, 4000);
+    const ticker = setInterval(() => setTimeTick(Date.now()), 1000);
 
     // 30-minute security inactivity timeout for administrator session
     let idleTimer;
@@ -378,6 +384,7 @@ export default function AdminDashboard() {
 
     return () => {
       clearInterval(interval);
+      clearInterval(ticker);
       clearTimeout(idleTimer);
       userEvents.forEach((evt) => window.removeEventListener(evt, resetIdleTimer));
     };
@@ -412,6 +419,93 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       alert('Error updating status: ' + err.message);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const formatLiveDuration = (startedAtStr) => {
+    if (!startedAtStr) return '0h 00m 00s';
+    try {
+      const startMs = new Date(startedAtStr).getTime();
+      const nowMs = Date.now();
+      const diffSec = Math.max(0, Math.floor((nowMs - startMs) / 1000));
+      const hours = Math.floor(diffSec / 3600);
+      const mins = Math.floor((diffSec % 3600) / 60);
+      const secs = diffSec % 60;
+      return `${hours}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
+    } catch (e) {
+      return '0h 00m 00s';
+    }
+  };
+
+  const handleTogglePower = async (machine) => {
+    const isCurrentlyOnline = ['available', 'in-use', 'streaming'].includes(machine.live_status || machine.status);
+    const targetAction = isCurrentlyOnline ? 'standby' : 'online';
+    setUpdatingId(machine.id);
+    try {
+      const res = await fetch(`${API_BASE}/api/machines/${machine.id}/power`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ power_action: targetAction }),
+      });
+      if (res.ok) {
+        fetchAllAdminData();
+      } else {
+        const err = await res.json();
+        alert(err.detail || 'Failed to toggle machine power state');
+      }
+    } catch (err) {
+      alert('Power toggle error: ' + err.message);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleStartStreamOnMachine = async (machine) => {
+    setUpdatingId(machine.id);
+    try {
+      const res = await fetch(`${API_BASE}/api/machines/${machine.id}/start-stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        fetchAllAdminData();
+      } else {
+        const err = await res.json();
+        alert(err.detail || 'Failed to start stream on machine');
+      }
+    } catch (err) {
+      alert('Start stream error: ' + err.message);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleStopStreamOnMachine = async (machine) => {
+    setUpdatingId(machine.id);
+    try {
+      const res = await fetch(`${API_BASE}/api/machines/${machine.id}/stop-stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        fetchAllAdminData();
+      } else {
+        const err = await res.json();
+        alert(err.detail || 'Failed to stop stream');
+      }
+    } catch (err) {
+      alert('Stop stream error: ' + err.message);
     } finally {
       setUpdatingId(null);
     }
@@ -1044,7 +1138,7 @@ export default function AdminDashboard() {
             <span className="bento-tag">Fleet Rigs</span>
           </div>
           <div className="bento-value">
-            {machines.filter((m) => (m.live_status || m.status) === 'available').length}
+            {machines.filter((m) => ['available', 'in-use', 'streaming'].includes(m.live_status || m.status)).length}
             <span className="bento-subval">/{machines.length}</span>
           </div>
         </div>
@@ -1060,8 +1154,11 @@ export default function AdminDashboard() {
           <div className="bento-top-row">
             <span className="bento-tag">Live Streams</span>
           </div>
-          <div className={`bento-value ${activeSessionsCount > 0 ? 'highlight-green' : ''}`}>
-            {activeSessionsCount}
+          <div className={`bento-value ${machines.some((m) => ['in-use', 'streaming'].includes(m.live_status || m.status) || Boolean(m.stream_started_at)) || activeSessionsCount > 0 ? 'highlight-green' : ''}`}>
+            {Math.max(
+              activeSessionsCount,
+              machines.filter((m) => ['in-use', 'streaming'].includes(m.live_status || m.status) || Boolean(m.stream_started_at)).length
+            )}
           </div>
         </div>
 
@@ -1214,7 +1311,7 @@ export default function AdminDashboard() {
                         <th style={{ minWidth: '240px' }}>Hardware Specifications</th>
                         <th style={{ minWidth: '140px', textAlign: 'right' }}>Power Profile</th>
                         <th style={{ minWidth: '220px' }}>Installed Games</th>
-                        <th style={{ width: '180px', textAlign: 'right' }}>Actions</th>
+                        <th style={{ minWidth: '240px', textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1226,10 +1323,28 @@ export default function AdminDashboard() {
                         </tr>
                       ) : (
                         machines.map((m, idx) => {
-                          const isOnline = (m.live_status || m.status) === 'available' || (m.live_status || m.status) === 'in-use';
+                          const isStreaming = (m.live_status || m.status) === 'in-use' || (m.live_status || m.status) === 'streaming' || Boolean(m.stream_started_at);
+                          const isOnline = isStreaming || (m.live_status || m.status) === 'available';
                           const isMaint = (m.live_status || m.status) === 'maintenance';
-                          const statusKey = isMaint ? 'maintenance' : isOnline ? 'online' : 'standby';
-                          const statusLabel = isMaint ? 'Maintenance' : isOnline ? 'Online' : 'Standby';
+                          
+                          let statusKey = 'standby';
+                          let statusLabel = 'Standby';
+                          let dotColor = 'gray';
+
+                          if (isMaint) {
+                            statusKey = 'maintenance';
+                            statusLabel = 'Maintenance';
+                            dotColor = 'amber';
+                          } else if (isStreaming) {
+                            statusKey = 'streaming';
+                            statusLabel = 'Streaming';
+                            dotColor = 'cyan';
+                          } else if (isOnline) {
+                            statusKey = 'online';
+                            statusLabel = 'Online';
+                            dotColor = 'green';
+                          }
+
                           const actWatts = m.active_watts || (idx === 0 ? 260 : 210);
                           const idlWatts = m.idle_watts || (idx === 0 ? 48 : 38);
 
@@ -1240,18 +1355,31 @@ export default function AdminDashboard() {
                                   <span className="pc-role-badge remote" style={{ fontSize: '9.5px', padding: '1px 5px', borderRadius: '4px' }}>
                                     Node #{m.id}
                                   </span>
-                                  {m.is_host && (
+                                  {Boolean(m.is_host) && (
                                     <span style={{ fontSize: '10px', color: '#38bdf8', fontWeight: 700 }}>[HOST]</span>
+                                  )}
+                                  {isOnline && (
+                                    <span style={{ fontSize: '9.5px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '1px 5px', borderRadius: '4px', fontWeight: 600, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                                      OPEN
+                                    </span>
                                   )}
                                 </div>
                                 <strong style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                   <MonitorIcon size={14} style={{ opacity: 0.75 }} />
                                   <span>{m.name}</span>
                                 </strong>
+                                {isStreaming && (
+                                  <div style={{ marginTop: '5px' }}>
+                                    <span className="running-timer-badge">
+                                      <ClockIcon size={11} />
+                                      <span>Running: {formatLiveDuration(m.stream_started_at)}</span>
+                                    </span>
+                                  </div>
+                                )}
                               </td>
                               <td style={{ textAlign: 'center' }}>
                                 <span className={`pc-status-pill-table ${statusKey}`}>
-                                  <span className={`live-dot ${isOnline ? 'green' : isMaint ? 'amber' : 'gray'}`} />
+                                  <span className={`live-dot ${dotColor}`} />
                                   {statusLabel}
                                 </span>
                               </td>
@@ -1269,9 +1397,27 @@ export default function AdminDashboard() {
                                 </div>
                               </td>
                               <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                                <span style={{ color: '#f59e0b', fontWeight: 600 }}>{actWatts}W load</span>
-                                {' / '}
-                                <span style={{ color: '#38bdf8' }}>{idlWatts}W idle</span>
+                                {isStreaming ? (
+                                  <div>
+                                    <div style={{ color: '#06b6d4', fontWeight: 700, fontSize: '12.5px' }}>
+                                      ⚡ {actWatts}W Load
+                                    </div>
+                                    <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '10.5px' }}>
+                                      Active Gaming Stream
+                                    </div>
+                                  </div>
+                                ) : isOnline ? (
+                                  <div>
+                                    <span style={{ color: '#38bdf8', fontWeight: 600 }}>{idlWatts}W Idle</span>
+                                    <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '10.5px' }}>
+                                      Peak: {actWatts}W
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <span style={{ color: 'var(--text-muted, #94a3b8)' }}>0W (Standby)</span>
+                                  </div>
+                                )}
                               </td>
                               <td>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
@@ -1311,11 +1457,43 @@ export default function AdminDashboard() {
                                 </div>
                               </td>
                               <td style={{ textAlign: 'right' }}>
-                                <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                                <div style={{ display: 'inline-flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                  {isStreaming ? (
+                                    <button
+                                      className="btn-stop-stream"
+                                      onClick={() => handleStopStreamOnMachine(m)}
+                                      disabled={updatingId === m.id}
+                                      title="Stop stream runner and log session kWh & EDC cost"
+                                    >
+                                      <SquareIcon size={11} />
+                                      <span>Stop Stream</span>
+                                    </button>
+                                  ) : (
+                                    <button
+                                      className="btn-run-stream"
+                                      onClick={() => handleStartStreamOnMachine(m)}
+                                      disabled={updatingId === m.id || isMaint}
+                                      title="Run stream on this PC under load and track live uptime"
+                                    >
+                                      <PlayIcon size={11} />
+                                      <span>Run Stream</span>
+                                    </button>
+                                  )}
+
+                                  <button
+                                    className={`btn-power-toggle ${isOnline ? 'active' : ''}`}
+                                    onClick={() => handleTogglePower(m)}
+                                    disabled={updatingId === m.id || isMaint || isStreaming}
+                                    title={isOnline ? 'Put PC into Standby / Sleep' : 'Open / Turn On PC'}
+                                  >
+                                    <PowerIcon size={11} />
+                                    <span>{isOnline ? 'Sleep' : 'Open'}</span>
+                                  </button>
+
                                   <button
                                     className={`btn-toggle-maintenance-compact ${m.status === 'maintenance' ? 'restore' : ''}`}
                                     onClick={() => handleToggleMaintenance(m)}
-                                    disabled={updatingId === m.id}
+                                    disabled={updatingId === m.id || isStreaming}
                                     title={m.status === 'maintenance' ? 'Restore PC to available pool' : 'Put PC in maintenance mode'}
                                   >
                                     {updatingId === m.id ? (
@@ -1328,14 +1506,16 @@ export default function AdminDashboard() {
                                     ) : (
                                       <>
                                         <AlertTriangleIcon size={11} />
-                                        <span>Maintenance</span>
+                                        <span>Maint</span>
                                       </>
                                     )}
                                   </button>
+
                                   <button
                                     className="btn-delete-compact"
                                     onClick={() => handleDeleteMachine(m.id, m.name)}
                                     title="Delete this gaming PC node"
+                                    disabled={isStreaming}
                                   >
                                     <TrashIcon size={11} />
                                   </button>

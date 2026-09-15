@@ -112,6 +112,7 @@ def init_db() -> None:
         """)
         cursor.execute("ALTER TABLE machines ADD COLUMN IF NOT EXISTS os TEXT;")
         cursor.execute("ALTER TABLE machines ADD COLUMN IF NOT EXISTS last_seen TEXT;")
+        cursor.execute("ALTER TABLE machines ADD COLUMN IF NOT EXISTS stream_started_at TEXT;")
         cursor.execute("ALTER TABLE machines ADD COLUMN IF NOT EXISTS active_watts DOUBLE PRECISION DEFAULT 280.0;")
         cursor.execute("ALTER TABLE machines ADD COLUMN IF NOT EXISTS idle_watts DOUBLE PRECISION DEFAULT 55.0;")
         try:

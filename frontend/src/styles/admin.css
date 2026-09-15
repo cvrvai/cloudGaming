@@ -3677,10 +3677,115 @@ body.dmaic-white-page-mode .cloudkh-main-content {
   border-color: #86efac !important;
 }
 
-.dmaic-academic-white-theme .pc-status-pill-table.standby {
+.pc-status-pill-table.streaming {
+  background: rgba(0, 210, 255, 0.18);
+  color: #00d2ff;
+  border: 1px solid rgba(0, 210, 255, 0.4);
+}
+
+.live-dot.cyan {
+  background: #00d2ff;
+  box-shadow: 0 0 8px #00d2ff;
+  animation: live-pulse 1.2s infinite;
+}
+
+@keyframes live-pulse {
+  0% { opacity: 0.5; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 0.5; transform: scale(0.9); }
+}
+
+.btn-run-stream {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #00d2ff, #0052ff);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+
+.btn-run-stream:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 210, 255, 0.4);
+}
+
+.btn-stop-stream {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 5px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #f87171;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+
+.btn-stop-stream:hover {
+  background: rgba(239, 68, 68, 0.28);
+}
+
+.btn-power-toggle {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #e2e8f0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+
+.btn-power-toggle:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.running-timer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 210, 255, 0.12);
+  border: 1px solid rgba(0, 210, 255, 0.3);
+  color: #38bdf8;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.dmaic-academic-white-theme .pc-status-pill-table.streaming {
+  background: #e0f2fe !important;
+  color: #0369a1 !important;
+  border-color: #7dd3fc !important;
+}
+
+.dmaic-academic-white-theme .running-timer-badge {
+  background: #f0f9ff !important;
+  color: #0284c7 !important;
+  border-color: #bae6fd !important;
+}
+
+.dmaic-academic-white-theme .btn-power-toggle {
   background: #f1f5f9 !important;
-  color: #64748b !important;
   border-color: #cbd5e1 !important;
+  color: #0f172a !important;
 }
 
 

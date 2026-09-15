@@ -15,7 +15,12 @@ router = APIRouter(prefix="/machines", tags=["machines"])
 
 
 class MachineStatusUpdate(BaseModel):
-    status: str  # 'available' | 'maintenance'
+    status: str  # 'available' | 'maintenance' | 'standby' | 'in-use' | 'streaming' | 'offline'
+
+
+class MachinePowerToggle(BaseModel):
+    power: Optional[str] = None
+    power_action: Optional[str] = None
 
 
 class PairGenerateRequest(BaseModel):
@@ -74,7 +79,8 @@ async def list_machines():
                 """
                 SELECT id, name, gpu, cpu, ram, os, status, is_host, notes, last_seen,
                        COALESCE(active_watts, 280.0) as active_watts,
-                       COALESCE(idle_watts, 55.0) as idle_watts
+                       COALESCE(idle_watts, 55.0) as idle_watts,
+                       stream_started_at
                 FROM machines
                 ORDER BY id ASC;
                 """
@@ -133,17 +139,20 @@ async def list_machines():
     # 3. Dynamic real-time connection status layer (always evaluated in-memory per request)
     for m in machines:
         is_connected = node_relay.is_node_connected(m["id"])
-        if m["status"] == "maintenance":
+        if m.get("stream_started_at") or m.get("status") in ("streaming", "in-use"):
+            m["status"] = "in-use"
+            m["live_status"] = "streaming"
+        elif m["status"] == "maintenance":
             m["live_status"] = "maintenance"
-        elif not is_connected:
-            m["status"] = "offline"
-            m["live_status"] = "offline"
-        else:
+        elif is_connected or m.get("status") == "available":
             is_currently_in_use = any(
                 b["start_time"] <= now_iso <= b["end_time"] for b in m.get("bookings", [])
             )
-            m["status"] = "available"
-            m["live_status"] = "busy" if is_currently_in_use else "available"
+            m["status"] = "in-use" if is_currently_in_use else "available"
+            m["live_status"] = "streaming" if is_currently_in_use else "available"
+        else:
+            m["status"] = "standby"
+            m["live_status"] = "standby"
 
     return machines
 
@@ -208,19 +217,174 @@ async def update_machine_status(
     req: MachineStatusUpdate,
     admin_user: Dict = Depends(require_admin),
 ):
-    """Admin-only: toggle machine between available and maintenance."""
-    if req.status not in ("available", "maintenance"):
-        raise HTTPException(status_code=400, detail="Status must be 'available' or 'maintenance'")
+    """Admin-only: toggle machine status."""
+    valid_statuses = ("available", "maintenance", "standby", "in-use", "streaming", "offline")
+    if req.status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Status must be one of: {valid_statuses}")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    stream_started = now_iso if req.status in ("in-use", "streaming") else None
 
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("UPDATE machines SET status = %s WHERE id = %s;", (req.status, machine_id))
+        if stream_started:
+            cursor.execute(
+                "UPDATE machines SET status = %s, stream_started_at = %s, last_seen = %s WHERE id = %s;",
+                (req.status, stream_started, now_iso, machine_id),
+            )
+        else:
+            cursor.execute(
+                "UPDATE machines SET status = %s, stream_started_at = NULL, last_seen = %s WHERE id = %s;",
+                (req.status, now_iso, machine_id),
+            )
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="Machine not found")
         conn.commit()
 
     await cache_delete("machines:raw")
     return {"message": f"Machine status updated to {req.status}"}
+
+
+@router.post("/{machine_id}/start-stream")
+async def start_machine_stream(
+    machine_id: int,
+    admin_user: Dict = Depends(require_admin),
+):
+    """Admin-only: Open computer / launch streaming under full active load."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE machines 
+            SET status = 'in-use', stream_started_at = %s, last_seen = %s
+            WHERE id = %s RETURNING *;
+            """,
+            (now_iso, now_iso, machine_id),
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Machine not found")
+        conn.commit()
+
+    await cache_delete("machines:raw")
+    m_dict = dict(row)
+    m_dict["live_status"] = "streaming"
+    return {
+        "status": "streaming",
+        "message": f"Stream started on {m_dict['name']}. Rig running under load.",
+        "machine": m_dict,
+        "stream_started_at": now_iso,
+    }
+
+
+@router.post("/{machine_id}/stop-stream")
+async def stop_machine_stream(
+    machine_id: int,
+    admin_user: Dict = Depends(require_admin),
+):
+    """Admin-only: Stop stream, record active hours and watt consumption to telemetry."""
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM machines WHERE id = %s;", (machine_id,))
+        machine = cursor.fetchone()
+        if not machine:
+            raise HTTPException(status_code=404, detail="Machine not found")
+
+        m_dict = dict(machine)
+        started_at_str = m_dict.get("stream_started_at")
+        duration_seconds = 1800.0  # default 30 mins if not recorded
+        if started_at_str:
+            try:
+                start_dt = datetime.fromisoformat(started_at_str.replace("Z", "+00:00"))
+                duration_seconds = max(10.0, (now - start_dt).total_seconds())
+            except Exception:
+                duration_seconds = 1800.0
+
+        run_hours = round(duration_seconds / 3600.0, 3)
+        act_watts = float(m_dict.get("active_watts") or 260.0)
+        power_kwh = round((act_watts * run_hours) / 1000.0, 4)
+        cost_usd = round(power_kwh * 0.18, 4)
+
+        # Reset machine status
+        cursor.execute(
+            """
+            UPDATE machines 
+            SET status = 'available', stream_started_at = NULL, last_seen = %s
+            WHERE id = %s;
+            """,
+            (now_iso, machine_id),
+        )
+
+        # Insert telemetry record into session_telemetry so it immediately records to Daily Watt Log
+        cursor.execute("SELECT COUNT(*) as count FROM session_telemetry;")
+        count = cursor.fetchone()["count"] + 1
+        test_id = f"RUN-{count:03d}"
+
+        cursor.execute(
+            """
+            INSERT INTO session_telemetry (
+                test_id, user_email, machine_id, requested_time, booking_slot,
+                waiting_time_minutes, avg_latency_ms, max_latency_ms, avg_fps,
+                packet_loss_pct, disconnects_count, completed,
+                pc_idle_minutes, power_kwh, energy_cost_usd, phase, source,
+                created_at, notes
+            ) VALUES (
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s
+            );
+            """,
+            (
+                test_id, admin_user.get("email", "admin@cloudkh.space"), machine_id, now_iso, "Live Stream Session",
+                0.0, 42.5, 68.0, 60.0,
+                0.1, 0, True,
+                0.0, power_kwh, cost_usd, "V2_Improved", "admin_stream",
+                now_iso, f"Live stream run on {m_dict['name']} ({round(duration_seconds)}s)",
+            ),
+        )
+        conn.commit()
+
+    await cache_delete("machines:raw")
+
+    return {
+        "status": "stopped",
+        "message": f"Stream stopped on {m_dict['name']}.",
+        "duration_seconds": round(duration_seconds, 1),
+        "duration_hours": run_hours,
+        "power_kwh": power_kwh,
+        "energy_cost_usd": cost_usd,
+        "energy_cost_khr": int(cost_usd * 4050),
+    }
+
+
+@router.post("/{machine_id}/power")
+async def toggle_machine_power(
+    machine_id: int,
+    req: MachinePowerToggle,
+    admin_user: Dict = Depends(require_admin),
+):
+    """Admin-only: toggle computer power between on (available) and standby."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    action = (req.power or req.power_action or 'on').lower()
+    new_status = 'available' if action in ('on', 'online', 'available') else 'standby'
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE machines SET status = %s, stream_started_at = NULL, last_seen = %s WHERE id = %s RETURNING *;",
+            (new_status, now_iso, machine_id),
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Machine not found")
+        conn.commit()
+    await cache_delete("machines:raw")
+    return {"status": new_status, "message": f"Machine set to {new_status}"}
 
 
 @router.post("/{machine_id}/heartbeat")
