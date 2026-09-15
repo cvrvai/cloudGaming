@@ -81,7 +81,7 @@ export default function FleetView({ onBookingSuccess }) {
                     }`}
                   >
                     <span className="status-dot" />
-                    {isMaintenance ? 'Maintenance' : isStreaming ? (machine.steam_detected ? 'Steam Active' : 'In Session') : isBusy ? 'In Session' : 'Available'}
+                    {isMaintenance ? 'Maintenance' : isStreaming ? (machine.current_game ? `Streaming: ${machine.current_game}` : 'In Session') : isBusy ? 'In Session' : 'Available'}
                   </div>
                 </div>
 

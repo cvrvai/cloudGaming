@@ -192,7 +192,7 @@ async def list_machines():
                         end_local = (now_dt + tz_offset).strftime("%I:%M %p")
                         time_window = f"{start_local} - {end_local}"
                     except Exception:
-                        time_window = "Steam Session"
+                        time_window = "Game Session"
 
                     with get_db() as conn:
                         c = conn.cursor()

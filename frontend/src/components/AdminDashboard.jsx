@@ -1761,7 +1761,7 @@ export default function AdminDashboard() {
                             dotColor = 'amber';
                           } else if (isStreaming) {
                             statusKey = 'streaming';
-                            statusLabel = m.steam_detected ? 'Streaming (Steam)' : 'Streaming';
+                            statusLabel = 'Streaming';
                             dotColor = 'cyan';
                           } else if (isOnline) {
                             statusKey = 'online';
@@ -1798,9 +1798,9 @@ export default function AdminDashboard() {
                                       <ClockIcon size={11} />
                                       <span>Running: {formatLiveDuration(m.runtime_started_at || m.stream_started_at)}</span>
                                     </span>
-                                    {m.steam_detected && (
+                                    {m.current_game && (
                                       <span style={{ fontSize: '10px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '1px 6px', borderRadius: '4px', border: '1px solid rgba(56, 189, 248, 0.3)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                        Steam Running
+                                        {m.current_game}
                                       </span>
                                     )}
                                   </div>
@@ -1832,7 +1832,7 @@ export default function AdminDashboard() {
                                       {formatWattRate(actWatts)} active rate
                                     </div>
                                     <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '10.5px' }}>
-                                      {m.steam_detected ? 'Active Steam Session' : 'Active Gaming Stream'}
+                                      {m.current_game || 'Active Game Session'}
                                     </div>
                                   </div>
                                 ) : isOnline ? (

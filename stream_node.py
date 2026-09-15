@@ -179,6 +179,11 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
     from app.services.agent import host_agent
     from app.services.input.gamepad import gamepad_service
 
+    # Configure host agent with this node's identity and cloud endpoint
+    host_agent.node_id = node_id
+    host_agent.api_base = api_base
+    host_agent._load_authorized_game_exes()
+
     # Start local virtual gamepad / keyboard emulator service
     gamepad_service.start()
 

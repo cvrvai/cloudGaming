@@ -203,8 +203,8 @@ def get_host_steam_and_game_status() -> Dict[str, Any]:
     if game_info:
         return game_info
     if steam_info:
-        default_title = list(known_game_exes.values())[0] if known_game_exes else "METAL SLUG ATTACK RELOADED"
-        steam_info["game_title"] = f"Steam ({default_title})"
+        default_title = list(known_game_exes.values())[0] if known_game_exes else "Game Session"
+        steam_info["game_title"] = default_title
         return steam_info
 
     return {
@@ -256,8 +256,9 @@ def _resolve_game_executables_and_steam_appid(exe_path: str):
 class GamingPCAgent:
     """Agent running on the host / gaming node to manage game lifecycles."""
 
-    def __init__(self, node_id: Optional[int] = None):
+    def __init__(self, node_id: Optional[int] = None, api_base: str = "https://api.cloudkh.space"):
         self.node_id = node_id if node_id is not None else _detect_local_node_id()
+        self.api_base = api_base
         self._active_process: Optional[subprocess.Popen] = None
         self._active_game_info: Optional[Dict[str, Any]] = None
         self._exit_callbacks = []
@@ -272,7 +273,8 @@ class GamingPCAgent:
             self._exit_callbacks.append(callback)
 
     def _load_authorized_game_exes(self) -> None:
-        """Cache all configured game executables from DB."""
+        """Cache all configured game executables from DB or Cloud API."""
+        loaded_from_db = False
         try:
             with get_db() as conn:
                 cursor = conn.cursor()
@@ -283,8 +285,27 @@ class GamingPCAgent:
                     if p:
                         names, _ = _resolve_game_executables_and_steam_appid(p)
                         self._authorized_game_exes.update(names)
+                loaded_from_db = True
         except Exception as e:
-            logger.debug("Could not load authorized game exes from DB: %s", e)
+            logger.debug("Could not load authorized game exes from DB (worker node mode): %s", e)
+
+        if not loaded_from_db:
+            try:
+                import json
+                import urllib.request
+                api = getattr(self, "api_base", "https://api.cloudkh.space")
+                req = urllib.request.Request(f"{api.rstrip('/')}/api/machines", headers={"User-Agent": "CloudKH-NodeStreamer/1.0"})
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    machines = json.loads(resp.read().decode("utf-8"))
+                    for m in machines:
+                        if m.get("id") == self.node_id or str(m.get("id")) == str(self.node_id):
+                            for g in m.get("installed_games", []):
+                                p = g.get("executable_path", "").strip()
+                                if p:
+                                    names, _ = _resolve_game_executables_and_steam_appid(p)
+                                    self._authorized_game_exes.update(names)
+            except Exception as e:
+                logger.debug("Could not load authorized game exes from Cloud API: %s", e)
 
     def is_game_running(self) -> bool:
         """Check if an authorized game process is currently running on the PC."""
@@ -345,40 +366,11 @@ class GamingPCAgent:
     ) -> Dict[str, Any]:
         """Look up administrator-configured executable for this node and launch it."""
         with self._lock:
-            # Query administrator-configured node_games record
-            with get_db() as conn:
-                cursor = conn.cursor()
-                if game_id:
-                    cursor.execute(
-                        """
-                        SELECT ng.id, ng.node_id, ng.game_id, ng.executable_path,
-                               ng.working_directory, ng.launch_arguments, ng.enabled, ng.status,
-                               g.title, g.slug
-                        FROM node_games ng
-                        JOIN games g ON ng.game_id = g.id
-                        WHERE ng.node_id = %s AND ng.game_id = %s;
-                        """,
-                        (self.node_id, game_id),
-                    )
-                elif slug:
-                    cursor.execute(
-                        """
-                        SELECT ng.id, ng.node_id, ng.game_id, ng.executable_path,
-                               ng.working_directory, ng.launch_arguments, ng.enabled, ng.status,
-                               g.title, g.slug
-                        FROM node_games ng
-                        JOIN games g ON ng.game_id = g.id
-                        WHERE ng.node_id = %s AND g.slug = %s;
-                        """,
-                        (self.node_id, slug),
-                    )
-                else:
-                    raise ValueError("Either game_id or slug is required to start a game.")
-
-                config = cursor.fetchone()
-
-                if not config:
-                    # Fallback: Query any active node_game matching game_id / slug
+            config = None
+            # 1. Try local database if available
+            try:
+                with get_db() as conn:
+                    cursor = conn.cursor()
                     if game_id:
                         cursor.execute(
                             """
@@ -387,9 +379,9 @@ class GamingPCAgent:
                                    g.title, g.slug
                             FROM node_games ng
                             JOIN games g ON ng.game_id = g.id
-                            WHERE ng.game_id = %s LIMIT 1;
+                            WHERE ng.node_id = %s AND ng.game_id = %s;
                             """,
-                            (game_id,),
+                            (self.node_id, game_id),
                         )
                     elif slug:
                         cursor.execute(
@@ -399,21 +391,87 @@ class GamingPCAgent:
                                    g.title, g.slug
                             FROM node_games ng
                             JOIN games g ON ng.game_id = g.id
-                            WHERE g.slug = %s LIMIT 1;
+                            WHERE ng.node_id = %s AND g.slug = %s;
                             """,
-                            (slug,),
+                            (self.node_id, slug),
                         )
+                    else:
+                        raise ValueError("Either game_id or slug is required to start a game.")
+
                     config = cursor.fetchone()
+
+                    if not config:
+                        # Fallback: Query any active node_game matching game_id / slug
+                        if game_id:
+                            cursor.execute(
+                                """
+                                SELECT ng.id, ng.node_id, ng.game_id, ng.executable_path,
+                                       ng.working_directory, ng.launch_arguments, ng.enabled, ng.status,
+                                       g.title, g.slug
+                                FROM node_games ng
+                                JOIN games g ON ng.game_id = g.id
+                                WHERE ng.game_id = %s LIMIT 1;
+                                """,
+                                (game_id,),
+                            )
+                        elif slug:
+                            cursor.execute(
+                                """
+                                SELECT ng.id, ng.node_id, ng.game_id, ng.executable_path,
+                                       ng.working_directory, ng.launch_arguments, ng.enabled, ng.status,
+                                       g.title, g.slug
+                                FROM node_games ng
+                                JOIN games g ON ng.game_id = g.id
+                                WHERE g.slug = %s LIMIT 1;
+                                """,
+                                (slug,),
+                            )
+                        config = cursor.fetchone()
+            except Exception as db_exc:
+                logger.debug("[Agent] Local DB query skipped/failed (worker node mode): %s", db_exc)
+
+            # 2. Fallback: Query Cloud API if running as worker node without local database
+            if not config:
+                try:
+                    import json
+                    import urllib.request
+                    api = getattr(self, "api_base", "https://api.cloudkh.space")
+                    req = urllib.request.Request(f"{api.rstrip('/')}/api/machines", headers={"User-Agent": "CloudKH-NodeStreamer/1.0"})
+                    with urllib.request.urlopen(req, timeout=5) as resp:
+                        machines = json.loads(resp.read().decode("utf-8"))
+                        for m in machines:
+                            if m.get("id") == self.node_id or str(m.get("id")) == str(self.node_id):
+                                for g in m.get("installed_games", []):
+                                    if (game_id and g.get("game_id") == game_id) or (slug and g.get("slug") == slug):
+                                        config = g
+                                        break
+                            if config:
+                                break
+                        # If still not found for self.node_id, search any machine as fallback
+                        if not config:
+                            for m in machines:
+                                for g in m.get("installed_games", []):
+                                    if (game_id and g.get("game_id") == game_id) or (slug and g.get("slug") == slug):
+                                        config = g
+                                        break
+                                if config:
+                                    break
+                except Exception as api_exc:
+                    logger.warning("[Agent] Error resolving game via Cloud API: %s", api_exc)
 
             if not config:
                 raise ValueError("Game is not configured on this gaming PC by administrator.")
 
-            if not config["enabled"] or config["status"] != "ready":
-                raise ValueError(f"Game '{config['title']}' is currently '{config['status']}' on this PC.")
+            if not config.get("enabled", True) or config.get("status", "ready") != "ready":
+                raise ValueError(f"Game '{config.get('title')}' is currently '{config.get('status')}' on this PC.")
 
             exe_path = config["executable_path"].strip()
-            cwd = config["working_directory"].strip() if config["working_directory"] else None
-            args_str = config["launch_arguments"].strip() if config["launch_arguments"] else ""
+            cwd = config.get("working_directory")
+            if cwd:
+                cwd = cwd.strip()
+            if not cwd or not Path(cwd).is_dir():
+                cwd = str(Path(exe_path).parent)
+            args_str = config.get("launch_arguments", "").strip() if config.get("launch_arguments") else ""
 
             # Check if active game is already running
             if self._active_process and self._active_process.poll() is None:
@@ -450,32 +508,26 @@ class GamingPCAgent:
             if args_str:
                 cmd.extend(args_str.split())
 
-            # Resolve all executable names (including shipping binaries) and Steam AppID
-            exe_names, steam_appid = _resolve_game_executables_and_steam_appid(exe_path)
+            # Resolve all executable names (including shipping binaries)
+            exe_names, _ = _resolve_game_executables_and_steam_appid(exe_path)
             self._authorized_game_exes.update(exe_names)
 
-            # Verify executable existence if local host
+            # Verify executable existence on local disk
             exe_exists = Path(exe_path).is_file()
             pid = None
             simulated = False
 
             if exe_exists:
                 try:
-                    steam_exe = Path(r"C:\Program Files (x86)\Steam\steam.exe")
-                    if steam_appid and steam_exe.exists():
-                        logger.info("Launching Steam game via steam.exe -applaunch %s...", steam_appid)
-                        subprocess.Popen([str(steam_exe), "-applaunch", str(steam_appid)], shell=False)
-                        self._active_process = None
-                        pid = None
-                    else:
-                        proc = subprocess.Popen(
-                            cmd,
-                            cwd=cwd if cwd and Path(cwd).is_dir() else None,
-                            shell=False,
-                        )
-                        self._active_process = proc
-                        pid = proc.pid
-                        logger.info("Launched game '%s' (PID %s): %s", config["title"], pid, exe_path)
+                    logger.info("Executing native game executable: %s (CWD: %s)", exe_path, cwd)
+                    proc = subprocess.Popen(
+                        cmd,
+                        cwd=cwd,
+                        shell=False,
+                    )
+                    self._active_process = proc
+                    pid = proc.pid
+                    logger.info("Launched game '%s' (PID %s): %s", config["title"], pid, exe_path)
 
                     # Start robust process tree watchdog
                     self._start_process_watchdog(config["title"], config["game_id"])
