@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import StreamHUD from './StreamHUD';
 import WebRTCPlayer from './WebRTCPlayer';
 import GamepadController from './GamepadController';
-import { AlertTriangleIcon, RefreshIcon, MouseIcon, GamepadIcon, CheckIcon, MaximizeIcon, MinimizeIcon } from './Icons';
+import { AlertTriangleIcon, RefreshIcon, GamepadIcon, CheckIcon } from './Icons';
 import { INPUT_WS_URL } from '../config';
 
 const isTouchDevice = () => {
@@ -14,9 +14,31 @@ const isTouchDevice = () => {
   );
 };
 
+const GAMEPAD_BUTTON_MAP = [
+  'A',       // 0
+  'B',       // 1
+  'X',       // 2
+  'Y',       // 3
+  'LB',      // 4
+  'RB',      // 5
+  'LT',      // 6
+  'RT',      // 7
+  'SELECT',  // 8
+  'START',   // 9
+  'THUMBL',  // 10
+  'THUMBR',  // 11
+  'D_UP',    // 12
+  'D_DOWN',  // 13
+  'D_LEFT',  // 14
+  'D_RIGHT', // 15
+  'GUIDE',   // 16
+];
+
 export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, serverIP }) {
   const [gstreamerAvailable, setGstreamerAvailable] = useState(null); // null: checking, true: ok, false: offline
-  const [inputMode, setInputMode] = useState(() => (isTouchDevice() ? 'controller' : 'desktop')); // auto-detect mobile
+  const [hasGamepad, setHasGamepad] = useState(false);
+  const [gamepadName, setGamepadName] = useState('');
+  const [gamepadToast, setGamepadToast] = useState(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
@@ -28,9 +50,26 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
   const wsRef = useRef(null);
   const keySequenceRef = useRef(0);
   const hudTimerRef = useRef(null);
+  const toastTimerRef = useRef(null);
+  const prevButtonsRef = useRef({});
+  const prevAxesRef = useRef({ lx: 0, ly: 0, rx: 0, ry: 0 });
+  const animFrameRef = useRef(null);
 
   const toggleMute = useCallback(() => {
     setIsMuted((prev) => !prev);
+  }, []);
+
+  const showGamepadToast = useCallback((name) => {
+    let cleanName = name || 'Gamepad Controller';
+    if (/xbox/i.test(cleanName)) cleanName = 'Xbox Controller';
+    else if (/dualshock|dualsense|playstation/i.test(cleanName)) cleanName = 'PlayStation Controller';
+    else if (/nintendo|switch/i.test(cleanName)) cleanName = 'Switch Controller';
+
+    setGamepadToast(cleanName);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      setGamepadToast(null);
+    }, 2800);
   }, []);
 
   // Auto-close remote game if user navigates away, closes tab, or leaves browser
@@ -76,11 +115,6 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
     return () => {
       if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
     };
-  }, [resetHudTimer]);
-
-  const toggleInputMode = useCallback(() => {
-    setInputMode((prev) => (prev === 'controller' ? 'desktop' : 'controller'));
-    resetHudTimer();
   }, [resetHudTimer]);
 
   const handleExitSession = useCallback(() => {
@@ -226,10 +260,139 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
     return () => clearInterval(interval);
   }, [gameExitedData, onSessionEnd]);
 
-  // Desktop mode keyboard event capture
+  // Native HTML5 Gamepad API Auto-Detection & Real-Time Polling
   useEffect(() => {
-    if (inputMode !== 'desktop') return;
+    const handleConnected = (e) => {
+      setHasGamepad(true);
+      setGamepadName(e.gamepad?.id || 'Controller');
+      showGamepadToast(e.gamepad?.id);
+    };
 
+    const handleDisconnected = () => {
+      const gamepads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
+      const anyActive = Array.from(gamepads).some((g) => g && g.connected);
+      setHasGamepad(anyActive);
+      if (!anyActive) {
+        setGamepadName('');
+        prevButtonsRef.current = {};
+        prevAxesRef.current = { lx: 0, ly: 0, rx: 0, ry: 0 };
+      }
+    };
+
+    window.addEventListener('gamepadconnected', handleConnected);
+    window.addEventListener('gamepaddisconnected', handleDisconnected);
+
+    // Initial check on mount
+    if (typeof navigator !== 'undefined' && navigator.getGamepads) {
+      const gamepads = navigator.getGamepads();
+      const active = Array.from(gamepads).find((g) => g && g.connected);
+      if (active) {
+        setHasGamepad(true);
+        setGamepadName(active.id || 'Controller');
+      }
+    }
+
+    const applyDeadzone = (val, threshold = 0.12) => {
+      if (Math.abs(val) < threshold) return 0;
+      return Math.max(-1, Math.min(1, val));
+    };
+
+    const pollLoop = () => {
+      if (typeof navigator !== 'undefined' && navigator.getGamepads) {
+        const gamepads = navigator.getGamepads();
+        const gp = Array.from(gamepads).find((g) => g && g.connected);
+
+        if (gp) {
+          if (!hasGamepad) {
+            setHasGamepad(true);
+            setGamepadName(gp.id || 'Controller');
+          }
+
+          const ws = wsRef.current;
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            // Buttons
+            for (let i = 0; i < GAMEPAD_BUTTON_MAP.length; i++) {
+              const btnName = GAMEPAD_BUTTON_MAP[i];
+              if (!btnName) continue;
+              const btn = gp.buttons[i];
+              const isPressed = !!(btn && (btn.pressed || btn.value > 0.25));
+              const prev = !!prevButtonsRef.current[i];
+
+              if (isPressed !== prev) {
+                prevButtonsRef.current[i] = isPressed;
+                ws.send(JSON.stringify({
+                  type: 'button',
+                  button: btnName,
+                  pressed: isPressed,
+                  node_id: sessionData?.machine_id,
+                  sequence: ++keySequenceRef.current,
+                  clientTimestamp: performance.now(),
+                }));
+              }
+            }
+
+            // Left Stick (Axes 0, 1)
+            const lx = applyDeadzone(gp.axes[0] || 0);
+            const ly = applyDeadzone(gp.axes[1] || 0);
+            const prev = prevAxesRef.current;
+
+            if (
+              Math.abs(lx - prev.lx) > 0.02 ||
+              Math.abs(ly - prev.ly) > 0.02 ||
+              (lx === 0 && prev.lx !== 0) ||
+              (ly === 0 && prev.ly !== 0)
+            ) {
+              prev.lx = lx;
+              prev.ly = ly;
+              ws.send(JSON.stringify({
+                type: 'left_stick',
+                x: lx,
+                y: ly,
+                node_id: sessionData?.machine_id,
+                sequence: ++keySequenceRef.current,
+                clientTimestamp: performance.now(),
+              }));
+            }
+
+            // Right Stick (Axes 2, 3)
+            const rx = applyDeadzone(gp.axes[2] || 0);
+            const ry = applyDeadzone(gp.axes[3] || 0);
+
+            if (
+              Math.abs(rx - prev.rx) > 0.02 ||
+              Math.abs(ry - prev.ry) > 0.02 ||
+              (rx === 0 && prev.rx !== 0) ||
+              (ry === 0 && prev.ry !== 0)
+            ) {
+              prev.rx = rx;
+              prev.ry = ry;
+              ws.send(JSON.stringify({
+                type: 'right_stick',
+                x: rx,
+                y: ry,
+                node_id: sessionData?.machine_id,
+                sequence: ++keySequenceRef.current,
+                clientTimestamp: performance.now(),
+              }));
+            }
+          }
+        }
+      }
+      animFrameRef.current = requestAnimationFrame(pollLoop);
+    };
+
+    animFrameRef.current = requestAnimationFrame(pollLoop);
+
+    return () => {
+      window.removeEventListener('gamepadconnected', handleConnected);
+      window.removeEventListener('gamepaddisconnected', handleDisconnected);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, [hasGamepad, sessionData?.machine_id, showGamepadToast]);
+
+  // Universal keyboard event capture (simultaneous input alongside gamepad)
+  useEffect(() => {
     const sendKeyEvent = (e, pressed) => {
       // Ignore functional browser shortcuts and Windows system keys to protect kiosk mode
       if (
@@ -263,7 +426,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [inputMode, sessionData]);
+  }, [sessionData?.machine_id]);
 
   const checkGst = async () => {
     try {
@@ -298,13 +461,20 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
         onSessionEnd={handleExitSession}
         hudVisible={hudVisible}
         onShowHud={resetHudTimer}
-        inputMode={inputMode}
-        onToggleInputMode={toggleInputMode}
+        hasGamepad={hasGamepad}
+        gamepadName={gamepadName}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
         isMuted={isMuted}
         onToggleMute={toggleMute}
       />
+
+      {gamepadToast && (
+        <div className="controller-toast">
+          <GamepadIcon size={16} />
+          <span>Controller Connected: {gamepadToast}</span>
+        </div>
+      )}
 
       <div className="stream-canvas-wrapper">
         {isExiting ? null : !gameExitedData && gstreamerAvailable ? (
@@ -363,37 +533,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
         )}
       </div>
 
-      {inputMode === 'desktop' && (
-        <div className={`stream-bottom-controls ${hudVisible ? 'hud-visible' : 'hud-hidden'}`}>
-          <button
-            className="stream-control-btn active"
-            onClick={() => { setInputMode('desktop'); resetHudTimer(); }}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-          >
-            <MouseIcon size={16} />
-            <span>Keyboard & Mouse</span>
-          </button>
-          <button
-            className="stream-control-btn"
-            onClick={() => { setInputMode('controller'); resetHudTimer(); }}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-          >
-            <GamepadIcon size={16} />
-            <span>Virtual Gamepad</span>
-          </button>
-          <button
-            className="stream-control-btn"
-            onClick={toggleFullscreen}
-            title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-          >
-            {isFullscreen ? <MinimizeIcon size={16} /> : <MaximizeIcon size={16} />}
-            <span>{isFullscreen ? 'Exit Full' : 'Fullscreen'}</span>
-          </button>
-        </div>
-      )}
-
-      {inputMode === 'controller' && (
+      {isTouchDevice() && !hasGamepad && (
         <GamepadController
           wsRef={wsRef}
           nodeId={sessionData?.machine_id}

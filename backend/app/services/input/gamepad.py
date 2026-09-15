@@ -91,6 +91,11 @@ BUTTON_KEYBOARD_MAP = {
     "RT": "2",
     "START": "ENTER",
     "SELECT": "ESC",
+    "BACK": "ESC",
+    "THUMBL": "C",
+    "THUMBR": "V",
+    "L3": "C",
+    "R3": "V",
     "D_UP": "UP",
     "D_DOWN": "DOWN",
     "D_LEFT": "LEFT",
@@ -141,6 +146,11 @@ class GamepadService:
                 "RB": vg.XUSB_BUTTON.XUSB_GAMEPAD_RIGHT_SHOULDER,
                 "START": vg.XUSB_BUTTON.XUSB_GAMEPAD_START,
                 "SELECT": vg.XUSB_BUTTON.XUSB_GAMEPAD_BACK,
+                "BACK": vg.XUSB_BUTTON.XUSB_GAMEPAD_BACK,
+                "THUMBL": vg.XUSB_BUTTON.XUSB_GAMEPAD_LEFT_THUMB,
+                "THUMBR": vg.XUSB_BUTTON.XUSB_GAMEPAD_RIGHT_THUMB,
+                "L3": vg.XUSB_BUTTON.XUSB_GAMEPAD_LEFT_THUMB,
+                "R3": vg.XUSB_BUTTON.XUSB_GAMEPAD_RIGHT_THUMB,
                 "D_UP": vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_UP,
                 "D_DOWN": vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_DOWN,
                 "D_LEFT": vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_LEFT,
@@ -156,6 +166,7 @@ class GamepadService:
                 "RB": LinuxButton.RB,
                 "START": LinuxButton.START,
                 "SELECT": LinuxButton.BACK,
+                "BACK": LinuxButton.BACK,
                 "D_UP": LinuxButton.DPAD_UP,
                 "D_DOWN": LinuxButton.DPAD_DOWN,
                 "D_LEFT": LinuxButton.DPAD_LEFT,
@@ -310,16 +321,19 @@ class GamepadService:
                 self._set_keyboard_key(key_name, pressed)
             return
 
-        if button == "LT":
-            self.gamepad.left_trigger(value=255 if pressed else 0)
-            self.gamepad.update()
+        btn_upper = button.upper()
+        if btn_upper in ("LT", "L2"):
+            if self.gamepad is not None:
+                self.gamepad.left_trigger(value=255 if pressed else 0)
+                self.gamepad.update()
             return
-        if button == "RT":
-            self.gamepad.right_trigger(value=255 if pressed else 0)
-            self.gamepad.update()
+        if btn_upper in ("RT", "R2"):
+            if self.gamepad is not None:
+                self.gamepad.right_trigger(value=255 if pressed else 0)
+                self.gamepad.update()
             return
 
-        xbox_button = self.button_map.get(button)
+        xbox_button = self.button_map.get(btn_upper) or self.button_map.get(button)
         if xbox_button is not None:
             if pressed:
                 self.gamepad.press_button(button=xbox_button)

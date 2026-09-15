@@ -1,0 +1,154 @@
+/* =========================================================
+   Mobile Bottom Navigation Bar (Thumb Friendly)
+   ========================================================= */
+.cloudkh-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 768px) and (orientation: portrait), (max-width: 768px) and (min-height: 521px) {
+  .cloudkh-bottom-nav {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 52px !important;
+    background: var(--navbar-bg, rgba(16, 27, 49, 0.96)) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-top: 1px solid var(--glass-border, rgba(0, 210, 255, 0.18)) !important;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.6) !important;
+    z-index: 2000 !important;
+    align-items: center !important;
+    justify-content: space-around !important;
+    padding: 0 16px !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  }
+}
+
+/* Explicitly hide mobile bottom nav in landscape mode to eliminate dual navigation bars */
+@media (orientation: landscape) and (max-height: 520px), (max-height: 480px) {
+  .cloudkh-bottom-nav {
+    display: none !important;
+  }
+  .cloudkh-main-content {
+    padding-bottom: 12px !important;
+  }
+  .cloudkh-navbar {
+    padding: 4px 14px !important;
+    min-height: 42px !important;
+  }
+  .navbar-links.desktop-nav {
+    display: flex !important;
+    gap: 4px !important;
+  }
+  .nav-tab-btn {
+    padding: 4px 10px !important;
+    font-size: 11px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: transparent;
+    border: none;
+    color: var(--text-2);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 6px 0;
+    position: relative;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .bottom-nav-item.active {
+    color: #00d2ff;
+  }
+
+  .bottom-nav-item.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    width: 36px;
+    height: 3px;
+    border-radius: 0 0 4px 4px;
+    background: linear-gradient(90deg, #0052ff, #00d2ff);
+    box-shadow: 0 0 8px #00d2ff;
+  }
+
+  .bottom-nav-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    position: relative;
+    color: currentColor;
+    transition: all 0.2s;
+  }
+
+  .bottom-nav-item.active .bottom-nav-icon {
+    color: #00d2ff;
+    filter: drop-shadow(0 0 8px rgba(0, 210, 255, 0.7));
+  }
+
+  .bottom-badge-pill {
+    position: absolute;
+    top: -5px;
+    right: -10px;
+    background: linear-gradient(135deg, #0052ff, #00d2ff);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 900;
+    padding: 1px 5px;
+    border-radius: 10px;
+  }
+
+  .bottom-nav-label {
+    font-size: 11px;
+    font-weight: 700;
+  }
+}
+
+.nav-tab-btn .nav-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}
+
+.nav-tab-btn.active .nav-btn-icon {
+  color: #00d2ff;
+  filter: drop-shadow(0 0 6px rgba(0, 210, 255, 0.6));
+}
+
+.navbar-search-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2, #a5b4fc);
+  transition: color 0.2s;
+}
+
+.navbar-search-box:focus-within .navbar-search-icon {
+  color: #00d2ff;
+}
+
+.luna-hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btn-browse-games-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+

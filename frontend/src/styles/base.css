@@ -1,0 +1,88 @@
+/* =========================================================
+   CloudKH Platform Styles
+   Modern Cyberpunk Glassmorphism for Cloud Gaming Platform
+   ========================================================= */
+
+
+/* Page Layout */
+.cloudkh-main-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px 40px;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+@media (min-width: 769px) {
+  .cloudkh-main-content {
+    padding: 18px 24px 50px;
+  }
+}
+
+.cloudkh-main-content::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.cloudkh-main-content::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Clean Header */
+.fleet-header-clean {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.fleet-page-title {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0 0 6px;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+
+.fleet-page-subtitle {
+  font-size: 14px;
+  color: var(--text-2);
+  margin: 0;
+}
+
+.fleet-live-counters {
+  display: flex;
+  gap: 12px;
+}
+
+.counter-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 6px 14px;
+  border-radius: 20px;
+}
+
+.counter-val {
+  font-size: 14px;
+  font-weight: 800;
+  color: #5ea2ff;
+}
+
+.counter-lbl {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+

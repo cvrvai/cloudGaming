@@ -3,7 +3,6 @@ import {
   ClockIcon,
   HourglassIcon,
   GamepadIcon,
-  MouseIcon,
   MaximizeIcon,
   MinimizeIcon,
   Volume2Icon,
@@ -15,8 +14,8 @@ export default function StreamHUD({
   onSessionEnd,
   hudVisible = true,
   onShowHud,
-  inputMode = 'desktop',
-  onToggleInputMode,
+  hasGamepad = false,
+  gamepadName = '',
   isFullscreen = false,
   onToggleFullscreen,
   isMuted = true,
@@ -76,6 +75,13 @@ export default function StreamHUD({
           <span className="hud-rig-name">{sessionData?.machine_name || 'Host Rig'}</span>
         </div>
 
+        {hasGamepad && (
+          <div className="hud-controller-badge" title={gamepadName || 'Physical Gamepad Active'}>
+            <GamepadIcon size={13} />
+            <span className="hud-btn-text">Gamepad</span>
+          </div>
+        )}
+
         <div className="hud-timer-pill" title="Remaining session time">
           <span className="hud-timer-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
             <ClockIcon size={13} />
@@ -85,19 +91,6 @@ export default function StreamHUD({
         </div>
 
         <div className="hud-actions-group">
-          {onToggleInputMode && (
-            <button
-              type="button"
-              className="hud-icon-btn"
-              onClick={onToggleInputMode}
-              title={inputMode === 'controller' ? 'Switch to Keyboard & Mouse' : 'Switch to Virtual Gamepad'}
-              aria-label="Toggle input mode"
-            >
-              {inputMode === 'controller' ? <GamepadIcon size={15} /> : <MouseIcon size={15} />}
-              <span className="hud-btn-text">{inputMode === 'controller' ? 'Gamepad' : 'Keys'}</span>
-            </button>
-          )}
-
           {onToggleMute && (
             <button
               type="button"
