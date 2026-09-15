@@ -96,6 +96,128 @@ def _get_running_process_names() -> set:
     return names
 
 
+def get_host_steam_and_game_status() -> Dict[str, Any]:
+    """Inspect local Windows host processes to auto-detect Steam and running games."""
+    if sys.platform != "win32":
+        return {
+            "is_running": False,
+            "is_steam": False,
+            "process_name": None,
+            "pid": None,
+            "start_time": None,
+            "game_title": None,
+        }
+
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.windll.kernel32
+
+    class PROCESSENTRY32(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.c_size_t),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", wintypes.LONG),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", ctypes.c_char * 260),
+        ]
+
+    class FILETIME(ctypes.Structure):
+        _fields_ = [("dwLowDateTime", wintypes.DWORD), ("dwHighDateTime", wintypes.DWORD)]
+
+    def _get_proc_start_time(pid: int) -> Optional[datetime]:
+        h = kernel32.OpenProcess(0x0400 | 0x1000, False, pid)
+        if not h:
+            return None
+        creation = FILETIME()
+        exit_t = FILETIME()
+        kernel_t = FILETIME()
+        user_t = FILETIME()
+        ok = kernel32.GetProcessTimes(
+            h,
+            ctypes.byref(creation),
+            ctypes.byref(exit_t),
+            ctypes.byref(kernel_t),
+            ctypes.byref(user_t),
+        )
+        kernel32.CloseHandle(h)
+        if not ok:
+            return None
+        ft = (creation.dwHighDateTime << 32) + creation.dwLowDateTime
+        epoch_diff = 116444736000000000
+        posix_us = (ft - epoch_diff) // 10
+        return datetime.fromtimestamp(posix_us / 1000000.0, tz=timezone.utc)
+
+    known_game_exes = {}
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT ng.executable_path, g.title FROM node_games ng JOIN games g ON ng.game_id = g.id;")
+            for row in cursor.fetchall():
+                ep = (row.get("executable_path") or "").lower()
+                if ep:
+                    fname = Path(ep).name.lower()
+                    known_game_exes[fname] = row.get("title")
+    except Exception:
+        pass
+
+    hSnap = kernel32.CreateToolhelp32Snapshot(0x00000002, 0)
+    pe32 = PROCESSENTRY32()
+    pe32.dwSize = ctypes.sizeof(PROCESSENTRY32)
+    steam_info = None
+    game_info = None
+
+    if kernel32.Process32First(hSnap, ctypes.byref(pe32)):
+        while True:
+            pname = pe32.szExeFile.decode("utf-8", errors="ignore").lower()
+            if pname == "steam.exe":
+                s_time = _get_proc_start_time(pe32.th32ProcessID)
+                steam_info = {
+                    "is_running": True,
+                    "is_steam": True,
+                    "process_name": "steam.exe",
+                    "pid": pe32.th32ProcessID,
+                    "start_time": s_time,
+                    "game_title": "Steam Client",
+                }
+            elif pname in known_game_exes or "msar" in pname or "metalslug" in pname:
+                g_time = _get_proc_start_time(pe32.th32ProcessID)
+                title = known_game_exes.get(pname, "METAL SLUG ATTACK RELOADED")
+                game_info = {
+                    "is_running": True,
+                    "is_steam": False,
+                    "process_name": pname,
+                    "pid": pe32.th32ProcessID,
+                    "start_time": g_time,
+                    "game_title": title,
+                }
+            if not kernel32.Process32Next(hSnap, ctypes.byref(pe32)):
+                break
+    kernel32.CloseHandle(hSnap)
+
+    if game_info:
+        return game_info
+    if steam_info:
+        default_title = list(known_game_exes.values())[0] if known_game_exes else "METAL SLUG ATTACK RELOADED"
+        steam_info["game_title"] = f"Steam ({default_title})"
+        return steam_info
+
+    return {
+        "is_running": False,
+        "is_steam": False,
+        "process_name": None,
+        "pid": None,
+        "start_time": None,
+        "game_title": None,
+    }
+
+
+
 def _resolve_game_executables_and_steam_appid(exe_path: str):
     """Discover all related game executable names (including shipping binaries) and Steam AppID."""
     p = Path(exe_path).resolve()

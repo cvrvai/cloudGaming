@@ -1470,7 +1470,7 @@ export default function AdminDashboard() {
                             dotColor = 'amber';
                           } else if (isStreaming) {
                             statusKey = 'streaming';
-                            statusLabel = 'Streaming';
+                            statusLabel = m.steam_detected ? 'Streaming (Steam)' : 'Streaming';
                             dotColor = 'cyan';
                           } else if (isOnline) {
                             statusKey = 'online';
@@ -1502,11 +1502,16 @@ export default function AdminDashboard() {
                                   <span>{m.name}</span>
                                 </strong>
                                 {isStreaming && (
-                                  <div style={{ marginTop: '5px' }}>
+                                  <div style={{ marginTop: '5px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                     <span className="running-timer-badge">
                                       <ClockIcon size={11} />
                                       <span>Running: {formatLiveDuration(m.stream_started_at)}</span>
                                     </span>
+                                    {m.steam_detected && (
+                                      <span style={{ fontSize: '10px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '1px 6px', borderRadius: '4px', border: '1px solid rgba(56, 189, 248, 0.3)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                        🎮 Steam Running
+                                      </span>
+                                    )}
                                   </div>
                                 )}
                               </td>
@@ -1536,7 +1541,7 @@ export default function AdminDashboard() {
                                       ⚡ {actWatts}W Load
                                     </div>
                                     <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '10.5px' }}>
-                                      Active Gaming Stream
+                                      {m.steam_detected ? 'Active Steam Session' : 'Active Gaming Stream'}
                                     </div>
                                   </div>
                                 ) : isOnline ? (

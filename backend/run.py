@@ -33,6 +33,7 @@ def main() -> None:
         host=settings.host,
         port=settings.port,
         log_level="info",
+        reload=True,
     )
 
 

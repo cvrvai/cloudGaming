@@ -61,8 +61,9 @@ export default function FleetView({ onBookingSuccess }) {
       ) : (
         <div className="rig-cards-grid">
           {machines.map((machine) => {
-            const isAvailable = machine.live_status === 'available';
-            const isBusy = machine.live_status === 'busy';
+            const isStreaming = machine.live_status === 'streaming' || machine.status === 'in-use' || Boolean(machine.stream_started_at);
+            const isAvailable = !isStreaming && machine.live_status === 'available';
+            const isBusy = machine.live_status === 'busy' || isStreaming;
             const isMaintenance = machine.status === 'maintenance';
 
             return (
@@ -76,11 +77,11 @@ export default function FleetView({ onBookingSuccess }) {
                   </div>
                   <div
                     className={`status-indicator-pill ${
-                      isMaintenance ? 'maintenance' : isBusy ? 'busy' : 'available'
+                      isMaintenance ? 'maintenance' : isStreaming ? 'busy' : isBusy ? 'busy' : 'available'
                     }`}
                   >
                     <span className="status-dot" />
-                    {isMaintenance ? 'Maintenance' : isBusy ? 'In Session' : 'Available'}
+                    {isMaintenance ? 'Maintenance' : isStreaming ? (machine.steam_detected ? 'Steam Active' : 'In Session') : isBusy ? 'In Session' : 'Available'}
                   </div>
                 </div>
 
