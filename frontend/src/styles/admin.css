@@ -1974,11 +1974,26 @@
 .ctq-owner-tag.sean,
 .ctq-owner-tag.hokann,
 .ctq-owner-tag.hour {
-  color: #94a3b8;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.3px;
+}
+
+.ctq-owner-tag.sean {
+  color: #2dd4bf;
+}
+
+.ctq-owner-tag.choonvai {
+  color: #38bdf8;
+}
+
+.ctq-owner-tag.hokann {
+  color: #fbbf24;
+}
+
+.ctq-owner-tag.hour {
+  color: #c084fc;
 }
 
 .ctq-metric-title.compact {
@@ -3160,6 +3175,10 @@ body.dmaic-white-page-mode .cloudkh-main-content {
   color: #0d9488 !important;
 }
 
+.dmaic-academic-white-theme .ctq-owner-tag.choonvai {
+  color: #0284c7 !important;
+}
+
 .dmaic-academic-white-theme .ctq-owner-tag.hokann {
   color: #d97706 !important;
 }
@@ -3463,6 +3482,10 @@ body.dmaic-white-page-mode .cloudkh-main-content {
 
 .dmaic-academic-white-theme .dmaic-electricity-table td {
   border-bottom: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .dmaic-electricity-table td strong {
   color: #0f172a !important;
 }
 

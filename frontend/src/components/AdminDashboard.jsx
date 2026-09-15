@@ -1577,156 +1577,191 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              {/* 4 Team Member CTQ Cards - Compact & Balanced */}
-              <div className="dmaic-ctq-grid compact">
-                {/* CTQ 1: Latency & Frame Stability (Sean Pheavyraksonya) */}
-                <div className="dmaic-ctq-card glass-panel compact">
-                  <div className="ctq-card-header compact">
-                    <div className="ctq-owner-tag sean">CTQ 1 &bull; Sean Pheavyraksonya</div>
-                    <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq1_latency?.status === 'PASS' ? 'pass' : 'risk'}`}>
-                      {dmaicMetrics?.ctq1_latency?.status || 'PASS'}
-                    </span>
-                  </div>
-                  <h3 className="ctq-metric-title compact">Latency &amp; FPS Stability</h3>
-                  <div className="ctq-target-spec compact">
-                    <span className="spec-label">Target:</span> &le; 100 ms &bull; 60 FPS
-                  </div>
-                  <div className="ctq-big-value compact">
-                    {dmaicMetrics?.ctq1_latency?.mean_latency_ms || 0}
-                    <span className="ctq-unit">ms mean</span>
-                  </div>
-                  <div className="ctq-stats-breakdown compact">
-                    <div className="ctq-substat">
-                      <span className="substat-label">Peak Latency</span>
-                      <span className="substat-val">{dmaicMetrics?.ctq1_latency?.peak_latency_ms || 0} ms</span>
-                    </div>
-                    <div className="ctq-substat">
-                      <span className="substat-label">Framerate</span>
-                      <span className="substat-val">{dmaicMetrics?.ctq1_latency?.mean_fps || 0} FPS</span>
-                    </div>
-                    <div className="ctq-substat">
-                      <span className="substat-label">Defects (&gt;100ms)</span>
-                      <span className={`substat-val ${(dmaicMetrics?.ctq1_latency?.defect_rate_pct || 0) > 0 ? 'text-defect' : ''}`}>
-                        {dmaicMetrics?.ctq1_latency?.defect_rate_pct || 0}%
-                      </span>
-                    </div>
-                  </div>
+              {/* SECTION: SIX SIGMA CTQ PERFORMANCE MATRIX TABLE */}
+              <div className="tab-section-header compact" style={{ marginTop: '16px', marginBottom: '10px' }}>
+                <div>
+                  <h2 className="section-heading-compact" style={{ fontSize: '1.1rem', margin: 0, fontWeight: 700 }}>
+                    Six Sigma Critical to Quality (CTQ) Performance Matrix
+                  </h2>
                 </div>
+              </div>
 
-                {/* CTQ 2: PC Utilization & Energy Waste (Choonvai) */}
-                <div className="dmaic-ctq-card glass-panel compact">
-                  <div className="ctq-card-header compact">
-                    <div className="ctq-owner-tag choonvai">CTQ 2 &bull; Choonvai</div>
-                    <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq2_utilization?.status === 'PASS' ? 'pass' : 'risk'}`}>
-                      {dmaicMetrics?.ctq2_utilization?.status || 'OPTIMAL'}
-                    </span>
-                  </div>
-                  <h3 className="ctq-metric-title compact">PC Utilization &amp; Energy Waste</h3>
-                  <div className="ctq-target-spec compact">
-                    <span className="spec-label">Target:</span> &ge; 70% Rig Utilization
-                  </div>
-                  <div className="ctq-big-value compact">
-                    {dmaicMetrics?.ctq2_utilization?.utilization_pct || 0}
-                    <span className="ctq-unit">%</span>
-                  </div>
-                  <div className="ctq-stats-breakdown compact">
-                    <div className="ctq-substat">
-                      <span className="substat-label">Active / Idle</span>
-                      <span className="substat-val">
-                        {dmaicMetrics?.ctq2_utilization?.gaming_hours || 0}h play &bull; {dmaicMetrics?.ctq2_utilization?.idle_hours || 0}h idle
-                      </span>
-                    </div>
-                    <div className="ctq-substat">
-                      <span className="substat-label">Power Draw</span>
-                      <span className="substat-val">
-                        280W load &bull; 55W idle
-                      </span>
-                    </div>
-                    <div className="ctq-substat">
-                      <span className="substat-label">2-Wk Forecast</span>
-                      <span className="substat-val" style={{ color: '#38bdf8' }}>
-                        ${dmaicMetrics?.ctq2_utilization?.two_week_forecast?.proj_cost_usd ?? 7.86} ({dmaicMetrics?.ctq2_utilization?.two_week_forecast?.proj_kwh ?? 43.7} kWh)
-                      </span>
-                    </div>
-                    <div className="ctq-substat">
-                      <span className="substat-label">Standby Waste</span>
-                      <span className="substat-val" style={{ color: '#f87171' }}>
-                        {dmaicMetrics?.ctq2_utilization?.idle_waste_kwh ?? 0} kWh (${dmaicMetrics?.ctq2_utilization?.idle_waste_usd ?? 0})
-                      </span>
-                    </div>
-                  </div>
-                </div>
+              <div className="dmaic-electricity-table-container glass-panel" style={{ marginBottom: '22px' }}>
+                <div className="electricity-table-scroll">
+                  <table className="dmaic-electricity-table">
+                    <thead>
+                      <tr>
+                        <th style={{ minWidth: '180px' }}>CTQ &amp; Team Member</th>
+                        <th style={{ minWidth: '190px' }}>Quality Characteristic</th>
+                        <th style={{ minWidth: '160px' }}>Target Specification</th>
+                        <th style={{ minWidth: '120px', textAlign: 'right' }}>Observed Level</th>
+                        <th style={{ minWidth: '290px' }}>Performance Telemetry Breakdown</th>
+                        <th style={{ width: '90px', textAlign: 'center' }}>Six Sigma Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* CTQ 1: Latency & Frame Stability (Sean Pheavyraksonya) */}
+                      <tr>
+                        <td>
+                          <div className="ctq-owner-tag sean" style={{ marginBottom: '2px' }}>
+                            CTQ 1 &bull; Sean Pheavyraksonya
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>
+                            Network &amp; Streaming Quality
+                          </div>
+                        </td>
+                        <td>
+                          <strong style={{ fontSize: '13px' }}>Latency &amp; FPS Stability</strong>
+                        </td>
+                        <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Target: </span>
+                          <strong>&le; 100 ms</strong> &bull; <strong>60 FPS</strong>
+                        </td>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          <span style={{ fontSize: '15px', fontWeight: 800 }}>
+                            {dmaicMetrics?.ctq1_latency?.mean_latency_ms || 0}
+                          </span>{' '}
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>ms mean</span>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '11.5px' }}>
+                            <span>Peak: <strong>{dmaicMetrics?.ctq1_latency?.peak_latency_ms || 0} ms</strong></span>
+                            &bull;
+                            <span>Framerate: <strong>{dmaicMetrics?.ctq1_latency?.mean_fps || 0} FPS</strong></span>
+                            &bull;
+                            <span>Defects (&gt;100ms): <strong className={(dmaicMetrics?.ctq1_latency?.defect_rate_pct || 0) > 0 ? 'text-defect' : ''}>{dmaicMetrics?.ctq1_latency?.defect_rate_pct || 0}%</strong></span>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq1_latency?.status === 'PASS' ? 'pass' : 'risk'}`}>
+                            {dmaicMetrics?.ctq1_latency?.status || 'PASS'}
+                          </span>
+                        </td>
+                      </tr>
 
-                {/* CTQ 3: Booking Waiting Time & Capacity (Lim Hokann) */}
-                <div className="dmaic-ctq-card glass-panel compact">
-                  <div className="ctq-card-header compact">
-                    <div className="ctq-owner-tag hokann">CTQ 3 &bull; Lim Hokann</div>
-                    <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq3_waiting_time?.status === 'PASS' ? 'pass' : 'risk'}`}>
-                      {dmaicMetrics?.ctq3_waiting_time?.status || 'PASS'}
-                    </span>
-                  </div>
-                  <h3 className="ctq-metric-title compact">Queue Waiting &amp; Capacity</h3>
-                  <div className="ctq-target-spec compact">
-                    <span className="spec-label">Target:</span> &le; 30 min queue wait
-                  </div>
-                  <div className="ctq-big-value compact">
-                    {dmaicMetrics?.ctq3_waiting_time?.mean_waiting_time_mins || 0}
-                    <span className="ctq-unit">min mean</span>
-                  </div>
-                  <div className="ctq-stats-breakdown compact">
-                    <div className="ctq-substat">
-                      <span className="substat-label">Max Queue Wait</span>
-                      <span className="substat-val">{dmaicMetrics?.ctq3_waiting_time?.max_waiting_time_mins || 0} min</span>
-                    </div>
-                    <div className="ctq-substat">
-                      <span className="substat-label">Booked Slots</span>
-                      <span className="substat-val">{dmaicMetrics?.ctq3_waiting_time?.total_booked_slots || 0}</span>
-                    </div>
-                    <div className="ctq-substat">
-                      <span className="substat-label">Slot Rejections</span>
-                      <span className={`substat-val ${(dmaicMetrics?.ctq3_waiting_time?.capacity_defects_count || 0) > 0 ? 'text-defect' : ''}`}>
-                        {dmaicMetrics?.ctq3_waiting_time?.capacity_defects_count || 0}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                      {/* CTQ 2: PC Utilization & Energy Waste (Choonvai) */}
+                      <tr>
+                        <td>
+                          <div className="ctq-owner-tag choonvai" style={{ marginBottom: '2px' }}>
+                            CTQ 2 &bull; Choonvai
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>
+                            Hardware Fleet &amp; Energy Waste
+                          </div>
+                        </td>
+                        <td>
+                          <strong style={{ fontSize: '13px' }}>PC Utilization &amp; Energy Waste</strong>
+                        </td>
+                        <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Target: </span>
+                          <strong>&ge; 70%</strong> Rig Utilization
+                        </td>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          <span style={{ fontSize: '15px', fontWeight: 800 }}>
+                            {dmaicMetrics?.ctq2_utilization?.utilization_pct || 0}
+                          </span>{' '}
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>%</span>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11.5px' }}>
+                            <div>
+                              <span><strong>{dmaicMetrics?.ctq2_utilization?.gaming_hours || 0}h</strong> play &bull; <strong>{dmaicMetrics?.ctq2_utilization?.idle_hours || 0}h</strong> idle</span>
+                              {' '}&bull;{' '}
+                              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>280W load &bull; 55W idle</span>
+                            </div>
+                            <div style={{ fontSize: '11px' }}>
+                              <span style={{ color: '#38bdf8' }}>Forecast: ${dmaicMetrics?.ctq2_utilization?.two_week_forecast?.proj_cost_usd ?? 7.86} ({dmaicMetrics?.ctq2_utilization?.two_week_forecast?.proj_kwh ?? 43.7} kWh)</span>
+                              {' '}&bull;{' '}
+                              <span style={{ color: '#f87171' }}>Standby: {dmaicMetrics?.ctq2_utilization?.idle_waste_kwh ?? 0} kWh (${dmaicMetrics?.ctq2_utilization?.idle_waste_usd ?? 0})</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq2_utilization?.status === 'PASS' ? 'pass' : 'risk'}`}>
+                            {dmaicMetrics?.ctq2_utilization?.status || 'OPTIMAL'}
+                          </span>
+                        </td>
+                      </tr>
 
-                {/* CTQ 4: Session Completion Rate (Hour) */}
-                <div className="dmaic-ctq-card glass-panel compact">
-                  <div className="ctq-card-header compact">
-                    <div className="ctq-owner-tag hour">CTQ 4 &bull; Hour</div>
-                    <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq4_completion_rate?.status === 'PASS' ? 'pass' : 'risk'}`}>
-                      {dmaicMetrics?.ctq4_completion_rate?.status || 'PASS'}
-                    </span>
-                  </div>
-                  <h3 className="ctq-metric-title compact">Session Completion Rate</h3>
-                  <div className="ctq-target-spec compact">
-                    <span className="spec-label">Target:</span> &ge; 95% Completion
-                  </div>
-                  <div className="ctq-big-value compact">
-                    {dmaicMetrics?.ctq4_completion_rate?.completion_rate_pct || 0}
-                    <span className="ctq-unit">%</span>
-                  </div>
-                  <div className="ctq-stats-breakdown compact">
-                    <div className="ctq-substat">
-                      <span className="substat-label">Completed / Total</span>
-                      <span className="substat-val">
-                        {dmaicMetrics?.ctq4_completion_rate?.completed_sessions || 0} / {dmaicMetrics?.ctq4_completion_rate?.total_sessions || 0}
-                      </span>
-                    </div>
-                    <div className="ctq-substat">
-                      <span className="substat-label">Defect Rate</span>
-                      <span className={`substat-val ${(dmaicMetrics?.ctq4_completion_rate?.defect_rate_pct || 0) > 0 ? 'text-defect' : ''}`}>
-                        {dmaicMetrics?.ctq4_completion_rate?.defect_rate_pct || 0}%
-                      </span>
-                    </div>
-                    <div className="ctq-substat">
-                      <span className="substat-label">Failure Breakdown</span>
-                      <span className="substat-val">
-                        {dmaicMetrics?.ctq4_completion_rate?.failure_breakdown?.disconnect || 0} disc, {dmaicMetrics?.ctq4_completion_rate?.failure_breakdown?.crash || 0} crash
-                      </span>
-                    </div>
-                  </div>
+                      {/* CTQ 3: Booking Waiting Time & Capacity (Lim Hokann) */}
+                      <tr>
+                        <td>
+                          <div className="ctq-owner-tag hokann" style={{ marginBottom: '2px' }}>
+                            CTQ 3 &bull; Lim Hokann
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>
+                            Queue &amp; Slot Capacity Management
+                          </div>
+                        </td>
+                        <td>
+                          <strong style={{ fontSize: '13px' }}>Queue Waiting &amp; Capacity</strong>
+                        </td>
+                        <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Target: </span>
+                          <strong>&le; 30 min</strong> queue wait
+                        </td>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          <span style={{ fontSize: '15px', fontWeight: 800 }}>
+                            {dmaicMetrics?.ctq3_waiting_time?.mean_waiting_time_mins || 0}
+                          </span>{' '}
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>min mean</span>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '11.5px' }}>
+                            <span>Max Wait: <strong>{dmaicMetrics?.ctq3_waiting_time?.max_waiting_time_mins || 0} min</strong></span>
+                            &bull;
+                            <span>Booked Slots: <strong>{dmaicMetrics?.ctq3_waiting_time?.total_booked_slots || 0}</strong></span>
+                            &bull;
+                            <span>Rejections: <strong className={(dmaicMetrics?.ctq3_waiting_time?.capacity_defects_count || 0) > 0 ? 'text-defect' : ''}>{dmaicMetrics?.ctq3_waiting_time?.capacity_defects_count || 0}</strong></span>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq3_waiting_time?.status === 'PASS' ? 'pass' : 'risk'}`}>
+                            {dmaicMetrics?.ctq3_waiting_time?.status || 'PASS'}
+                          </span>
+                        </td>
+                      </tr>
+
+                      {/* CTQ 4: Session Completion Rate (Hour) */}
+                      <tr>
+                        <td>
+                          <div className="ctq-owner-tag hour" style={{ marginBottom: '2px' }}>
+                            CTQ 4 &bull; Hour
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>
+                            Session Reliability &amp; QoS
+                          </div>
+                        </td>
+                        <td>
+                          <strong style={{ fontSize: '13px' }}>Session Completion Rate</strong>
+                        </td>
+                        <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Target: </span>
+                          <strong>&ge; 95%</strong> Completion
+                        </td>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          <span style={{ fontSize: '15px', fontWeight: 800 }}>
+                            {dmaicMetrics?.ctq4_completion_rate?.completion_rate_pct || 0}
+                          </span>{' '}
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>%</span>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '11.5px' }}>
+                            <span>Sessions: <strong>{dmaicMetrics?.ctq4_completion_rate?.completed_sessions || 0} / {dmaicMetrics?.ctq4_completion_rate?.total_sessions || 0}</strong></span>
+                            &bull;
+                            <span>Defect Rate: <strong className={(dmaicMetrics?.ctq4_completion_rate?.defect_rate_pct || 0) > 0 ? 'text-defect' : ''}>{dmaicMetrics?.ctq4_completion_rate?.defect_rate_pct || 0}%</strong></span>
+                            &bull;
+                            <span>Failures: <strong>{dmaicMetrics?.ctq4_completion_rate?.failure_breakdown?.disconnect || 0} disc, {dmaicMetrics?.ctq4_completion_rate?.failure_breakdown?.crash || 0} crash</strong></span>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq4_completion_rate?.status === 'PASS' ? 'pass' : 'risk'}`}>
+                            {dmaicMetrics?.ctq4_completion_rate?.status || 'PASS'}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
