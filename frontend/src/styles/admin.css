@@ -3467,6 +3467,178 @@ body.dmaic-white-page-mode .cloudkh-main-content {
   border: 1px solid rgba(148, 163, 184, 0.25);
 }
 
+.pc-status-pill-table.maintenance {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.live-dot.amber {
+  background: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
+}
+
+.node-game-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+.node-game-chip-title {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-chip-action {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 1px 2px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 2px;
+}
+
+.btn-chip-action:hover {
+  color: #38bdf8;
+}
+
+.btn-chip-action.delete:hover {
+  color: #f87171;
+}
+
+.btn-add-game-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  font-size: 10.5px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 2px 7px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-add-game-mini:hover {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+}
+
+.btn-toggle-maintenance-compact {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 5px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+
+.btn-toggle-maintenance-compact:hover {
+  background: rgba(245, 158, 11, 0.25);
+}
+
+.btn-toggle-maintenance-compact.restore {
+  border-color: rgba(74, 222, 128, 0.35);
+  background: rgba(74, 222, 128, 0.12);
+  color: #4ade80;
+}
+
+.btn-toggle-maintenance-compact.restore:hover {
+  background: rgba(74, 222, 128, 0.25);
+}
+
+.btn-delete-compact {
+  height: 26px;
+  width: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-delete-compact:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+/* White Academic Theme Overrides for Electricity Table */
+.dmaic-academic-white-theme .dmaic-electricity-table-container {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05) !important;
+}
+
+.dmaic-academic-white-theme .dmaic-electricity-table th {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+
+.dmaic-academic-white-theme .dmaic-electricity-table td {
+  border-bottom: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .dmaic-electricity-table td strong {
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .dmaic-electricity-table tbody tr:hover {
+  background: #f8fafc !important;
+}
+
+.dmaic-academic-white-theme .dmaic-electricity-table tfoot td {
+  background: #f8fafc !important;
+  border-top: 2px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .pc-status-pill-table.online {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+  border-color: #86efac !important;
+}
+
+.dmaic-academic-white-theme .pc-status-pill-table.standby {
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+  border-color: #cbd5e1 !important;
+}
+
+.dmaic-academic-white-theme .pc-status-pill-table.maintenance {
+  background: #fef3c7 !important;
+  color: #b45309 !important;
+  border-color: #fde68a !important;
+}
+
+.dmaic-academic-white-theme .node-game-chip {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
 /* White Academic Theme Overrides for Electricity Table */
 .dmaic-academic-white-theme .dmaic-electricity-table-container {
   background: #ffffff !important;
