@@ -710,6 +710,11 @@ export default function AdminDashboard() {
     return 'Windows 11';
   };
 
+  const formatRigGpu = (gpu) => {
+    if (!gpu) return 'Gaming Rig';
+    return gpu.replace(/NVIDIA\s+/i, '').replace(/\s+with\s+Max-Q\s+Design/i, ' Max-Q');
+  };
+
   const streamingRigGpu = machines.find((m) => (m.live_status || m.status) === 'available')?.gpu
     || machines[0]?.gpu
     || dmaicMetrics?.dmaic_meta?.rig_gpu
@@ -1259,11 +1264,11 @@ export default function AdminDashboard() {
                 <div className="dmaic-hero-content">
                   <div className="dmaic-badge-row compact">
                     <span className="dmaic-badge">Operations Research &bull; Lean Six Sigma DMAIC</span>
-                    <span className="dmaic-subbadge">CloudKH &bull; {streamingRigGpu}</span>
+                    <span className="dmaic-subbadge">CloudKH &bull; {formatRigGpu(streamingRigGpu)}</span>
                   </div>
                   <h2 className="dmaic-hero-title compact">Voice of Customer (VOC) to Critical to Quality (CTQ) Telemetry</h2>
                   <p className="dmaic-hero-desc compact">
-                    Single {streamingRigGpu} rig pilot tracking Queue Waiting Times, Network Latency, Rig Utilization &amp; Energy Waste, and Session Defect Rates.
+                    Single {formatRigGpu(streamingRigGpu)} rig pilot tracking Queue Waiting Times, Network Latency, Rig Utilization &amp; Energy Waste, and Session Defect Rates.
                   </p>
                 </div>
                 <div className="dmaic-hero-actions compact">
@@ -1460,84 +1465,97 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div className="admin-bookings-table-wrapper glass-panel compact-table-wrapper">
-                <table className="admin-bookings-table compact-table dmaic-dataset-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: '85px' }}>Test ID</th>
-                      <th style={{ width: '95px' }}>Phase</th>
-                      <th>Account</th>
-                      <th style={{ width: '105px' }}>Slot</th>
-                      <th style={{ width: '75px' }}>Wait</th>
-                      <th style={{ width: '75px' }}>Latency</th>
-                      <th style={{ width: '65px' }}>FPS</th>
-                      <th style={{ width: '60px' }}>Disc</th>
-                      <th style={{ width: '95px' }}>Status</th>
-                      <th style={{ width: '100px' }}>Failure Reason</th>
-                      <th style={{ width: '75px' }}>Idle</th>
-                      <th style={{ width: '75px' }}>Power</th>
-                      <th style={{ width: '105px' }}>Logged</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dmaicRecords
-                      .filter((r) => dmaicPhaseFilter === 'all' || r.phase === dmaicPhaseFilter)
-                      .map((r) => {
-                        const accountDisplay = r.account_name || r.user_email || '—';
-                        const waitMins = r.waiting_time_minutes != null ? r.waiting_time_minutes : (r.waiting_time_mins != null ? r.waiting_time_mins : 0);
-                        const latency = r.avg_latency_ms != null ? r.avg_latency_ms : (r.latency_ms != null ? r.latency_ms : 0);
-                        const fps = r.avg_fps != null ? r.avg_fps : (r.fps != null ? r.fps : 60);
-                        const idleMins = r.pc_idle_minutes != null ? r.pc_idle_minutes : (r.pc_idle_time_mins != null ? r.pc_idle_time_mins : 0);
-                        const powerDisplay = r.power_kwh != null ? `${r.power_kwh} kWh` : (r.power_usage_watts != null ? `${r.power_usage_watts}W` : '0.28 kWh');
-
-                        return (
-                          <tr key={r.id}>
-                            <td><strong>{r.test_id}</strong></td>
-                            <td>
-                              <span className={`phase-badge-pill compact ${r.phase}`}>
-                                {r.phase === 'V1_Baseline' ? 'V1 Baseline' : 'V2 Improved'}
-                              </span>
-                            </td>
-                            <td><span className="user-name-text">{accountDisplay}</span></td>
-                            <td><span className="text-muted-cell">{r.booking_slot || '—'}</span></td>
-                            <td>{waitMins}m</td>
-                            <td className={latency > 100 ? 'text-defect' : ''}>
-                              {latency}ms
-                            </td>
-                            <td>{fps}</td>
-                            <td>{r.disconnects_count ?? 0}</td>
-                            <td>
-                              <span className={`status-pill-small compact ${r.completed ? 'confirmed' : 'cancelled'}`}>
-                                {r.completed ? 'PASS' : 'DEFECT'}
-                              </span>
-                            </td>
-                            <td>
-                              {r.failure_reason ? (
-                                <span className="failure-reason-pill compact">{r.failure_reason}</span>
-                              ) : (
-                                <span className="text-muted-cell">—</span>
-                              )}
-                            </td>
-                            <td>{idleMins}m</td>
-                            <td>{powerDisplay}</td>
-                            <td>
-                              <span className="text-muted-cell">
-                                {r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    {dmaicRecords.filter((r) => dmaicPhaseFilter === 'all' || r.phase === dmaicPhaseFilter).length === 0 && (
+              {dmaicRecords.filter((r) => dmaicPhaseFilter === 'all' || r.phase === dmaicPhaseFilter).length === 0 ? (
+                <div className="dmaic-empty-card glass-panel">
+                  <div className="dmaic-empty-icon">
+                    <ClipboardListIcon size={26} />
+                  </div>
+                  <h4 className="dmaic-empty-title">No Observation Records Yet</h4>
+                  <p className="dmaic-empty-desc">
+                    Log experimental trial runs for DMAIC CTQ analysis or let sessions record telemetry automatically.
+                  </p>
+                  <button
+                    className="btn-primary btn-compact"
+                    onClick={() => setShowAddTestModal(true)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '8px' }}
+                  >
+                    <PlusIcon size={13} />
+                    <span>Log Test Run</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="admin-bookings-table-wrapper glass-panel compact-table-wrapper">
+                  <table className="admin-bookings-table compact-table dmaic-dataset-table">
+                    <thead>
                       <tr>
-                        <td colSpan={13} style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
-                          No experimental observation records yet. Click &quot;Log Test Run&quot; to add a trial or let sessions record telemetry.
-                        </td>
+                        <th style={{ width: '85px' }}>Test ID</th>
+                        <th style={{ width: '95px' }}>Phase</th>
+                        <th>Account</th>
+                        <th style={{ width: '105px' }}>Slot</th>
+                        <th style={{ width: '75px' }}>Wait</th>
+                        <th style={{ width: '75px' }}>Latency</th>
+                        <th style={{ width: '65px' }}>FPS</th>
+                        <th style={{ width: '60px' }}>Disc</th>
+                        <th style={{ width: '95px' }}>Status</th>
+                        <th style={{ width: '100px' }}>Failure Reason</th>
+                        <th style={{ width: '75px' }}>Idle</th>
+                        <th style={{ width: '75px' }}>Power</th>
+                        <th style={{ width: '105px' }}>Logged</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {dmaicRecords
+                        .filter((r) => dmaicPhaseFilter === 'all' || r.phase === dmaicPhaseFilter)
+                        .map((r) => {
+                          const accountDisplay = r.account_name || r.user_email || '—';
+                          const waitMins = r.waiting_time_minutes != null ? r.waiting_time_minutes : (r.waiting_time_mins != null ? r.waiting_time_mins : 0);
+                          const latency = r.avg_latency_ms != null ? r.avg_latency_ms : (r.latency_ms != null ? r.latency_ms : 0);
+                          const fps = r.avg_fps != null ? r.avg_fps : (r.fps != null ? r.fps : 60);
+                          const idleMins = r.pc_idle_minutes != null ? r.pc_idle_minutes : (r.pc_idle_time_mins != null ? r.pc_idle_time_mins : 0);
+                          const powerDisplay = r.power_kwh != null ? `${r.power_kwh} kWh` : (r.power_usage_watts != null ? `${r.power_usage_watts}W` : '0.28 kWh');
+
+                          return (
+                            <tr key={r.id}>
+                              <td><strong>{r.test_id}</strong></td>
+                              <td>
+                                <span className={`phase-badge-pill compact ${r.phase}`}>
+                                  {r.phase === 'V1_Baseline' ? 'V1 Baseline' : 'V2 Improved'}
+                                </span>
+                              </td>
+                              <td><span className="user-name-text">{accountDisplay}</span></td>
+                              <td><span className="text-muted-cell">{r.booking_slot || '—'}</span></td>
+                              <td>{waitMins}m</td>
+                              <td className={latency > 100 ? 'text-defect' : ''}>
+                                {latency}ms
+                              </td>
+                              <td>{fps}</td>
+                              <td>{r.disconnects_count ?? 0}</td>
+                              <td>
+                                <span className={`status-pill-small compact ${r.completed ? 'confirmed' : 'cancelled'}`}>
+                                  {r.completed ? 'PASS' : 'DEFECT'}
+                                </span>
+                              </td>
+                              <td>
+                                {r.failure_reason ? (
+                                  <span className="failure-reason-pill compact">{r.failure_reason}</span>
+                                ) : (
+                                  <span className="text-muted-cell">—</span>
+                                )}
+                              </td>
+                              <td>{idleMins}m</td>
+                              <td>{powerDisplay}</td>
+                              <td>
+                                <span className="text-muted-cell">
+                                  {r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </>
