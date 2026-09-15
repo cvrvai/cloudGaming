@@ -15,6 +15,7 @@ router = APIRouter(prefix="/system", tags=["system"])
 async def system_info(machine_id: Optional[int] = None) -> dict:
     node_available = False
     active_node = None
+    audio_available = None
 
     if stream_manager.available:
         node_available = True
@@ -24,6 +25,15 @@ async def system_info(machine_id: Optional[int] = None) -> dict:
     elif node_relay.is_node_connected():
         node_available = True
         active_node = node_relay.get_any_connected_node_id()
+
+    capability_node_id = active_node or machine_id
+    if capability_node_id:
+        node_meta = node_relay.get_node_meta(capability_node_id) or {}
+        if isinstance(node_meta.get("audio_available"), bool):
+            audio_available = node_meta["audio_available"]
+    elif stream_manager.available:
+        from app.services.streaming.diagnostics import audio_plugins_available
+        audio_available = audio_plugins_available()
 
     from app.core.redis import is_redis_online
     redis_online = await is_redis_online()
@@ -41,6 +51,7 @@ async def system_info(machine_id: Optional[int] = None) -> dict:
             "bitrate": settings.video_bitrate,
         },
         "gstreamer_available": node_available,
+        "audio_available": audio_available,
         "node_connected": node_relay.is_node_connected(machine_id),
         "active_node_id": active_node,
         "redis_connected": redis_online,

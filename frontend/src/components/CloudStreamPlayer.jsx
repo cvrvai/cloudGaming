@@ -49,6 +49,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [audioState, setAudioState] = useState('waiting');
   const containerRef = useRef(null);
   const wsRef = useRef(null);
   const keySequenceRef = useRef(0);
@@ -551,6 +552,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
         onToggleFullscreen={toggleFullscreen}
         isMuted={isMuted}
         onToggleMute={toggleMute}
+        audioState={audioState}
       />
 
       {gamepadToast && (
@@ -571,6 +573,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
             showStats={false}
             isMuted={isMuted}
             onToggleMute={toggleMute}
+            onAudioState={setAudioState}
             onStatsSample={handleStatsSample}
           />
         ) : gameExitedData ? (

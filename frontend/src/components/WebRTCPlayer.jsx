@@ -41,20 +41,28 @@ export default function WebRTCPlayer({
     isMuted = true,
     onToggleMute,
     onStatsSample,
+    onAudioState,
 }) {
     const videoRef = useRef(null);
     const pcRef = useRef(null);
     const retryTimerRef = useRef(null);
     const statsTimerRef = useRef(null);
+    const audioCheckTimerRef = useRef(null);
+    const mediaStreamRef = useRef(null);
+    const isMutedRef = useRef(isMuted);
     const [status, setStatus] = useState('connecting');
     const [errorDetail, setErrorDetail] = useState('');
     const [fps, setFps] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
 
     useEffect(() => {
+        isMutedRef.current = isMuted;
         if (videoRef.current) {
             videoRef.current.muted = isMuted;
             videoRef.current.defaultMuted = isMuted;
+            if (!isMuted && videoRef.current.paused) {
+                videoRef.current.play().catch(() => {});
+            }
         }
     }, [isMuted]);
 
@@ -62,6 +70,10 @@ export default function WebRTCPlayer({
         if (statsTimerRef.current) {
             clearInterval(statsTimerRef.current);
             statsTimerRef.current = null;
+        }
+        if (audioCheckTimerRef.current) {
+            clearTimeout(audioCheckTimerRef.current);
+            audioCheckTimerRef.current = null;
         }
         if (pcRef.current) {
             try {
@@ -79,6 +91,7 @@ export default function WebRTCPlayer({
                 videoRef.current.srcObject = null;
             } catch {}
         }
+        mediaStreamRef.current = null;
     }, []);
 
     const scheduleReconnect = useCallback((connectFn) => {
@@ -93,6 +106,11 @@ export default function WebRTCPlayer({
         cleanup();
         setStatus('connecting');
         setErrorDetail('');
+        onAudioState?.('waiting');
+        if (audioCheckTimerRef.current) clearTimeout(audioCheckTimerRef.current);
+        audioCheckTimerRef.current = setTimeout(() => {
+            onAudioState?.('unavailable');
+        }, 8000);
 
         const configuredIceServers = Array.isArray(iceServers) && iceServers.length > 0
             ? iceServers
@@ -101,10 +119,22 @@ export default function WebRTCPlayer({
         pcRef.current = pc;
 
         pc.ontrack = (event) => {
+            const track = event.track;
+            if (!track) return;
+
+            // Some browsers provide a stream on the track event, while others
+            // do not. Keep one local stream and add every negotiated track so
+            // the audio track cannot be lost when the video track arrives first.
+            const stream = mediaStreamRef.current || event.streams?.[0] || new MediaStream();
+            mediaStreamRef.current = stream;
+            if (!stream.getTracks().some((existing) => existing.id === track.id)) {
+                stream.addTrack(track);
+            }
+
             if (videoRef.current) {
-                videoRef.current.srcObject = event.streams[0];
-                videoRef.current.muted = isMuted;
-                videoRef.current.defaultMuted = isMuted;
+                videoRef.current.srcObject = stream;
+                videoRef.current.muted = isMutedRef.current;
+                videoRef.current.defaultMuted = isMutedRef.current;
                 videoRef.current.playsInline = true;
                 videoRef.current.setAttribute('playsinline', '');
                 videoRef.current.setAttribute('webkit-playsinline', '');
@@ -114,6 +144,14 @@ export default function WebRTCPlayer({
                         console.warn('[WebRTC] autoplay promise rejected:', err);
                     });
                 }
+            }
+            if (track.kind === 'audio') {
+                if (audioCheckTimerRef.current) {
+                    clearTimeout(audioCheckTimerRef.current);
+                    audioCheckTimerRef.current = null;
+                }
+                onAudioState?.('ready');
+                track.addEventListener('ended', () => onAudioState?.('ended'), { once: true });
             }
             setStatus('connected');
 
@@ -244,7 +282,7 @@ export default function WebRTCPlayer({
             cleanup();
             scheduleReconnect(connect);
         }
-    }, [apiBase, quality, stunServer, iceServers, cleanup, scheduleReconnect]);
+    }, [apiBase, quality, stunServer, iceServers, cleanup, scheduleReconnect, onAudioState]);
 
     useEffect(() => {
         connect();
@@ -278,7 +316,7 @@ export default function WebRTCPlayer({
                 autoPlay
                 playsInline
                 webkit-playsinline=""
-                muted
+                muted={isMuted}
                 onPlay={() => setIsPlaying(true)}
                 onPlaying={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}

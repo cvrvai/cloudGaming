@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
+from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
 
 from app.core.gst_env import configure_gstreamer_env
@@ -46,6 +47,8 @@ else:
         "webrtcbin",
     ]
 
+AUDIO_ELEMENTS: List[str] = ["wasapisrc", "opusenc", "rtpopuspay"] if sys.platform == "win32" else []
+
 
 def ensure_gstreamer_initialized() -> bool:
     if not GSTREAMER_AVAILABLE:
@@ -53,6 +56,15 @@ def ensure_gstreamer_initialized() -> bool:
     if not Gst.is_initialized():
         Gst.init([])
     return True
+
+
+@lru_cache(maxsize=1)
+def audio_plugins_available() -> bool:
+    """Return whether the local WebRTC audio pipeline can be constructed."""
+    if not GSTREAMER_AVAILABLE or not AUDIO_ELEMENTS:
+        return False
+    ensure_gstreamer_initialized()
+    return all(Gst.ElementFactory.find(element) is not None for element in AUDIO_ELEMENTS)
 
 
 def _find_gst_inspect() -> Optional[str]:
@@ -88,6 +100,8 @@ def check_plugins() -> Dict:
         "gstreamer_available": GSTREAMER_AVAILABLE,
         "import_error": GSTREAMER_IMPORT_ERROR,
         "elements": {},
+        "audio": {},
+        "audio_available": False,
         "all_required_present": False,
     }
 
@@ -113,7 +127,18 @@ def check_plugins() -> Dict:
                 report["elements"][element] = {"available": False, "info": "Element factory not found"}
                 all_present = False
 
+    audio_present = True
+    for element in AUDIO_ELEMENTS:
+        factory = Gst.ElementFactory.find(element)
+        if factory:
+            long_name = factory.get_metadata("long-name") or element
+            report["audio"][element] = {"available": True, "info": f"Factory: {long_name}"}
+        else:
+            report["audio"][element] = {"available": False, "info": "Element factory not found"}
+            audio_present = False
+
     report["all_required_present"] = all_present
+    report["audio_available"] = audio_present
     return report
 
 
@@ -131,11 +156,20 @@ def print_plugin_report(report: Optional[Dict] = None) -> None:
     for name, info in report["elements"].items():
         symbol = "+" if info["available"] else "x"
         print(f"    [{symbol}] {name}")
+    if report.get("audio"):
+        print("  Audio pipeline:")
+        for name, info in report["audio"].items():
+            symbol = "+" if info["available"] else "x"
+            print(f"    [{symbol}] {name}")
     print("-" * 60)
     if report["all_required_present"]:
         print("  Result: ALL REQUIRED PLUGINS AVAILABLE")
     else:
         print("  Result: SOME REQUIRED PLUGINS MISSING")
+    if report.get("audio_available"):
+        print("  Audio result: WASAPI loopback + Opus available")
+    elif sys.platform == "win32":
+        print("  Audio result: WASAPI/Opus pipeline unavailable")
     print("=" * 60)
 
 

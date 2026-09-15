@@ -20,6 +20,7 @@ export default function StreamHUD({
   onToggleFullscreen,
   isMuted = true,
   onToggleMute,
+  audioState = 'waiting',
 }) {
   const [remainingSeconds, setRemainingSeconds] = useState(
     sessionData?.remaining_seconds || 60
@@ -96,11 +97,15 @@ export default function StreamHUD({
               type="button"
               className={`hud-icon-btn ${!isMuted ? 'active-glow' : ''}`}
               onClick={onToggleMute}
-              title={isMuted ? 'Unmute Game Sound' : 'Mute Game Sound'}
+              title={audioState === 'unavailable'
+                ? 'Game audio track was not received from the host'
+                : isMuted ? 'Tap to hear game sound' : 'Mute game sound'}
               aria-label="Toggle game audio"
             >
               {isMuted ? <VolumeXIcon size={15} /> : <Volume2Icon size={15} />}
-              <span className="hud-btn-text">{isMuted ? 'Muted' : 'Sound'}</span>
+              <span className="hud-btn-text">
+                {audioState === 'unavailable' ? 'No audio' : isMuted ? 'Muted' : 'Sound'}
+              </span>
             </button>
           )}
 

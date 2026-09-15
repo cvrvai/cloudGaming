@@ -175,6 +175,7 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
     """Maintain outbound WebSocket tunnel to CloudKH cloud for WebRTC signaling and input."""
     import websockets
     from app.services.streaming.manager import stream_manager
+    from app.services.streaming.diagnostics import audio_plugins_available, check_plugins
     from app.services.agent import host_agent
     from app.services.input.gamepad import gamepad_service
 
@@ -183,6 +184,8 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
 
     ws_url = api_base.replace("https://", "wss://").replace("http://", "ws://").rstrip("/") + f"/ws/node/{node_id}"
     hardware = detect_local_hardware()
+    plugin_report = check_plugins() if stream_manager.available else {}
+    audio_available = bool(plugin_report.get("audio_available", audio_plugins_available()))
 
     print("\n" + "=" * 62)
     print("  CloudKH Gaming PC Streaming Service")
@@ -192,7 +195,13 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
     print(f"  GPU:         {hardware['gpu']}")
     print(f"  Backend:     {api_base}")
     print(f"  Tunnel:      {ws_url}")
-    print(f"  GStreamer:   {'READY (DirectX 11 Capture)' if stream_manager.available else 'OFFLINE'}")
+    if stream_manager.available and audio_available:
+        gst_status = "READY (DirectX 11 + WASAPI audio)"
+    elif stream_manager.available:
+        gst_status = "READY (video only; WASAPI audio unavailable)"
+    else:
+        gst_status = "OFFLINE"
+    print(f"  GStreamer:   {gst_status}")
     print(f"  Status:      ONLINE & READY FOR SESSIONS")
     print("=" * 62)
     print("\n[*] Streaming daemon active. Press Ctrl+C to stop.\n")
@@ -264,6 +273,7 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                     "specs": {
                         "name": machine_name,
                         "gstreamer_available": stream_manager.available,
+                        "audio_available": audio_available,
                         "gpu": hardware["gpu"],
                         "cpu": hardware["cpu"],
                         "ram": hardware["ram"],
