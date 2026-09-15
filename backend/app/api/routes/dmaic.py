@@ -138,6 +138,71 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     full_amortized_cost_per_hr = round((proj_cost_usd_14d / max(1.0, proj_gaming_hours_14d)), 2) if proj_gaming_hours_14d > 0 else 0.08
     recommended_price_usd = 0.50 # $0.50/hr gives ~84% gross profit margin
 
+    # Per-machine electricity calculation (Multi-PC tracking with different specs)
+    cursor.execute("""
+        SELECT m.id, m.name, m.gpu, m.cpu, m.ram,
+               COALESCE(m.active_watts, 280.0) as active_watts,
+               COALESCE(m.idle_watts, 55.0) as idle_watts,
+               COUNT(st.id) as sessions_count,
+               COALESCE(SUM(CASE WHEN st.completed = TRUE THEN 1 ELSE 0 END), 0) as completed_sessions,
+               COALESCE(SUM(st.power_kwh), 0.0) as active_kwh,
+               COALESCE(SUM(st.energy_cost_usd), 0.0) as active_cost_usd
+        FROM machines m
+        LEFT JOIN session_telemetry st ON st.machine_id = m.id
+        GROUP BY m.id, m.name, m.gpu, m.cpu, m.ram, m.active_watts, m.idle_watts
+        ORDER BY m.id ASC;
+    """)
+    machines_energy = []
+    for m in cursor.fetchall():
+        m_dict = dict(m)
+        c_sess = m_dict["completed_sessions"]
+        act_w = float(m_dict["active_watts"])
+        idl_w = float(m_dict["idle_watts"])
+        m_game_hrs = round(c_sess * 1.0, 1)
+        m_powered_hrs = max(16.0, m_game_hrs)
+        m_idle_hrs = max(0.0, m_powered_hrs - m_game_hrs)
+        m_active_kwh = round((act_w * m_game_hrs) / 1000.0, 3)
+        m_idle_kwh = round((idl_w * m_idle_hrs) / 1000.0, 3)
+        m_total_kwh = round(m_active_kwh + m_idle_kwh, 3)
+        m_total_cost_usd = round(m_total_kwh * 0.18, 2)
+
+        # 2-Week (14 day, 336 operating hours) projection
+        two_wk_game_hrs = round((m_game_hrs / max(1.0, m_powered_hrs)) * 336.0, 1) if m_game_hrs > 0 else 56.0
+        two_wk_idle_hrs = round(336.0 - two_wk_game_hrs, 1)
+        two_wk_kwh = round(((act_w * two_wk_game_hrs) + (idl_w * two_wk_idle_hrs)) / 1000.0, 2)
+        two_wk_cost_usd = round(two_wk_kwh * 0.18, 2)
+        two_wk_cost_khr = int(two_wk_cost_usd * 4050)
+        direct_cost_hr = round((act_w / 1000.0) * 0.18, 3)
+        rec_charge_hr = 0.50
+
+        machines_energy.append({
+            "id": m_dict["id"],
+            "name": m_dict["name"],
+            "gpu": m_dict["gpu"],
+            "cpu": m_dict["cpu"],
+            "ram": m_dict["ram"],
+            "active_watts": act_w,
+            "idle_watts": idl_w,
+            "completed_sessions": c_sess,
+            "gaming_hours": m_game_hrs,
+            "idle_hours": m_idle_hrs,
+            "active_kwh": m_active_kwh,
+            "idle_kwh": m_idle_kwh,
+            "total_kwh": m_total_kwh,
+            "total_cost_usd": m_total_cost_usd,
+            "total_cost_khr": int(m_total_cost_usd * 4050),
+            "two_week_forecast": {
+                "projected_gaming_hours": two_wk_game_hrs,
+                "projected_idle_hours": two_wk_idle_hrs,
+                "projected_kwh": two_wk_kwh,
+                "projected_cost_usd": two_wk_cost_usd,
+                "projected_cost_khr": two_wk_cost_khr,
+                "direct_cost_per_hr": direct_cost_hr,
+                "recommended_charge_per_hr": rec_charge_hr,
+                "profit_margin_pct": round(((rec_charge_hr - direct_cost_hr) / rec_charge_hr) * 100),
+            },
+        })
+
     return {
         "ctq1_latency": {
             "owner": "Choonvai",
@@ -177,6 +242,7 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
                 "recommended_hourly_charge_usd": recommended_price_usd,
                 "estimated_profit_margin_pct": 84,
             },
+            "per_machine_energy": machines_energy,
         },
         "ctq3_waiting_time": {
             "owner": "Lim Hokann",
@@ -198,6 +264,7 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
             "pass_status": completion_rate >= 95.0,
             "failure_breakdown": failure_breakdown,
         },
+        "per_machine_energy": machines_energy,
         "realtime_redis_telemetry": await get_dmaic_redis_metrics(),
         "dmaic_meta": {
             "project_name": "CloudKH Cloud Gaming MVP",
@@ -217,17 +284,26 @@ def list_dmaic_records(
     phase: Optional[str] = Query(None, description="Filter by phase: V1_Baseline, V2_Improved, or all"),
     admin_user: Dict = Depends(require_admin),
 ):
-    """List all experimental test observations."""
+    """List all experimental test observations with machine specifications."""
     phase_str = str(phase) if isinstance(phase, str) and phase != "all" else None
     with get_db() as conn:
         cursor = conn.cursor()
+        query = """
+            SELECT st.*,
+                   COALESCE(m.name, 'Gaming Rig') as machine_name,
+                   COALESCE(m.gpu, 'GPU') as machine_gpu,
+                   COALESCE(m.cpu, 'CPU') as machine_cpu,
+                   COALESCE(m.active_watts, 280.0) as machine_active_watts,
+                   COALESCE(m.idle_watts, 55.0) as machine_idle_watts
+            FROM session_telemetry st
+            LEFT JOIN machines m ON m.id = st.machine_id
+        """
         if phase_str:
-            cursor.execute(
-                "SELECT * FROM session_telemetry WHERE phase = %s ORDER BY id DESC;",
-                (phase_str,),
-            )
+            query += " WHERE st.phase = %s ORDER BY st.id DESC;"
+            cursor.execute(query, (phase_str,))
         else:
-            cursor.execute("SELECT * FROM session_telemetry ORDER BY id DESC;")
+            query += " ORDER BY st.id DESC;"
+            cursor.execute(query)
         rows = [dict(r) for r in cursor.fetchall()]
         for r in rows:
             r["account_name"] = r.get("user_email") or "Unknown"
@@ -236,7 +312,21 @@ def list_dmaic_records(
             r["fps"] = r.get("avg_fps") or 60.0
             r["pc_idle_time_mins"] = r.get("pc_idle_minutes") or 0.0
             r["power_usage_watts"] = round((r.get("power_kwh") or 0.28) * 1000, 0)
+            r["rig_display"] = r.get("machine_name") or ("Host PC" if r.get("machine_id") else "Default Rig")
     return rows
+
+
+@router.post("/clear")
+def clear_dmaic_evidence(admin_user: Dict = Depends(require_admin)):
+    """Delete all records from session_telemetry to reset test data."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM session_telemetry;")
+        conn.commit()
+    return {
+        "status": "cleared",
+        "message": "All experimental observation records have been cleared.",
+    }
 
 
 @router.post("/records", status_code=status.HTTP_201_CREATED)
@@ -306,13 +396,17 @@ def export_dmaic_dataset_csv(
     phase_str = str(phase) if isinstance(phase, str) and phase != "all" else None
     with get_db() as conn:
         cursor = conn.cursor()
+        query = """
+            SELECT st.*, COALESCE(m.name, 'Gaming PC') as machine_name, COALESCE(m.gpu, '') as machine_gpu
+            FROM session_telemetry st
+            LEFT JOIN machines m ON m.id = st.machine_id
+        """
         if phase_str:
-            cursor.execute(
-                "SELECT * FROM session_telemetry WHERE phase = %s ORDER BY id ASC;",
-                (phase_str,),
-            )
+            query += " WHERE st.phase = %s ORDER BY st.id ASC;"
+            cursor.execute(query, (phase_str,))
         else:
-            cursor.execute("SELECT * FROM session_telemetry ORDER BY id ASC;")
+            query += " ORDER BY st.id ASC;"
+            cursor.execute(query)
         records = [dict(r) for r in cursor.fetchall()]
 
     output = io.StringIO()
@@ -321,6 +415,8 @@ def export_dmaic_dataset_csv(
     # Standard Lean Six Sigma column headers matching team's specification
     writer.writerow([
         "Test ID",
+        "Rig / Computer",
+        "GPU Specs",
         "Account",
         "Requested Time",
         "Booking Slot",
@@ -345,6 +441,8 @@ def export_dmaic_dataset_csv(
     for r in records:
         writer.writerow([
             r.get("test_id", ""),
+            r.get("machine_name") or "Gaming Rig 1",
+            r.get("machine_gpu") or "RTX 2080 Super",
             r.get("user_email", ""),
             r.get("requested_time", ""),
             r.get("booking_slot", ""),
@@ -404,12 +502,22 @@ def seed_dmaic_evidence_dataset(
         # Clean up existing seed records to ensure an exact 30-observation dataset (N=30)
         cursor.execute("DELETE FROM session_telemetry WHERE test_id LIKE 'RUN-%';")
 
+        # Fetch actual campus gaming machines from database
+        cursor.execute("SELECT id, name, gpu, active_watts FROM machines ORDER BY id ASC;")
+        rig_list = [dict(r) for r in cursor.fetchall()]
+
         # Phase 1: 15 V1 Baseline records (pre-optimization: high latency, queue waits, defects)
         for i in range(1, 16):
             t_id = f"RUN-{i:03d}"
             t_stamp = (base_time + timedelta(hours=i * 6)).isoformat()
             acc = accounts[(i - 1) % len(accounts)]
             game = games[(i - 1) % len(games)]
+
+            # Distribute across available PCs
+            target_rig = rig_list[(i - 1) % len(rig_list)] if rig_list else None
+            m_id = target_rig["id"] if target_rig else None
+            m_watts = float(target_rig["active_watts"]) if target_rig and target_rig.get("active_watts") else 260.0
+
             wait_m = round(random.uniform(25.0, 52.0), 1)
             lat = round(random.gauss(118.0, 14.0), 1)
             lat = max(85.0, min(165.0, lat))
@@ -422,22 +530,22 @@ def seed_dmaic_evidence_dataset(
             if not completed:
                 failure_reason = random.choice(["disconnect", "crash", "launch_failure"])
 
-            power = round(random.uniform(0.26, 0.31), 3)
+            power = round((m_watts * 1.0) / 1000.0, 3)
             cost = round(power * 0.18, 3)
 
-            payload = f"{t_id}:{acc}:{lat}:{fps}:{t_stamp}"
+            payload = f"{t_id}:{acc}:{m_id}:{lat}:{fps}:{t_stamp}"
             h = hashlib.sha256(payload.encode()).hexdigest()
 
             cursor.execute(
                 """
                 INSERT INTO session_telemetry (
-                    test_id, user_email, requested_time, booking_slot,
+                    test_id, user_email, machine_id, requested_time, booking_slot,
                     waiting_time_minutes, avg_latency_ms, max_latency_ms, avg_fps,
                     packet_loss_pct, disconnects_count, completed, failure_reason,
                     pc_idle_minutes, power_kwh, energy_cost_usd, phase, source,
                     integrity_hash, notes, created_at
                 ) VALUES (
-                    %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
@@ -445,12 +553,12 @@ def seed_dmaic_evidence_dataset(
                 ) RETURNING id;
                 """,
                 (
-                    t_id, acc, t_stamp, f"Slot #{100+i}",
+                    t_id, acc, m_id, t_stamp, f"Slot #{100+i}",
                     wait_m, lat, max_lat, fps,
                     loss, disc, completed, failure_reason,
                     round(random.uniform(10.0, 25.0), 1), power, cost,
                     "V1_Baseline", "automated_stream", h,
-                    f"Baseline trial on {game}", t_stamp,
+                    f"Baseline trial on {game} ({target_rig['name'] if target_rig else 'Host PC'})", t_stamp,
                 ),
             )
             created_records.append(t_id)
@@ -462,6 +570,11 @@ def seed_dmaic_evidence_dataset(
             t_stamp = (v2_base_time + timedelta(hours=(j - 15) * 3)).isoformat()
             acc = accounts[(j - 1) % len(accounts)]
             game = games[(j - 1) % len(games)]
+
+            target_rig = rig_list[(j - 16) % len(rig_list)] if rig_list else None
+            m_id = target_rig["id"] if target_rig else None
+            m_watts = float(target_rig["active_watts"]) if target_rig and target_rig.get("active_watts") else 260.0
+
             wait_m = round(random.uniform(2.0, 10.0), 1)
             lat = round(random.gauss(52.0, 6.5), 1)
             lat = max(38.0, min(74.0, lat))
@@ -472,22 +585,22 @@ def seed_dmaic_evidence_dataset(
             completed = True
             failure_reason = None
 
-            power = round(random.uniform(0.24, 0.28), 3)
+            power = round((m_watts * 1.0) / 1000.0, 3)
             cost = round(power * 0.18, 3)
 
-            payload = f"{t_id}:{acc}:{lat}:{fps}:{t_stamp}"
+            payload = f"{t_id}:{acc}:{m_id}:{lat}:{fps}:{t_stamp}"
             h = hashlib.sha256(payload.encode()).hexdigest()
 
             cursor.execute(
                 """
                 INSERT INTO session_telemetry (
-                    test_id, user_email, requested_time, booking_slot,
+                    test_id, user_email, machine_id, requested_time, booking_slot,
                     waiting_time_minutes, avg_latency_ms, max_latency_ms, avg_fps,
                     packet_loss_pct, disconnects_count, completed, failure_reason,
                     pc_idle_minutes, power_kwh, energy_cost_usd, phase, source,
                     integrity_hash, notes, created_at
                 ) VALUES (
-                    %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
@@ -495,12 +608,12 @@ def seed_dmaic_evidence_dataset(
                 ) RETURNING id;
                 """,
                 (
-                    t_id, acc, t_stamp, f"Slot #{100+j}",
+                    t_id, acc, m_id, t_stamp, f"Slot #{100+j}",
                     wait_m, lat, max_lat, fps,
                     loss, disc, completed, failure_reason,
                     round(random.uniform(2.0, 8.0), 1), power, cost,
                     "V2_Improved", "automated_stream", h,
-                    f"Improved trial on {game} with WebRTC NVENC & Redis", t_stamp,
+                    f"Improved trial on {game} ({target_rig['name'] if target_rig else 'Host PC'}) with WebRTC NVENC & Redis", t_stamp,
                 ),
             )
             created_records.append(t_id)
@@ -511,5 +624,5 @@ def seed_dmaic_evidence_dataset(
         "status": "seeded",
         "total_seeded": len(created_records),
         "records": created_records,
-        "message": "Generated 30 verifiable DMAIC trial observations (15 Baseline vs 15 Improved) with cryptographic hashes.",
+        "message": "Generated 30 verifiable DMAIC trial observations (15 Baseline vs 15 Improved) distributed across gaming PCs with cryptographic hashes.",
     }

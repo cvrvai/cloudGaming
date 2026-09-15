@@ -2289,15 +2289,687 @@
   color: var(--text-3, #94a3b8);
 }
 
-@media (max-width: 768px) {
-  .bookings-quota-banner.compact-strip {
-    flex-direction: row !important;
-    align-items: center !important;
-    padding: 8px 12px !important;
-  }
-  .bookings-quota-banner.compact-strip .quota-banner-right {
-    margin-top: 0 !important;
-    width: auto !important;
-  }
+/* ==========================================================================
+   MULTI-PC ELECTRICITY & OPERATING EXPENSE TRACKER
+   ========================================================================== */
+.dmaic-section-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #38bdf8;
+  margin-bottom: 4px;
+}
+
+.electricity-fleet-budget-banner {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  margin-bottom: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.fleet-budget-metric-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fleet-budget-metric-box:not(:last-child) {
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  padding-right: 16px;
+}
+
+.budget-metric-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--text-muted, #94a3b8);
+  text-transform: uppercase;
+}
+
+.budget-metric-val {
+  font-size: 24px;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.budget-metric-val.highlight-usd {
+  color: #38bdf8;
+  text-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+}
+
+.budget-metric-val.highlight-rate {
+  color: #fbbf24;
+}
+
+.budget-metric-val.highlight-green {
+  color: #4ade80;
+  text-shadow: 0 0 12px rgba(74, 222, 128, 0.35);
+}
+
+.budget-currency-tag {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+  margin-left: 2px;
+}
+
+.budget-metric-sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.budget-metric-note {
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.multi-pc-power-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.pc-power-card {
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: rgba(18, 20, 36, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: all 0.2s ease;
+}
+
+.pc-power-card:hover {
+  border-color: rgba(56, 189, 248, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.pc-power-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pc-power-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #38bdf8;
+  margin-bottom: 2px;
+}
+
+.pc-power-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 4px;
+}
+
+.pc-specs-subtext {
+  font-size: 11.5px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.pc-power-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 20px;
+  background: rgba(74, 222, 128, 0.12);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  color: #4ade80;
+  white-space: nowrap;
+}
+
+.live-dot.green {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 8px #4ade80;
+}
+
+.power-draw-specs-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.power-draw-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.draw-label {
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.draw-val {
+  font-weight: 800;
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+}
+
+.draw-val.highlight-watt {
+  color: #fbbf24;
+}
+
+.draw-val.highlight-idle {
+  color: #38bdf8;
+}
+
+.draw-breakdown {
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.pc-energy-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.energy-stat-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.cell-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted, #94a3b8);
+  letter-spacing: 0.3px;
+}
+
+.cell-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f1f5f9;
+  font-family: var(--font-mono, monospace);
+}
+
+.pc-two-week-forecast-box {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.05);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.forecast-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.forecast-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.forecast-tag {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+}
+
+.forecast-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.f-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.f-label {
+  font-size: 10.5px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.f-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+  font-family: var(--font-mono, monospace);
+}
+
+.f-val.highlight-usd {
+  color: #38bdf8;
+}
+
+.f-val.highlight-green {
+  color: #4ade80;
+}
+
+.f-khr {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted, #94a3b8);
+}
+
+/* ==========================================================================
+   CLEAN EXCEL SPREADSHEET COMPONENT
+   ========================================================================== */
+.excel-sheet-container {
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  margin-bottom: 24px;
+}
+
+.excel-sheet-header {
+  background: #107c41; /* Official Microsoft Excel Green */
+  color: #ffffff;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.excel-brand-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.excel-icon-pill {
+  background: #0b5c30;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.excel-filename {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.2px;
+}
+
+.excel-integrity-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.excel-sheet-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.excel-tab-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.excel-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.excel-tab-btn.active {
+  background: #ffffff;
+  color: #107c41;
+  font-weight: 700;
+}
+
+.excel-formula-bar {
+  display: flex;
+  align-items: center;
+  background: #f8fafc;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 4px 10px;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.excel-name-box {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 2px 10px;
+  border-radius: 3px;
+  font-weight: 700;
+  font-family: var(--font-mono, monospace);
+  color: #0f172a;
+  min-width: 70px;
+  text-align: center;
+}
+
+.excel-fx-label {
+  font-weight: 800;
+  font-style: italic;
+  color: #64748b;
+  user-select: none;
+}
+
+.excel-formula-input {
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 3px 10px;
+  border-radius: 3px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.excel-grid-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.excel-grid-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  color: #0f172a;
+  background: #ffffff;
+  min-width: 1050px;
+}
+
+.excel-col-letters-row th {
+  background: #f1f5f9;
+  color: #64748b;
+  font-weight: 700;
+  font-size: 11px;
+  text-align: center;
+  padding: 3px 6px;
+  border: 1px solid #cbd5e1;
+  user-select: none;
+}
+
+.excel-field-headers-row th {
+  background: #e2e8f0;
+  color: #1e293b;
+  font-weight: 700;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  white-space: nowrap;
+  font-size: 11.5px;
+}
+
+.excel-corner-cell {
+  width: 38px;
+  background: #e2e8f0 !important;
+}
+
+.excel-row-idx {
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  width: 38px;
+  padding: 4px 6px !important;
+  border: 1px solid #cbd5e1 !important;
+  user-select: none;
+  font-size: 11px !important;
+}
+
+.excel-grid-table td {
+  padding: 5px 8px;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.excel-data-row:hover td {
+  background: #f0fdf4 !important; /* Soft Excel highlight green */
+}
+
+.excel-row-alt td {
+  background: #fafafa;
+}
+
+.excel-cell-bold {
+  font-weight: 700;
+  font-family: var(--font-mono, monospace);
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.excel-hash-dot {
+  font-size: 10px;
+  cursor: help;
+}
+
+.excel-phase-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.excel-phase-pill.V1_Baseline {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.excel-phase-pill.V2_Improved {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.excel-cell-rig {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.excel-cell-gpu {
+  font-size: 11px;
+  color: #475569;
+}
+
+.excel-cell-acc {
+  font-size: 11.5px;
+  color: #334155;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.excel-cell-num {
+  text-align: right;
+  font-family: var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+  color: #0f172a;
+}
+
+.excel-defect-val {
+  color: #dc2626 !important;
+  font-weight: 700;
+}
+
+.excel-status-cell {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  display: inline-block;
+  letter-spacing: 0.4px;
+}
+
+.excel-status-cell.pass {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.excel-status-cell.defect {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.excel-cell-muted {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.excel-summary-row td {
+  background: #f1f5f9;
+  border-top: 2px solid #0f172a;
+  border-bottom: 2px solid #0f172a;
+  padding: 6px 8px;
+  font-weight: 700;
+}
+
+.excel-summary-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.excel-sum-val {
+  font-weight: 800;
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+}
+
+.excel-fn-tag {
+  font-size: 9px;
+  font-weight: 700;
+  color: #64748b;
+  margin-right: 3px;
+  padding: 1px 3px;
+  background: #e2e8f0;
+  border-radius: 3px;
+}
+
+.excel-sum-val.highlight-kwh {
+  color: #0284c7;
+}
+
+.excel-sum-val.highlight-usd {
+  color: #15803d;
+}
+
+.excel-empty-notice-cell {
+  background: #ffffff;
+  padding: 36px 20px !important;
+  text-align: center;
+}
+
+.excel-blank-cell {
+  background: #ffffff;
+  height: 28px;
+}
+
+.excel-empty-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.excel-empty-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.excel-empty-subtitle {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.excel-empty-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.excel-status-bar {
+  background: #f1f5f9;
+  border-top: 1px solid #cbd5e1;
+  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #475569;
+}
+
+.excel-status-item {
+  font-weight: 500;
+}
+
+.excel-status-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 

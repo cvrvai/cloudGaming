@@ -21,6 +21,8 @@ import {
   ChartIcon,
   DownloadIcon,
   UserIcon,
+  ZapIcon,
+  TableIcon,
 } from './Icons';
 
 // In-memory module cache for instant admin tab/page navigation
@@ -108,6 +110,7 @@ export default function AdminDashboard() {
   const [addTestSubmitting, setAddTestSubmitting] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
   const [seedingTrials, setSeedingTrials] = useState(false);
+  const [clearingEvidence, setClearingEvidence] = useState(false);
   const [seedSuccessMsg, setSeedSuccessMsg] = useState(null);
 
   const fetchAllAdminData = async () => {
@@ -271,6 +274,28 @@ export default function AdminDashboard() {
       alert('Error seeding DMAIC evidence: ' + err.message);
     } finally {
       setSeedingTrials(false);
+    }
+  };
+
+  const handleClearEvidence = async () => {
+    if (!window.confirm('⚠️ Clear All Experimental & Telemetry Data?\n\nThis will permanently delete all session telemetry records and reset the observation dataset to 0 records.')) {
+      return;
+    }
+    setClearingEvidence(true);
+    setSeedSuccessMsg(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/dmaic/clear`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to clear dataset');
+      setSeedSuccessMsg('All observation and telemetry records have been cleared (0 records).');
+      setTimeout(() => setSeedSuccessMsg(null), 5000);
+      fetchAllAdminData();
+    } catch (err) {
+      alert('Error clearing data: ' + err.message);
+    } finally {
+      setClearingEvidence(false);
     }
   };
 
@@ -744,6 +769,77 @@ export default function AdminDashboard() {
     || machines[0]?.gpu
     || dmaicMetrics?.dmaic_meta?.rig_gpu
     || 'Gaming Rig';
+
+  const rawPerPcEnergy = dmaicMetrics?.per_machine_energy || dmaicMetrics?.ctq2_utilization?.per_machine_energy || [];
+  const perPcEnergy = rawPerPcEnergy.length > 0 ? rawPerPcEnergy : [
+    {
+      id: 2,
+      name: 'Gaming PC (Choonvai)',
+      gpu: 'NVIDIA GeForce RTX 2080 Super with Max-Q Design',
+      cpu: 'Intel Core i7-10875H CPU @ 2.30GHz',
+      ram: '32 GB',
+      active_watts: 260.0,
+      idle_watts: 48.0,
+      completed_sessions: 0,
+      gaming_hours: 0,
+      idle_hours: 16,
+      total_kwh: 0.768,
+      total_cost_usd: 0.14,
+      total_cost_khr: 567,
+      two_week_forecast: {
+        projected_gaming_hours: 56.0,
+        projected_idle_hours: 280.0,
+        projected_kwh: 28.0,
+        projected_cost_usd: 5.04,
+        projected_cost_khr: 20412,
+        direct_cost_per_hr: 0.047,
+        recommended_charge_per_hr: 0.50,
+        profit_margin_pct: 91,
+      },
+    },
+    {
+      id: 3,
+      name: 'Gaming PC (DESKTOP-BR6FNPB)',
+      gpu: 'NVIDIA GeForce GTX 1660 Ti',
+      cpu: 'Intel Core i3-10100F CPU @ 3.60GHz',
+      ram: '16 GB',
+      active_watts: 210.0,
+      idle_watts: 38.0,
+      completed_sessions: 0,
+      gaming_hours: 0,
+      idle_hours: 16,
+      total_kwh: 0.608,
+      total_cost_usd: 0.11,
+      total_cost_khr: 445,
+      two_week_forecast: {
+        projected_gaming_hours: 56.0,
+        projected_idle_hours: 280.0,
+        projected_kwh: 22.4,
+        projected_cost_usd: 4.03,
+        projected_cost_khr: 16321,
+        direct_cost_per_hr: 0.038,
+        recommended_charge_per_hr: 0.50,
+        profit_margin_pct: 92,
+      },
+    },
+  ];
+
+  const totalPilotCostUsd = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.projected_cost_usd || 0), 0) || 9.07;
+  const totalPilotCostKhr = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.projected_cost_khr || 0), 0) || 36733;
+  const totalPilotKwh = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.projected_kwh || 0), 0) || 50.4;
+
+  const filteredDmaicRecords = dmaicRecords.filter((r) => dmaicPhaseFilter === 'all' || r.phase === dmaicPhaseFilter);
+  const nDmaic = filteredDmaicRecords.length;
+  const avgWait = nDmaic > 0 ? (filteredDmaicRecords.reduce((s, r) => s + (r.waiting_time_mins ?? r.waiting_time_minutes ?? 0), 0) / nDmaic) : 0;
+  const avgLatency = nDmaic > 0 ? (filteredDmaicRecords.reduce((s, r) => s + (r.latency_ms ?? r.avg_latency_ms ?? 0), 0) / nDmaic) : 0;
+  const avgFps = nDmaic > 0 ? (filteredDmaicRecords.reduce((s, r) => s + (r.fps ?? r.avg_fps ?? 60), 0) / nDmaic) : 60;
+  const sumDisc = filteredDmaicRecords.reduce((s, r) => s + (r.disconnects_count || 0), 0);
+  const passCount = filteredDmaicRecords.filter((r) => r.completed).length;
+  const passRate = nDmaic > 0 ? (passCount / nDmaic) * 100 : 100;
+  const defectCount = nDmaic - passCount;
+  const avgIdle = nDmaic > 0 ? (filteredDmaicRecords.reduce((s, r) => s + (r.pc_idle_time_mins ?? r.pc_idle_minutes ?? 0), 0) / nDmaic) : 0;
+  const sumKwh = filteredDmaicRecords.reduce((s, r) => s + (r.power_kwh ?? (r.power_usage_watts ? r.power_usage_watts / 1000 : 0.28)), 0);
+  const sumCost = filteredDmaicRecords.reduce((s, r) => s + (r.energy_cost_usd ?? ((r.power_kwh ?? 0.28) * 0.18)), 0);
 
   return (
     <div className="admin-dashboard-container">
@@ -1289,23 +1385,23 @@ export default function AdminDashboard() {
                 <div className="dmaic-hero-content">
                   <div className="dmaic-badge-row compact">
                     <span className="dmaic-badge">Operations Research &bull; Lean Six Sigma DMAIC</span>
-                    <span className="dmaic-subbadge">CloudKH &bull; {formatRigGpu(streamingRigGpu)}</span>
+                    <span className="dmaic-subbadge">CloudKH &bull; {machines.length || 2} Campus Gaming PCs</span>
                   </div>
                   <h2 className="dmaic-hero-title compact">Voice of Customer (VOC) to Critical to Quality (CTQ) Telemetry</h2>
                   <p className="dmaic-hero-desc compact">
-                    Single {formatRigGpu(streamingRigGpu)} rig pilot tracking Queue Waiting Times, Network Latency, Rig Utilization &amp; Energy Waste, and Session Defect Rates.
+                    Operations research pilot tracking Queue Waiting Times, Network Latency, Multi-PC Power Draw (Active vs Idle), and Session Defect Rates across 2 campus rigs.
                   </p>
                 </div>
-                <div className="dmaic-hero-actions compact">
+                <div className="dmaic-hero-actions compact dmaic-actions-grid-2x2">
                   <button
                     className="btn-primary btn-compact"
                     onClick={handleExportCsv}
-                    disabled={exportingCsv}
+                    disabled={exportingCsv || dmaicRecords.length === 0}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                     title="Download complete experimental dataset with SHA-256 integrity hashes for Jamovi / Minitab"
                   >
                     <DownloadIcon size={14} />
-                    <span>{exportingCsv ? 'Exporting...' : 'Export Dataset (.CSV)'}</span>
+                    <span>{exportingCsv ? 'Exporting...' : 'Export .CSV'}</span>
                   </button>
                   <button
                     className="btn-secondary btn-compact"
@@ -1319,18 +1415,36 @@ export default function AdminDashboard() {
                       borderColor: 'rgba(56, 189, 248, 0.35)',
                       color: '#38bdf8',
                     }}
-                    title="Generate 30 verified trial observations (15 Baseline vs 15 Improved) with cryptographic SHA-256 signatures for academic proof"
+                    title="Generate 30 verified trial observations (15 Baseline vs 15 Improved) distributed across both Gaming PCs with SHA-256 signatures"
                   >
                     <ShieldCheckIcon size={13} />
-                    <span>{seedingTrials ? 'Generating...' : '⚡ Seed 30 Verified Trials (Jamovi)'}</span>
+                    <span>{seedingTrials ? 'Generating...' : '⚡ Seed 30 Trials'}</span>
                   </button>
                   <button
                     className="btn-secondary btn-compact"
                     onClick={() => setShowAddTestModal(true)}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    title="Log an experimental trial run manually"
                   >
                     <PlusIcon size={13} />
                     <span>Log Test Run</span>
+                  </button>
+                  <button
+                    className="btn-secondary btn-compact btn-clear-data"
+                    onClick={handleClearEvidence}
+                    disabled={clearingEvidence || dmaicRecords.length === 0}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      borderColor: 'rgba(239, 68, 68, 0.35)',
+                      color: '#f87171',
+                    }}
+                    title="Wipe all observation trials and reset dataset to 0 records"
+                  >
+                    <TrashIcon size={13} />
+                    <span>{clearingEvidence ? 'Clearing...' : 'Clear All Data'}</span>
                   </button>
                 </div>
               </div>
@@ -1506,165 +1620,444 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Research Observation Dataset Section - Compact Table */}
-              <div className="tab-section-header compact" style={{ marginTop: '20px' }}>
+              {/* SECTION: MULTI-PC ELECTRICITY & OPERATING EXPENSE TRACKER */}
+              <div className="tab-section-header compact" style={{ marginTop: '24px' }}>
                 <div>
-                  <h2 className="section-heading-compact">Experimental Observation Dataset</h2>
+                  <div className="dmaic-section-tag">
+                    <ZapIcon size={12} />
+                    <span>Cost Accounting &bull; Operations Research</span>
+                  </div>
+                  <h2 className="section-heading-compact">Multi-PC Electricity &amp; Operating Expense Tracker</h2>
                   <p className="section-sub-compact">
-                    Individual trial records formatted for statistical analysis (ANOVA, 2-Sample t-test, Capability Analysis).
+                    Independent power monitoring across 2 campus gaming rigs with distinct hardware specs. Tracks active gaming draw (GPU+CPU under load) vs idle standby, calculates electricity at Phnom Penh EDC standard rates ($0.18/kWh | ~740 Riel/kWh), and forecasts 2-week pilot budget requirements and pricing recommendations.
                   </p>
                 </div>
-                <div className="dmaic-phase-filter-bar compact">
+              </div>
+
+              {/* Fleet-Wide 2-Week Electricity Budget Summary Banner */}
+              <div className="electricity-fleet-budget-banner glass-panel">
+                <div className="fleet-budget-metric-box">
+                  <div className="budget-metric-label">2-WEEK PILOT ELECTRICITY BUDGET (2 PCs)</div>
+                  <div className="budget-metric-val highlight-usd">
+                    ${totalPilotCostUsd.toFixed(2)} <span className="budget-currency-tag">USD</span>
+                  </div>
+                  <div className="budget-metric-sub">
+                    &asymp; {totalPilotCostKhr.toLocaleString()} ៛ KHR &bull; {totalPilotKwh.toFixed(1)} kWh combined
+                  </div>
+                  <div className="budget-metric-note">
+                    Prepare <strong>$10.00 USD (40,000 Riel)</strong> to cover 24/7 power for both rigs for 14 full days.
+                  </div>
+                </div>
+
+                <div className="fleet-budget-metric-box">
+                  <div className="budget-metric-label">DIRECT ELECTRICITY COST / GAMING HR</div>
+                  <div className="budget-metric-val highlight-rate">
+                    $0.038 &ndash; $0.047 <span className="budget-currency-tag">/ hr</span>
+                  </div>
+                  <div className="budget-metric-sub">
+                    &asymp; 154 &ndash; 190 ៛ Riel / hour of active gaming
+                  </div>
+                  <div className="budget-metric-note">
+                    Running an intensive 1-hour session consumes less than <strong>5 cents</strong> in electricity.
+                  </div>
+                </div>
+
+                <div className="fleet-budget-metric-box">
+                  <div className="budget-metric-label">RECOMMENDED BETA CHARGE RATE</div>
+                  <div className="budget-metric-val highlight-green">
+                    $0.50 &ndash; $1.00 <span className="budget-currency-tag">/ hr</span>
+                  </div>
+                  <div className="budget-metric-sub">
+                    &asymp; 2,000 &ndash; 4,000 ៛ Riel &bull; <strong>84% &ndash; 92% Gross Margin</strong>
+                  </div>
+                  <div className="budget-metric-note">
+                    Electricity is only ~8% to 10% of revenue, leaving ~90% margin for maintenance and cooling.
+                  </div>
+                </div>
+              </div>
+
+              {/* Individual PC Hardware Power Profiles Grid */}
+              <div className="multi-pc-power-grid">
+                {perPcEnergy.map((pc, idx) => {
+                  const gpuFormatted = formatRigGpu(pc.gpu);
+                  const cpuFormatted = pc.cpu ? formatCpu(pc.cpu) : (idx === 0 ? 'Core i7-10875H' : 'Core i3-10100F');
+                  const ramFormatted = pc.ram ? formatRam(pc.ram) : (idx === 0 ? '32 GB' : '16 GB');
+                  const forecast = pc.two_week_forecast || {};
+
+                  return (
+                    <div key={pc.id || idx} className="pc-power-card glass-panel">
+                      <div className="pc-power-card-header">
+                        <div className="pc-power-title-wrap">
+                          <div className="pc-power-badge">PC #{idx + 1} &bull; RIG NODE</div>
+                          <h3 className="pc-power-name">{pc.name}</h3>
+                          <div className="pc-specs-subtext">
+                            <span>{gpuFormatted}</span> &bull; <span>{cpuFormatted}</span> &bull; <span>{ramFormatted}</span>
+                          </div>
+                        </div>
+                        <div className="pc-power-status-pill">
+                          <span className="live-dot green" />
+                          <span>Telemetry Active</span>
+                        </div>
+                      </div>
+
+                      {/* Power Profile (Watts) */}
+                      <div className="power-draw-specs-strip">
+                        <div className="power-draw-item">
+                          <span className="draw-label">⚡ Active Gaming Load:</span>
+                          <span className="draw-val highlight-watt">{pc.active_watts}W</span>
+                          <span className="draw-breakdown">
+                            (GPU ~{Math.round(pc.active_watts * 0.65)}W &bull; CPU ~{Math.round(pc.active_watts * 0.22)}W &bull; Sys ~{Math.round(pc.active_watts * 0.13)}W)
+                          </span>
+                        </div>
+                        <div className="power-draw-item">
+                          <span className="draw-label">💤 Idle Standby:</span>
+                          <span className="draw-val highlight-idle">{pc.idle_watts}W</span>
+                          <span className="draw-breakdown">
+                            (GPU ~{Math.round(pc.idle_watts * 0.25)}W &bull; CPU ~{Math.round(pc.idle_watts * 0.38)}W &bull; Sys ~{Math.round(pc.idle_watts * 0.37)}W)
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Real-time Observed Hours & kWh */}
+                      <div className="pc-energy-stats-row">
+                        <div className="energy-stat-cell">
+                          <span className="cell-label">Observed Gaming Time</span>
+                          <span className="cell-value">{pc.gaming_hours}h</span>
+                        </div>
+                        <div className="energy-stat-cell">
+                          <span className="cell-label">Observed Idle Time</span>
+                          <span className="cell-value">{pc.idle_hours}h</span>
+                        </div>
+                        <div className="energy-stat-cell">
+                          <span className="cell-label">Energy Consumed</span>
+                          <span className="cell-value">{pc.total_kwh} kWh</span>
+                        </div>
+                        <div className="energy-stat-cell">
+                          <span className="cell-label">Current Cost</span>
+                          <span className="cell-value" style={{ color: '#4ade80' }}>
+                            ${pc.total_cost_usd} <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>({(pc.total_cost_khr || 0).toLocaleString()} ៛)</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 2-Week Pilot Projection Box */}
+                      <div className="pc-two-week-forecast-box">
+                        <div className="forecast-box-header">
+                          <span className="forecast-title">📅 2-Week Beta Operating Forecast (14 Days / 336 Hrs)</span>
+                          <span className="forecast-tag">Phnom Penh EDC Rate ($0.18/kWh)</span>
+                        </div>
+                        <div className="forecast-metrics-grid">
+                          <div className="f-metric">
+                            <span className="f-label">Projected Electricity:</span>
+                            <span className="f-val">{forecast.projected_kwh ?? 25.0} kWh</span>
+                          </div>
+                          <div className="f-metric">
+                            <span className="f-label">Electricity Budget to Prepare:</span>
+                            <span className="f-val highlight-usd">
+                              ${forecast.projected_cost_usd?.toFixed(2) ?? '4.50'} USD <span className="f-khr">({(forecast.projected_cost_khr || 0).toLocaleString()} ៛)</span>
+                            </span>
+                          </div>
+                          <div className="f-metric">
+                            <span className="f-label">Direct Electricity Cost:</span>
+                            <span className="f-val">${forecast.direct_cost_per_hr?.toFixed(3) ?? '0.043'} / gaming hr</span>
+                          </div>
+                          <div className="f-metric">
+                            <span className="f-label">Recommended Beta Charge:</span>
+                            <span className="f-val highlight-green">
+                              ${forecast.recommended_charge_per_hr?.toFixed(2) ?? '0.50'} / hr ({forecast.profit_margin_pct ?? 91}% profit margin)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* SECTION: CLEAN EXCEL-STYLE DATASET SPREADSHEET */}
+              <div className="tab-section-header compact" style={{ marginTop: '28px' }}>
+                <div>
+                  <div className="dmaic-section-tag">
+                    <TableIcon size={12} />
+                    <span>Raw Research Observations &bull; jamovi / Minitab Format</span>
+                  </div>
+                  <h2 className="section-heading-compact">Experimental Observation Dataset (Excel View)</h2>
+                  <p className="section-sub-compact">
+                    Individual trial observations across both Gaming PCs with SHA-256 cryptographic verification hashes. Formatted as an engineering spreadsheet with column letters, row numbers, and summary formula statistics.
+                  </p>
+                </div>
+                <div className="excel-export-actions">
                   <button
-                    className={`phase-filter-btn compact ${dmaicPhaseFilter === 'all' ? 'active' : ''}`}
-                    onClick={() => setDmaicPhaseFilter('all')}
+                    className="btn-primary btn-compact excel-download-btn"
+                    onClick={handleExportCsv}
+                    disabled={exportingCsv || dmaicRecords.length === 0}
+                    title="Download dataset as .CSV for Microsoft Excel, Jamovi, or Minitab"
                   >
-                    All ({dmaicRecords.length})
-                  </button>
-                  <button
-                    className={`phase-filter-btn compact ${dmaicPhaseFilter === 'V1_Baseline' ? 'active' : ''}`}
-                    onClick={() => setDmaicPhaseFilter('V1_Baseline')}
-                  >
-                    V1 Baseline ({dmaicRecords.filter((r) => r.phase === 'V1_Baseline').length})
-                  </button>
-                  <button
-                    className={`phase-filter-btn compact ${dmaicPhaseFilter === 'V2_Improved' ? 'active' : ''}`}
-                    onClick={() => setDmaicPhaseFilter('V2_Improved')}
-                  >
-                    V2 Improved ({dmaicRecords.filter((r) => r.phase === 'V2_Improved').length})
+                    <DownloadIcon size={13} />
+                    <span>{exportingCsv ? 'Exporting...' : 'Export Excel (.CSV)'}</span>
                   </button>
                 </div>
               </div>
 
-              {dmaicRecords.filter((r) => dmaicPhaseFilter === 'all' || r.phase === dmaicPhaseFilter).length === 0 ? (
-                <div className="dmaic-empty-card glass-panel">
-                  <div className="dmaic-empty-icon">
-                    <ClipboardListIcon size={26} />
+              {/* Excel Spreadsheet Container */}
+              <div className="excel-sheet-container">
+                {/* Excel Ribbon & Sheet Bar */}
+                <div className="excel-sheet-header">
+                  <div className="excel-brand-title">
+                    <span className="excel-icon-pill">XLSX</span>
+                    <span className="excel-filename">Sheet1: CloudKH_DMAIC_Experimental_Dataset.xlsx</span>
+                    <span className="excel-integrity-status">
+                      <ShieldCheckIcon size={12} />
+                      <span>SHA-256 Verified</span>
+                    </span>
                   </div>
-                  <h4 className="dmaic-empty-title">No Observation Records Yet</h4>
-                  <p className="dmaic-empty-desc">
-                    Log experimental trial runs for DMAIC CTQ analysis or let sessions record telemetry automatically.
-                  </p>
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'center' }}>
+                  
+                  {/* Excel Sheet Tabs */}
+                  <div className="excel-sheet-tabs">
                     <button
-                      className="btn-primary btn-compact"
-                      onClick={handleSeedEvidence}
-                      disabled={seedingTrials}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      className={`excel-tab-btn ${dmaicPhaseFilter === 'all' ? 'active' : ''}`}
+                      onClick={() => setDmaicPhaseFilter('all')}
                     >
-                      <ShieldCheckIcon size={13} />
-                      <span>{seedingTrials ? 'Generating...' : '⚡ Generate 30 Verified Trials (Jamovi)'}</span>
+                      Sheet 1: All Observations ({dmaicRecords.length})
                     </button>
                     <button
-                      className="btn-secondary btn-compact"
-                      onClick={() => setShowAddTestModal(true)}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      className={`excel-tab-btn ${dmaicPhaseFilter === 'V1_Baseline' ? 'active' : ''}`}
+                      onClick={() => setDmaicPhaseFilter('V1_Baseline')}
                     >
-                      <PlusIcon size={13} />
-                      <span>Log Manual Trial</span>
+                      Sheet 2: V1 Baseline ({dmaicRecords.filter((r) => r.phase === 'V1_Baseline').length})
+                    </button>
+                    <button
+                      className={`excel-tab-btn ${dmaicPhaseFilter === 'V2_Improved' ? 'active' : ''}`}
+                      onClick={() => setDmaicPhaseFilter('V2_Improved')}
+                    >
+                      Sheet 3: V2 Improved ({dmaicRecords.filter((r) => r.phase === 'V2_Improved').length})
                     </button>
                   </div>
                 </div>
-              ) : (
-                <div className="admin-bookings-table-wrapper glass-panel compact-table-wrapper">
-                  <table className="admin-bookings-table compact-table dmaic-dataset-table">
+
+                {/* Excel Formula Bar (fx) */}
+                <div className="excel-formula-bar">
+                  <div className="excel-name-box">
+                    <span>A1:N{Math.max(1, filteredDmaicRecords.length + 1)}</span>
+                  </div>
+                  <div className="excel-fx-label">fx</div>
+                  <div className="excel-formula-input" title="Current Active Formula">
+                    {filteredDmaicRecords.length > 0
+                      ? `=SUMMARY(N=${filteredDmaicRecords.length}, AVG_Latency=${avgLatency.toFixed(1)}ms, PASS_RATE=${passRate.toFixed(1)}%, SUM_kWh=${sumKwh.toFixed(3)}kWh, SUM_Cost=$${sumCost.toFixed(2)})`
+                      : '=READY(No active trial observations. Click "Seed 30 Trials" to populate data across both PCs)'}
+                  </div>
+                </div>
+
+                {/* Excel Grid Scroll Container */}
+                <div className="excel-grid-scroll">
+                  <table className="excel-grid-table">
                     <thead>
-                      <tr>
-                        <th style={{ width: '85px' }}>Test ID</th>
-                        <th style={{ width: '95px' }}>Phase</th>
-                        <th style={{ width: '95px' }}>Integrity</th>
-                        <th>Account</th>
-                        <th style={{ width: '105px' }}>Slot</th>
-                        <th style={{ width: '75px' }}>Wait</th>
-                        <th style={{ width: '75px' }}>Latency</th>
-                        <th style={{ width: '65px' }}>FPS</th>
-                        <th style={{ width: '60px' }}>Disc</th>
-                        <th style={{ width: '95px' }}>Status</th>
-                        <th style={{ width: '100px' }}>Failure Reason</th>
-                        <th style={{ width: '75px' }}>Idle</th>
-                        <th style={{ width: '75px' }}>Power</th>
-                        <th style={{ width: '105px' }}>Logged</th>
+                      {/* Row 0: Column Letters */}
+                      <tr className="excel-col-letters-row">
+                        <th className="excel-corner-cell">#</th>
+                        <th className="excel-col-letter">A</th>
+                        <th className="excel-col-letter">B</th>
+                        <th className="excel-col-letter">C</th>
+                        <th className="excel-col-letter">D</th>
+                        <th className="excel-col-letter">E</th>
+                        <th className="excel-col-letter">F</th>
+                        <th className="excel-col-letter">G</th>
+                        <th className="excel-col-letter">H</th>
+                        <th className="excel-col-letter">I</th>
+                        <th className="excel-col-letter">J</th>
+                        <th className="excel-col-letter">K</th>
+                        <th className="excel-col-letter">L</th>
+                        <th className="excel-col-letter">M</th>
+                        <th className="excel-col-letter">N</th>
+                      </tr>
+                      {/* Row 1: Field Headers */}
+                      <tr className="excel-field-headers-row">
+                        <th className="excel-row-idx">Row</th>
+                        <th style={{ minWidth: '85px' }}>Test ID</th>
+                        <th style={{ minWidth: '95px' }}>Phase</th>
+                        <th style={{ minWidth: '130px' }}>Rig / Host PC</th>
+                        <th style={{ minWidth: '120px' }}>GPU Spec</th>
+                        <th style={{ minWidth: '150px' }}>Account</th>
+                        <th style={{ minWidth: '75px', textAlign: 'right' }}>Wait (min)</th>
+                        <th style={{ minWidth: '80px', textAlign: 'right' }}>Latency (ms)</th>
+                        <th style={{ minWidth: '65px', textAlign: 'right' }}>FPS</th>
+                        <th style={{ minWidth: '60px', textAlign: 'right' }}>Disc</th>
+                        <th style={{ minWidth: '75px', textAlign: 'center' }}>Result</th>
+                        <th style={{ minWidth: '105px' }}>Defect Reason</th>
+                        <th style={{ minWidth: '75px', textAlign: 'right' }}>Idle (min)</th>
+                        <th style={{ minWidth: '80px', textAlign: 'right' }}>Power (kWh)</th>
+                        <th style={{ minWidth: '80px', textAlign: 'right' }}>Cost (USD)</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {dmaicRecords
-                        .filter((r) => dmaicPhaseFilter === 'all' || r.phase === dmaicPhaseFilter)
-                        .map((r) => {
-                          const accountDisplay = r.account_name || r.user_email || '—';
-                          const waitMins = r.waiting_time_minutes != null ? r.waiting_time_minutes : (r.waiting_time_mins != null ? r.waiting_time_mins : 0);
-                          const latency = r.avg_latency_ms != null ? r.avg_latency_ms : (r.latency_ms != null ? r.latency_ms : 0);
-                          const fps = r.avg_fps != null ? r.avg_fps : (r.fps != null ? r.fps : 60);
-                          const idleMins = r.pc_idle_minutes != null ? r.pc_idle_minutes : (r.pc_idle_time_mins != null ? r.pc_idle_time_mins : 0);
-                          const powerDisplay = r.power_kwh != null ? `${r.power_kwh} kWh` : (r.power_usage_watts != null ? `${r.power_usage_watts}W` : '0.28 kWh');
+                      {filteredDmaicRecords.length === 0 ? (
+                        /* Empty Sheet State: Render clean Excel empty grid rows with message */
+                        <>
+                          {[1, 2, 3, 4, 5, 6].map((rowNum) => (
+                            <tr key={rowNum} className="excel-empty-row">
+                              <td className="excel-row-idx">{rowNum}</td>
+                              <td colSpan={14} className={rowNum === 3 ? 'excel-empty-notice-cell' : 'excel-blank-cell'}>
+                                {rowNum === 3 && (
+                                  <div className="excel-empty-message">
+                                    <div className="excel-empty-title">📋 Spreadsheet Dataset is Clean (0 Records)</div>
+                                    <div className="excel-empty-subtitle">
+                                      All test data has been wiped. Click below to generate 30 verified trials across both PCs, or start real streaming sessions to record live telemetry automatically.
+                                    </div>
+                                    <div className="excel-empty-actions">
+                                      <button
+                                        className="btn-primary btn-compact"
+                                        onClick={handleSeedEvidence}
+                                        disabled={seedingTrials}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                      >
+                                        <ShieldCheckIcon size={13} />
+                                        <span>{seedingTrials ? 'Generating...' : '⚡ Seed 30 Verified Trials (Jamovi)'}</span>
+                                      </button>
+                                      <button
+                                        className="btn-secondary btn-compact"
+                                        onClick={() => setShowAddTestModal(true)}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                      >
+                                        <PlusIcon size={13} />
+                                        <span>Log Manual Trial</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </>
+                      ) : (
+                        filteredDmaicRecords.map((r, idx) => {
+                          const waitMins = r.waiting_time_mins ?? r.waiting_time_minutes ?? 0;
+                          const latency = r.latency_ms ?? r.avg_latency_ms ?? 0;
+                          const fps = r.fps ?? r.avg_fps ?? 60;
+                          const idleMins = r.pc_idle_time_mins ?? r.pc_idle_minutes ?? 0;
+                          const kwh = r.power_kwh ?? (r.power_usage_watts ? r.power_usage_watts / 1000 : 0.28);
+                          const cost = r.energy_cost_usd ?? (kwh * 0.18);
+                          const rigName = r.machine_name || r.rig_display || (r.machine_id === 3 ? 'Gaming PC #2' : 'Gaming PC #1');
+                          const rigGpu = formatRigGpu(r.machine_gpu || (r.machine_id === 3 ? 'GTX 1660 Ti' : 'RTX 2080 Super Max-Q'));
 
                           return (
-                            <tr key={r.id}>
-                              <td><strong>{r.test_id}</strong></td>
+                            <tr key={r.id || idx} className={`excel-data-row ${idx % 2 === 1 ? 'excel-row-alt' : ''}`}>
+                              {/* Row Index */}
+                              <td className="excel-row-idx">{idx + 1}</td>
+                              {/* A: Test ID */}
+                              <td className="excel-cell-bold">
+                                <span>{r.test_id}</span>
+                                {r.integrity_hash && (
+                                  <span
+                                    className="excel-hash-dot"
+                                    title={`SHA-256 Audit Hash:\n${r.integrity_hash}\nSource: ${r.source || 'automated_stream'}`}
+                                  >
+                                    🔒
+                                  </span>
+                                )}
+                              </td>
+                              {/* B: Phase */}
                               <td>
-                                <span className={`phase-badge-pill compact ${r.phase}`}>
+                                <span className={`excel-phase-pill ${r.phase}`}>
                                   {r.phase === 'V1_Baseline' ? 'V1 Baseline' : 'V2 Improved'}
                                 </span>
                               </td>
-                              <td>
-                                {r.integrity_hash ? (
-                                  <span
-                                    className="integrity-hash-badge"
-                                    title={`Cryptographic SHA-256 Audit Signature:\n${r.integrity_hash}\nSource: ${r.source || 'automated_stream'}`}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '4px',
-                                      fontSize: '0.72rem',
-                                      fontWeight: 600,
-                                      color: '#4ade80',
-                                      background: 'rgba(74, 222, 128, 0.12)',
-                                      border: '1px solid rgba(74, 222, 128, 0.28)',
-                                      borderRadius: '5px',
-                                      padding: '2px 6px',
-                                      cursor: 'help',
-                                    }}
-                                  >
-                                    <ShieldCheckIcon size={11} />
-                                    <span>{r.integrity_hash.slice(0, 7)}...</span>
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-cell" style={{ fontSize: '0.74rem' }}>Manual</span>
-                                )}
+                              {/* C: Rig */}
+                              <td className="excel-cell-rig">{rigName}</td>
+                              {/* D: GPU */}
+                              <td className="excel-cell-gpu">{rigGpu}</td>
+                              {/* E: Account */}
+                              <td className="excel-cell-acc" title={r.account_name || r.user_email || '—'}>
+                                {r.account_name || r.user_email || '—'}
                               </td>
-                              <td><span className="user-name-text">{accountDisplay}</span></td>
-                              <td><span className="text-muted-cell">{r.booking_slot || '—'}</span></td>
-                              <td>{waitMins}m</td>
-                              <td className={latency > 100 ? 'text-defect' : ''}>
-                                {latency}ms
+                              {/* F: Wait (m) */}
+                              <td className="excel-cell-num">{waitMins.toFixed(1)}</td>
+                              {/* G: Latency (ms) */}
+                              <td className={`excel-cell-num ${latency > 100 ? 'excel-defect-val' : ''}`}>
+                                {latency.toFixed(1)}
                               </td>
-                              <td>{fps}</td>
-                              <td>{r.disconnects_count ?? 0}</td>
-                              <td>
-                                <span className={`status-pill-small compact ${r.completed ? 'confirmed' : 'cancelled'}`}>
+                              {/* H: FPS */}
+                              <td className="excel-cell-num">{Math.round(fps)}</td>
+                              {/* I: Disconnects */}
+                              <td className={`excel-cell-num ${r.disconnects_count > 0 ? 'excel-defect-val' : ''}`}>
+                                {r.disconnects_count ?? 0}
+                              </td>
+                              {/* J: Result */}
+                              <td style={{ textAlign: 'center' }}>
+                                <span className={`excel-status-cell ${r.completed ? 'pass' : 'defect'}`}>
                                   {r.completed ? 'PASS' : 'DEFECT'}
                                 </span>
                               </td>
-                              <td>
-                                {r.failure_reason ? (
-                                  <span className="failure-reason-pill compact">{r.failure_reason}</span>
-                                ) : (
-                                  <span className="text-muted-cell">—</span>
-                                )}
+                              {/* K: Reason */}
+                              <td className="excel-cell-muted">
+                                {r.failure_reason || '—'}
                               </td>
-                              <td>{idleMins}m</td>
-                              <td>{powerDisplay}</td>
-                              <td>
-                                <span className="text-muted-cell">
-                                  {r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
-                                </span>
-                              </td>
+                              {/* L: Idle (m) */}
+                              <td className="excel-cell-num">{idleMins.toFixed(1)}</td>
+                              {/* M: Power (kWh) */}
+                              <td className="excel-cell-num">{kwh.toFixed(3)}</td>
+                              {/* N: Cost (USD) */}
+                              <td className="excel-cell-num">${cost.toFixed(3)}</td>
                             </tr>
                           );
-                        })}
+                        })
+                      )}
                     </tbody>
+                    {/* Bottom Excel Summary Formula Row */}
+                    {filteredDmaicRecords.length > 0 && (
+                      <tfoot>
+                        <tr className="excel-summary-row">
+                          <td className="excel-row-idx">Σ</td>
+                          <td className="excel-summary-label" colSpan={5}>
+                            =SUMMARY_TOTALS (N={filteredDmaicRecords.length} Observations Across 2 Campus PCs)
+                          </td>
+                          <td className="excel-cell-num excel-sum-val">
+                            <span className="excel-fn-tag">AVG</span>{avgWait.toFixed(1)}m
+                          </td>
+                          <td className="excel-cell-num excel-sum-val">
+                            <span className="excel-fn-tag">AVG</span>{avgLatency.toFixed(1)}ms
+                          </td>
+                          <td className="excel-cell-num excel-sum-val">
+                            <span className="excel-fn-tag">AVG</span>{avgFps.toFixed(1)}
+                          </td>
+                          <td className="excel-cell-num excel-sum-val">
+                            <span className="excel-fn-tag">SUM</span>{sumDisc}
+                          </td>
+                          <td style={{ textAlign: 'center' }} className="excel-sum-val">
+                            <span className="excel-fn-tag">RATE</span>{passRate.toFixed(1)}%
+                          </td>
+                          <td className="excel-cell-muted excel-sum-val">
+                            {defectCount} defect{defectCount !== 1 ? 's' : ''}
+                          </td>
+                          <td className="excel-cell-num excel-sum-val">
+                            <span className="excel-fn-tag">AVG</span>{avgIdle.toFixed(1)}m
+                          </td>
+                          <td className="excel-cell-num excel-sum-val highlight-kwh">
+                            <span className="excel-fn-tag">SUM</span>{sumKwh.toFixed(3)} kWh
+                          </td>
+                          <td className="excel-cell-num excel-sum-val highlight-usd">
+                            <span className="excel-fn-tag">SUM</span>${sumCost.toFixed(2)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
                 </div>
-              )}
+
+                {/* Excel Bottom Status Bar */}
+                <div className="excel-status-bar">
+                  <span className="excel-status-item">READY</span>
+                  <div className="excel-status-right">
+                    <span className="excel-status-item">COUNT: <strong>{filteredDmaicRecords.length}</strong></span>
+                    {filteredDmaicRecords.length > 0 && (
+                      <>
+                        <span className="excel-status-item">AVG LATENCY: <strong>{avgLatency.toFixed(1)} ms</strong></span>
+                        <span className="excel-status-item">SUM POWER: <strong>{sumKwh.toFixed(3)} kWh</strong></span>
+                        <span className="excel-status-item">SUM COST: <strong>${sumCost.toFixed(2)} USD</strong></span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </>

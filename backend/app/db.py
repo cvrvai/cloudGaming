@@ -112,6 +112,13 @@ def init_db() -> None:
         """)
         cursor.execute("ALTER TABLE machines ADD COLUMN IF NOT EXISTS os TEXT;")
         cursor.execute("ALTER TABLE machines ADD COLUMN IF NOT EXISTS last_seen TEXT;")
+        cursor.execute("ALTER TABLE machines ADD COLUMN IF NOT EXISTS active_watts DOUBLE PRECISION DEFAULT 280.0;")
+        cursor.execute("ALTER TABLE machines ADD COLUMN IF NOT EXISTS idle_watts DOUBLE PRECISION DEFAULT 55.0;")
+        try:
+            cursor.execute("UPDATE machines SET active_watts = 260.0, idle_watts = 48.0 WHERE id = 2 AND (active_watts IS NULL OR active_watts = 280.0);")
+            cursor.execute("UPDATE machines SET active_watts = 210.0, idle_watts = 38.0 WHERE id = 3 AND (active_watts IS NULL OR active_watts = 280.0);")
+        except Exception:
+            pass
 
         # 3. Games Catalog table (Central game metadata)
         cursor.execute("""

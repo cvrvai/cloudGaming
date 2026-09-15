@@ -72,7 +72,9 @@ async def list_machines():
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT id, name, gpu, cpu, ram, os, status, is_host, notes, last_seen
+                SELECT id, name, gpu, cpu, ram, os, status, is_host, notes, last_seen,
+                       COALESCE(active_watts, 280.0) as active_watts,
+                       COALESCE(idle_watts, 55.0) as idle_watts
                 FROM machines
                 ORDER BY id ASC;
                 """
