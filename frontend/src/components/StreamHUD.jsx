@@ -16,6 +16,7 @@ export default function StreamHUD({
   onSessionEnd,
   hudVisible = true,
   onShowHud,
+  onHideHud,
   hasGamepad = false,
   gamepadName = '',
   isFullscreen = false,
@@ -66,6 +67,7 @@ export default function StreamHUD({
         >
           <span className="hud-summon-dot" />
           <span className="hud-summon-time">{timeFormatted}</span>
+          <span className="hud-summon-chevron">▾</span>
         </button>
       )}
 
@@ -75,16 +77,10 @@ export default function StreamHUD({
         role="region"
         aria-label="Stream controls"
       >
-        <div className="hud-machine-meta">
+        <div className="hud-timer-pill" title="Remaining session time">
           <span className="hud-live-dot" />
-          <span className="hud-rig-name">
-            {sessionData?.game_title || formatRigName(sessionData?.machine_name)}
-          </span>
-          {sessionData?.game_title && sessionData?.machine_name && (
-            <span className="hud-rig-sub-pill">
-              {formatRigName(sessionData.machine_name)}
-            </span>
-          )}
+          <span className="hud-time-val">{timeFormatted}</span>
+          {isWarning && <span className="hud-warn-badge">Ending Soon</span>}
         </div>
 
         {hasGamepad && (
@@ -93,14 +89,6 @@ export default function StreamHUD({
             <span className="hud-btn-text">Gamepad</span>
           </div>
         )}
-
-        <div className="hud-timer-pill" title="Remaining session time">
-          <span className="hud-timer-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
-            <ClockIcon size={13} />
-          </span>
-          <span className="hud-time-val">{timeFormatted}</span>
-          {isWarning && <span className="hud-warn-badge">Ending Soon</span>}
-        </div>
 
         <div className="hud-actions-group">
           {onToggleMute && (
@@ -153,6 +141,18 @@ export default function StreamHUD({
           >
             Exit
           </button>
+
+          {onHideHud && (
+            <button
+              type="button"
+              className="hud-collapse-btn"
+              onClick={onHideHud}
+              title="Hide controls"
+              aria-label="Hide stream controls"
+            >
+              ▲
+            </button>
+          )}
         </div>
       </div>
 

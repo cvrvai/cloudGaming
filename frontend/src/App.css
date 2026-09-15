@@ -617,6 +617,7 @@
 
 .controller-left .shoulder-group,
 .controller-right .shoulder-group,
+.meta-btn-group,
 .analog-stick,
 .dpad-container,
 .action-buttons-grid,
@@ -789,35 +790,47 @@
   clip-path: polygon(0 0, 100% 0, 85% 100%, 15% 100%);
 }
 
-/* Center pill (start/select/settings) */
-.controller-center { display: block; }
-
-.center-controls {
+/* Meta buttons: Upper Left Wing (Select) & Upper Right Wing (Start) */
+.meta-btn-group {
   position: absolute;
-  left: 50%;
-  bottom: max(10px, env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px !important;
-  border: 1px solid var(--glass-border-soft);
-  border-radius: var(--radius-pill);
-  background: var(--glass-bg-strong);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  pointer-events: auto;
+  z-index: 10;
 }
 
-.center-controls .status-dot,
-.center-controls .nav-icon-btn {
-  display: none;
+.meta-btn-group.meta-left {
+  left: calc(max(var(--edge-gap), env(safe-area-inset-left)) + 78px);
+  top: max(48px, calc(env(safe-area-inset-top) + 46px));
+  transform: scale(var(--control-scale));
+  transform-origin: top left;
+}
+
+.meta-btn-group.meta-right {
+  right: calc(max(var(--edge-gap), env(safe-area-inset-right)) + 78px);
+  top: max(48px, calc(env(safe-area-inset-top) + 46px));
+  transform: scale(var(--control-scale));
+  transform-origin: top right;
 }
 
 .menu-btn {
-  border-radius: var(--radius-s) !important;
-  width: 44px !important;
-  height: 28px !important;
+  border-radius: var(--radius-pill) !important;
+  width: 42px !important;
+  height: 30px !important;
   font-size: 13px !important;
+  background: rgba(16, 18, 24, 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.menu-btn:hover,
+.menu-btn:active {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.45) !important;
+  transform: scale(0.94);
 }
 
 .nav-icon-btn {

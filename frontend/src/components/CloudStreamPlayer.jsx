@@ -195,6 +195,11 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
     }, 3500);
   }, []);
 
+  const hideHud = useCallback(() => {
+    if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
+    setHudVisible(false);
+  }, []);
+
   useEffect(() => {
     resetHudTimer();
     return () => {
@@ -585,13 +590,13 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
       className={`cloud-stream-player-container ${isFullscreen ? 'ios-pseudo-fullscreen' : ''}`}
       ref={containerRef}
       onMouseMove={resetHudTimer}
-      onTouchStart={resetHudTimer}
     >
       <StreamHUD
         sessionData={sessionData}
         onSessionEnd={handleExitSession}
         hudVisible={hudVisible}
         onShowHud={resetHudTimer}
+        onHideHud={hideHud}
         hasGamepad={hasGamepad}
         gamepadName={gamepadName}
         isFullscreen={isFullscreen}

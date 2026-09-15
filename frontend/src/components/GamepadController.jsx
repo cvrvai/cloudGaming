@@ -201,6 +201,10 @@ export default function GamepadController({
                             <ActionButton label="LB" color="#ffffff" size={50} {...createButtonHandler('LB')} className="shoulder-btn left-shoulder" />
                         )}
                     </div>
+                    {/* Upper Left Wing: SELECT (View/Back) */}
+                    <div className="meta-btn-group meta-left">
+                        <ActionButton label="☰" color="#ffffff" size={36} {...createButtonHandler('SELECT')} className="menu-btn select-btn" />
+                    </div>
                     {activeControls.leftStick && (
                         <AnalogStick
                             position="left"
@@ -218,14 +222,6 @@ export default function GamepadController({
                     )}
                 </div>
 
-                {/* Center - Start/Select pill */}
-                <div className="controller-center">
-                    <div className="center-controls">
-                        <ActionButton label="☰" color="#ffffff" size={36} {...createButtonHandler('SELECT')} className="menu-btn" />
-                        <ActionButton label="▶" color="#ffffff" size={36} {...createButtonHandler('START')} className="menu-btn" />
-                    </div>
-                </div>
-
                 {/* Right side - Actions */}
                 <div className="controller-right">
                     <div className="shoulder-group">
@@ -235,6 +231,10 @@ export default function GamepadController({
                         {activeControls.rt && (
                             <ActionButton label="RT" color="#ffffff" size={50} {...createButtonHandler('RT')} className="trigger-btn right-trigger" />
                         )}
+                    </div>
+                    {/* Upper Right Wing: START (Menu/Pause) */}
+                    <div className="meta-btn-group meta-right">
+                        <ActionButton label="▶" color="#ffffff" size={36} {...createButtonHandler('START')} className="menu-btn start-btn" />
                     </div>
                     {activeControls.faceButtons && (
                         <div className="action-buttons-grid">
