@@ -37,6 +37,10 @@ _LINUX_HW_ENCODER = "vah264lpenc"
 _linux_hw_encoder_checked = False
 _linux_hw_encoder_available = False
 
+_WIN_HW_ENCODER = "nvd3d11h264enc"
+_win_hw_encoder_checked = False
+_win_hw_encoder_available = False
+
 
 def _linux_hw_encoder_ready() -> bool:
     """Cached check for a VA-API hardware H.264 encoder (Intel/AMD iGPU).
@@ -50,6 +54,20 @@ def _linux_hw_encoder_ready() -> bool:
         ensure_gstreamer_initialized()
         _linux_hw_encoder_available = Gst.ElementFactory.find(_LINUX_HW_ENCODER) is not None
     return _linux_hw_encoder_available
+
+
+def _win_hw_encoder_ready() -> bool:
+    """Cached check for NVIDIA Direct3D11 NVENC hardware H.264 encoder (nvd3d11h264enc).
+
+    Zero-copy VRAM capture directly into NVENC with zero PCIe transfer and 0% CPU encoding.
+    Falls back to x264enc when unavailable.
+    """
+    global _win_hw_encoder_checked, _win_hw_encoder_available
+    if not _win_hw_encoder_checked:
+        _win_hw_encoder_checked = True
+        ensure_gstreamer_initialized()
+        _win_hw_encoder_available = Gst.ElementFactory.find(_WIN_HW_ENCODER) is not None
+    return _win_hw_encoder_available
 
 
 class GStreamerWebRTCPeer:
@@ -114,24 +132,42 @@ class GStreamerWebRTCPeer:
 
         # Constrained Baseline profile + zero B-frames ensures Apple VideoToolbox on iOS
         # Safari and Android Chromium decode flawlessly with ultra-low latency.
-        video_branch = (
-            f"{capture_elem} "
-            f"! {leaky} "
-            f"! d3d11convert "
-            f"! video/x-raw(memory:D3D11Memory),width={self.width},height={self.height},framerate={self.fps}/1,format=NV12 "
-            f"! {leaky} "
-            f"! d3d11download "
-            f"! {leaky} "
-            f"! videoconvert "
-            f"! {leaky} "
-            f"! x264enc speed-preset=ultrafast tune=zerolatency bitrate={self.bitrate_kbps} key-int-max={self.fps} bframes=0 ref=1 vbv-buf-capacity=0 "
-            f"! video/x-h264,profile=constrained-baseline "
-            f"! {leaky} "
-            f"! h264parse config-interval=-1 "
-            f"! {leaky} "
-            f"! rtph264pay name=pay config-interval=-1 pt=96 "
-            f"! queue name=q_out"
-        )
+        if _win_hw_encoder_ready():
+            logger.info("[%s] WebRTC using zero-copy Direct3D11 NVIDIA NVENC hardware encoder (%s)", self.pc_id, _WIN_HW_ENCODER)
+            video_branch = (
+                f"{capture_elem} "
+                f"! {leaky} "
+                f"! d3d11convert "
+                f"! video/x-raw(memory:D3D11Memory),width={self.width},height={self.height},framerate={self.fps}/1,format=NV12 "
+                f"! {leaky} "
+                f"! nvd3d11h264enc bitrate={self.bitrate_kbps} preset=p1 tune=ultra-low-latency rc-mode=cbr zerolatency=true repeat-sequence-header=true gop-size={self.fps} bframes=0 "
+                f"! video/x-h264,profile=constrained-baseline "
+                f"! {leaky} "
+                f"! h264parse config-interval=-1 "
+                f"! {leaky} "
+                f"! rtph264pay name=pay config-interval=-1 pt=96 "
+                f"! queue name=q_out"
+            )
+        else:
+            logger.info("[%s] WebRTC using CPU software encoder (x264enc)", self.pc_id)
+            video_branch = (
+                f"{capture_elem} "
+                f"! {leaky} "
+                f"! d3d11convert "
+                f"! video/x-raw(memory:D3D11Memory),width={self.width},height={self.height},framerate={self.fps}/1,format=NV12 "
+                f"! {leaky} "
+                f"! d3d11download "
+                f"! {leaky} "
+                f"! videoconvert "
+                f"! {leaky} "
+                f"! x264enc speed-preset=ultrafast tune=zerolatency bitrate={self.bitrate_kbps} key-int-max={self.fps} bframes=0 ref=1 vbv-buf-capacity=0 "
+                f"! video/x-h264,profile=constrained-baseline "
+                f"! {leaky} "
+                f"! h264parse config-interval=-1 "
+                f"! {leaky} "
+                f"! rtph264pay name=pay config-interval=-1 pt=96 "
+                f"! queue name=q_out"
+            )
 
         if not include_audio:
             return video_branch

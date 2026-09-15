@@ -315,9 +315,29 @@ class GamingPCAgent:
             if self._active_game_info and self._active_game_info.get("simulated"):
                 return True
 
+            # If game was started less than 15s ago, maintain running state during bootstrap
+            if self._active_game_info and self._active_game_info.get("started_at"):
+                try:
+                    s_dt = datetime.fromisoformat(self._active_game_info["started_at"])
+                    elapsed = (datetime.now(timezone.utc) - s_dt).total_seconds()
+                    if elapsed < 15.0:
+                        return True
+                except Exception:
+                    pass
+
             running = _get_running_process_names()
             if self._authorized_game_exes and (self._authorized_game_exes & running):
                 return True
+
+            # Check if running contains active game exe or title/slug keywords
+            if self._active_game_info:
+                p = self._active_game_info.get("executable_path")
+                if p and Path(p).name.lower() in running:
+                    return True
+                title = (self._active_game_info.get("title") or "").lower()
+                for kw in ("minecraft", "spiritfarer", "stardew", "hades", "msar", "metalslug", "shipping"):
+                    if kw in title and any(kw in r for r in running):
+                        return True
 
             self._load_authorized_game_exes()
             if self._authorized_game_exes and (self._authorized_game_exes & running):
@@ -605,18 +625,25 @@ class GamingPCAgent:
         self._watchdog_active = True
 
         def _watch():
-            logger.info("[Watchdog] Monitoring game '%s' (waiting for process tree)...", title)
-            # Give game 4 seconds to bootstrap its main window / shipping process
-            time.sleep(4.0)
+            logger.info("[Watchdog] Monitoring game '%s' (grace period for process bootstrap)...", title)
+            # Give game up to 18 seconds to bootstrap its window and shipping process
+            for _ in range(18):
+                time.sleep(1.0)
+                if self.is_game_running():
+                    break
 
-            # Loop while any authorized game process is running
+            logger.info("[Watchdog] Game '%s' bootstrap complete. Monitoring active lifecycle...", title)
+
+            # Loop while any authorized game process is running; require multiple consecutive failed checks
+            consecutive_failed = 0
             while True:
                 if not self.is_game_running():
-                    # Check once more quickly (0.2s) to prevent false triggers during process transitions
-                    time.sleep(0.2)
-                    if not self.is_game_running():
+                    consecutive_failed += 1
+                    if consecutive_failed >= 5:  # 5 checks * 0.8s = 4.0s of continuous absence
                         break
-                time.sleep(0.5)
+                else:
+                    consecutive_failed = 0
+                time.sleep(0.8)
 
             logger.info("[Watchdog] Game '%s' has stopped running. Triggering exit...", title)
             self._watchdog_active = False
@@ -653,6 +680,8 @@ class GamingPCAgent:
             self._load_authorized_game_exes()
 
         target_exes_lower = {x.lower() for x in self._authorized_game_exes}
+        if self._active_game_info and self._active_game_info.get("executable_path"):
+            target_exes_lower.add(Path(self._active_game_info["executable_path"]).name.lower())
         candidates = []
 
         def enum_cb(hwnd, lparam):
@@ -667,15 +696,31 @@ class GamingPCAgent:
 
             pid = wintypes.DWORD()
             user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            matched = False
+            found_name = "unknown"
+
             hproc = kernel32.OpenProcess(0x1000, False, pid.value)
             if hproc:
                 buf = ctypes.create_unicode_buffer(512)
                 size = wintypes.DWORD(512)
                 if kernel32.QueryFullProcessImageNameW(hproc, 0, buf, ctypes.byref(size)):
-                    exe = Path(buf.value).name.lower()
-                    if exe in target_exes_lower:
-                        candidates.append((w * h, hwnd, exe, w, h))
+                    found_name = Path(buf.value).name.lower()
+                    if found_name in target_exes_lower or any(k in found_name for k in ("minecraft", "spiritfarer", "stardew", "hades", "msar", "shipping")):
+                        matched = True
                 kernel32.CloseHandle(hproc)
+
+            # Check window title fallback (accessible even across integrity/elevation levels)
+            if not matched:
+                t_buf = ctypes.create_unicode_buffer(512)
+                if user32.GetWindowTextW(hwnd, t_buf, 512) > 0:
+                    w_title = t_buf.value.lower()
+                    active_title = (self._active_game_info.get("title") or "").lower() if self._active_game_info else ""
+                    if (active_title and active_title in w_title) or any(k in w_title for k in ("minecraft", "spiritfarer", "stardew", "hades")):
+                        matched = True
+                        found_name = t_buf.value
+
+            if matched:
+                candidates.append((w * h, hwnd, found_name, w, h))
             return 1
 
         CMP = ctypes.WINFUNCTYPE(ctypes.c_int, wintypes.HWND, wintypes.LPARAM)
@@ -786,7 +831,7 @@ class GamingPCAgent:
         }
 
     def _terminate_active_process(self) -> None:
-        """Forcefully terminate active game process via process handle, window PID, and taskkill."""
+        """Forcefully terminate active game process via process handle, window PID, WM_CLOSE, and taskkill."""
         logger.info("[Agent] Forcefully terminating active game process and child trees...")
         if self._active_process:
             try:
@@ -802,50 +847,101 @@ class GamingPCAgent:
         if sys.platform == "win32":
             import ctypes
             from ctypes import wintypes
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
 
-            # 1. Attempt to find and kill active game window PID directly
+            protected_exes = {
+                "steam.exe", "steamwebhelper.exe", "steamservice.exe",
+                "explorer.exe", "python.exe", "uvicorn.exe", "node.exe",
+                "cmd.exe", "powershell.exe", "conhost.exe", "code.exe",
+                "taskhostw.exe", "dwm.exe", "svchost.exe"
+            }
+
+            # 1. Attempt to find active window, post WM_CLOSE, and record PID
+            target_pids = set()
             try:
                 hwnd = self.get_active_game_window_handle()
                 if hwnd:
                     pid = wintypes.DWORD()
-                    ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
                     if pid.value > 0:
-                        logger.info("[Agent] Killing active game window HWND 0x%x (PID %d)...", hwnd, pid.value)
-                        subprocess.run(["taskkill", "/F", "/PID", str(pid.value), "/T"], capture_output=True, timeout=4)
+                        target_pids.add(pid.value)
+                    logger.info("[Agent] Posting WM_CLOSE to game window HWND 0x%x (PID %d)...", hwnd, pid.value)
+                    user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
             except Exception as exc:
-                logger.debug("[Agent] Error killing by window PID: %s", exc)
+                logger.debug("[Agent] Error signaling active window: %s", exc)
 
-            # 2. Refresh authorized game executables from DB
+            # 2. Gather all target game executable names across all configured games
+            target_exes = set()
+            if self._authorized_game_exes:
+                target_exes.update(self._authorized_game_exes)
+
+            if self._active_game_info:
+                p = self._active_game_info.get("executable_path")
+                if p:
+                    target_exes.add(Path(p).name.lower())
+
             try:
-                self._load_authorized_game_exes()
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT executable_path FROM node_games;")
+                    for row in cursor.fetchall():
+                        ep = (row.get("executable_path") or "").strip()
+                        if ep:
+                            target_exes.add(Path(ep).name.lower())
             except Exception:
                 pass
 
-            # 3. Kill all authorized game executables
-            protected_exes = {
-                "steam.exe", "steamwebhelper.exe", "steamservice.exe",
-                "explorer.exe", "python.exe", "uvicorn.exe", "node.exe",
-                "cmd.exe", "powershell.exe", "conhost.exe", "code.exe"
-            }
-            if self._authorized_game_exes:
-                for exe in list(self._authorized_game_exes):
-                    if exe.lower() in protected_exes:
-                        continue
-                    try:
-                        logger.info("[Agent] Executing taskkill /F /IM %s /T", exe)
-                        subprocess.run(["taskkill", "/F", "/IM", exe, "/T"], capture_output=True, timeout=3)
-                    except Exception:
-                        pass
-
-            # 4. Search and terminate any remaining processes matching game names or shipping binaries
+            # Also add common game exe patterns if running
             try:
                 running = _get_running_process_names()
                 for r_exe in running:
-                    if any(k in r_exe for k in ("msar", "metalslug", "shipping")) and r_exe not in protected_exes:
-                        logger.info("[Agent] Killing matched running game process: %s", r_exe)
-                        subprocess.run(["taskkill", "/F", "/IM", r_exe, "/T"], capture_output=True, timeout=3)
-            except Exception as exc:
-                logger.debug("[Agent] Error checking running process names: %s", exc)
+                    if r_exe in protected_exes:
+                        continue
+                    if any(k in r_exe for k in ("minecraft", "spiritfarer", "stardew", "hades", "msar", "metalslug", "shipping")):
+                        target_exes.add(r_exe)
+            except Exception:
+                pass
+
+            target_exes = {e.lower() for e in target_exes if e.lower() not in protected_exes and e.endswith(".exe")}
+
+            # 3. Terminate by target PIDs
+            for pid in target_pids:
+                try:
+                    logger.info("[Agent] Terminating game window PID %d...", pid)
+                    subprocess.run(["taskkill", "/F", "/PID", str(pid), "/T"], capture_output=True, timeout=3)
+                except Exception:
+                    pass
+
+            # 4. Terminate by executable image names
+            for exe in target_exes:
+                try:
+                    logger.info("[Agent] Executing taskkill /F /IM %s /T", exe)
+                    subprocess.run(["taskkill", "/F", "/IM", exe, "/T"], capture_output=True, timeout=3)
+                except Exception:
+                    pass
+
+            # 5. Check if any target process remains (e.g. elevated UAC token) and escalate
+            try:
+                time.sleep(0.3)
+                remaining = _get_running_process_names()
+                still_running = target_exes & remaining
+                if still_running:
+                    logger.warning("[Agent] Processes still running (elevated token): %s. Escalating to elevated taskkill via ShellExecuteW...", still_running)
+                    for exe in still_running:
+                        try:
+                            ctypes.windll.shell32.ShellExecuteW(
+                                None,
+                                "runas",
+                                "taskkill.exe",
+                                f"/F /IM {exe} /T",
+                                None,
+                                0,  # SW_HIDE
+                            )
+                        except Exception as elev_exc:
+                            logger.error("[Agent] Elevated taskkill error for %s: %s", exe, elev_exc)
+            except Exception as e:
+                logger.debug("[Agent] Post-termination check exception: %s", e)
 
     def get_status(self) -> Dict[str, Any]:
         """Return agent status including any currently running game."""
@@ -878,4 +974,4 @@ class GamingPCAgent:
 
 
 # Singleton host agent instance
-host_agent = GamingPCAgent(node_id=1)
+host_agent = GamingPCAgent(node_id=None)

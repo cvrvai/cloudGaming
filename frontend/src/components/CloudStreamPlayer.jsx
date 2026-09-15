@@ -579,24 +579,22 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
       const res = await fetch(`${apiBase}/api/system/info${q}`);
       if (res.ok) {
         const data = await res.json();
-        setGstreamerAvailable(!!data.gstreamer_available);
+        setGstreamerAvailable(true);
         if (Array.isArray(data.ice_servers) && data.ice_servers.length > 0) {
           setIceServers((current) => {
             const next = JSON.stringify(data.ice_servers);
             return JSON.stringify(current) === next ? current : data.ice_servers;
           });
         }
-      } else {
-        setGstreamerAvailable(false);
       }
     } catch {
-      setGstreamerAvailable(false);
+      // Ignore background network jitter; WebRTCPlayer manages its own connection lifecycle
     }
   };
 
   useEffect(() => {
     checkGst();
-    const interval = setInterval(checkGst, 4000);
+    const interval = setInterval(checkGst, 6000);
     return () => clearInterval(interval);
   }, [apiBase, sessionData]);
 
@@ -672,7 +670,25 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
       )}
 
       <div className="stream-canvas-wrapper">
-        {isExiting ? null : !gameExitedData && gstreamerAvailable ? (
+        {isExiting ? null : gameExitedData ? (
+          <div className="stream-connecting-box glass-panel" style={{ maxWidth: '460px', padding: '28px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px' }}>
+              <div style={{
+                width: 54, height: 54, borderRadius: '50%', background: 'rgba(74, 222, 128, 0.15)',
+                border: '1px solid rgba(74, 222, 128, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4ade80'
+              }}>
+                <CheckIcon size={28} />
+              </div>
+            </div>
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Game Process Ended</h3>
+            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem', lineHeight: '1.5', margin: '0 0 16px 0' }}>
+              The video stream was disconnected because the game closed on the remote PC.
+            </p>
+            <button className="btn-primary" onClick={handleExitSession} style={{ padding: '10px 24px' }}>
+              Return to Dashboard
+            </button>
+          </div>
+        ) : (
           <WebRTCPlayer
             serverIP={serverIP}
             apiBase={apiBase}
@@ -686,46 +702,6 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
             onStatsSample={handleStatsSample}
             isExiting={isExiting}
           />
-        ) : gameExitedData ? (
-          <div className="stream-connecting-box glass-panel" style={{ maxWidth: '460px', padding: '28px' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px' }}>
-              <div style={{
-                width: 54, height: 54, borderRadius: '50%', background: 'rgba(74, 222, 128, 0.15)',
-                border: '1px solid rgba(74, 222, 128, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4ade80'
-              }}>
-                <CheckIcon size={28} />
-              </div>
-            </div>
-            <h3 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Game Process Ended</h3>
-            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem', lineHeight: '1.5', margin: '0 0 12px 0' }}>
-              The video stream was disconnected because the game closed.
-            </p>
-          </div>
-        ) : gstreamerAvailable === null ? (
-          <div className="stream-connecting-box glass-panel">
-            <div className="stream-status-spinner" />
-            <h3>Connecting to Gaming Rig</h3>
-            <p>Initializing WebRTC screen capture pipeline on {formatRigName(sessionData?.machine_name)}...</p>
-          </div>
-        ) : (
-          <div className="stream-connecting-box glass-panel" style={{ maxWidth: '520px', padding: '32px' }}>
-            <div className="stream-offline-icon" style={{ marginBottom: '16px' }}>
-              <AlertTriangleIcon size={36} />
-            </div>
-            <h3 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Screen Capture Reconnecting</h3>
-            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem', lineHeight: '1.5', margin: '0 0 12px 0' }}>
-              The cloud gaming rig is preparing your stream. Please wait a moment or tap Retry Connection.
-            </p>
-            <div style={{ display: 'flex', gap: '12px', marginTop: '20px', justifyContent: 'center' }}>
-              <button className="btn-primary" onClick={checkGst} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}>
-                <RefreshIcon size={14} />
-                <span>Retry Connection</span>
-              </button>
-              <button className="btn-secondary" onClick={handleExitSession} style={{ padding: '10px 20px' }}>
-                Exit Stream
-              </button>
-            </div>
-          </div>
         )}
       </div>
 

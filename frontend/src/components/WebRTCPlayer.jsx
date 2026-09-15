@@ -429,22 +429,28 @@ export default function WebRTCPlayer({
                         maxWidth: '80%',
                     }}
                 >
-                    {status === 'connecting' && 'Connecting to your PC…'}
+                    {status === 'connecting' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '4px 10px' }}>
+                            <div className="stream-status-spinner" style={{ width: 22, height: 22 }} />
+                            <div style={{ fontSize: 13, fontWeight: 600 }}>Connecting to Gaming Rig…</div>
+                            <div style={{ opacity: 0.75, fontSize: 11 }}>Please wait while your stream and game launch.</div>
+                        </div>
+                    )}
                     {status === 'disconnected' && 'Stream lost — reconnecting…'}
                     {status === 'error' && (
                         <>
-                            {errorDetail.toLowerCase().includes('blocked') ? (
+                            {errorDetail.toLowerCase().includes('blocked') || errorDetail.toLowerCase().includes('wait') || errorDetail.toLowerCase().includes('launch') || errorDetail.toLowerCase().includes('longer') ? (
                                 <>
                                     <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
-                                        Waiting for game window to launch…
+                                        Starting game on host PC…
                                     </div>
                                     <div style={{ opacity: 0.75, fontSize: 11, fontWeight: 400, maxWidth: 360 }}>
-                                        Windows desktop streaming is restricted for privacy. The stream will start automatically once the game appears.
+                                        Please wait a moment while the game initializes and displays its window.
                                     </div>
                                 </>
                             ) : (
                                 <>
-                                    Can't reach the stream — retrying
+                                    Connecting to stream…
                                     <div style={{ opacity: 0.55, marginTop: 6, fontSize: 11, fontWeight: 400 }}>{errorDetail}</div>
                                 </>
                             )}

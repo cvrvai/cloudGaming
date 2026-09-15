@@ -58,28 +58,17 @@ export default function StreamHUD({
     <>
       {/* Subtle top-center notch/tab to summon HUD when faded out */}
       {!hudVisible && (
-        <div className="hud-summon-container">
-          <button
-            type="button"
-            className="hud-summon-tab"
-            onClick={onShowHud}
-            title="Tap to reveal controls"
-            aria-label="Reveal stream controls"
-          >
-            <span className="hud-summon-dot" />
-            <span className="hud-summon-time">{timeFormatted}</span>
-            <span className="hud-summon-chevron">▾</span>
-          </button>
-          <button
-            type="button"
-            className="hud-quick-exit-btn"
-            onClick={onSessionEnd}
-            title="Exit game & return to dashboard"
-            aria-label="Exit game"
-          >
-            ✕ Exit
-          </button>
-        </div>
+        <button
+          type="button"
+          className="hud-summon-tab"
+          onClick={onShowHud}
+          title="Tap to reveal controls"
+          aria-label="Reveal stream controls"
+        >
+          <span className="hud-summon-dot" />
+          <span className="hud-summon-time">{timeFormatted}</span>
+          <span className="hud-summon-chevron">▾</span>
+        </button>
       )}
 
       {/* Main consolidated floating HUD */}

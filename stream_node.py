@@ -319,24 +319,24 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                         ts = datetime.now().strftime("%H:%M:%S")
                         print(f"\n[{ts}] [STREAM] Incoming session offer from browser client...")
 
-                        # Verify authorized game process and its native window HWND
+                        # Verify authorized game process and its native window HWND (grace period up to 20s for heavy games)
                         wait_sec = 0.0
                         game_hwnd = None
-                        print(f"[{ts}] [STREAM] Verifying active game session...")
-                        while wait_sec < 6.0:
+                        print(f"[{ts}] [STREAM] Verifying active game session (waiting up to 20s for launch)...")
+                        while wait_sec < 20.0:
                             if host_agent.is_game_running():
                                 game_hwnd = host_agent.get_active_game_window_handle()
                                 if game_hwnd:
                                     host_agent.bring_game_to_foreground(game_hwnd)
                                     break
-                                # If game process is confirmed running, proceed immediately
-                                if wait_sec >= 1.5:
+                                # If game process confirmed running, allow 2s for window to bind
+                                if wait_sec >= 2.0:
                                     break
-                            await asyncio.sleep(0.1)
-                            wait_sec += 0.1
+                            await asyncio.sleep(0.25)
+                            wait_sec += 0.25
 
                         if not game_hwnd and not host_agent.is_game_running():
-                            err_msg = "Streaming blocked: No authorized game is actively running on this PC."
+                            err_msg = "Streaming blocked: Game took longer than 20 seconds to launch on the host PC."
                             print(f"[{ts}] [!] {err_msg}")
                             await ws.send(json.dumps({
                                 "type": "stream_error",
