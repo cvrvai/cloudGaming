@@ -231,12 +231,16 @@ def init_db() -> None:
             power_kwh DOUBLE PRECISION DEFAULT 0.0,
             energy_cost_usd DOUBLE PRECISION DEFAULT 0.0,
             phase TEXT DEFAULT 'V1_Baseline',
+            source TEXT DEFAULT 'automated_stream',
+            integrity_hash TEXT,
             notes TEXT,
             created_at TEXT NOT NULL
         );
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_test_id ON session_telemetry(test_id);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_phase ON session_telemetry(phase);")
+        cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS integrity_hash TEXT;")
+        cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'automated_stream';")
 
         # 8. Enable Row Level Security (RLS) on all public tables
         for tbl in ["users", "machines", "games", "node_games", "bookings", "machine_pairings", "audit_logs", "session_telemetry"]:

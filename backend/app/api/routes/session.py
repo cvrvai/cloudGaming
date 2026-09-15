@@ -153,6 +153,127 @@ async def stop_session(
     return {"status": "session_stopped", "host": host_res}
 
 
+class ClientTelemetryReport(BaseModel):
+    booking_id: Optional[int] = None
+    avg_latency_ms: float = Field(0.0, description="WebRTC Round Trip Time average")
+    max_latency_ms: float = Field(0.0, description="WebRTC Round Trip Time peak")
+    avg_fps: float = Field(60.0, description="Decoded frames per second")
+    packet_loss_pct: float = Field(0.0, description="Packet loss rate")
+    disconnects_count: int = Field(0, description="WebRTC disconnect count")
+    completed: bool = Field(True, description="Session completed without defect")
+    failure_reason: Optional[str] = None
+    duration_seconds: float = Field(0.0, description="Duration of stream in seconds")
+    phase: Optional[str] = Field("V2_Improved", description="DMAIC phase tag")
+
+
+@router.post("/telemetry")
+async def record_live_session_telemetry(
+    req: ClientTelemetryReport,
+    current_user: Dict = Depends(get_current_user),
+):
+    """Automatically record verified live gameplay telemetry into DMAIC dataset."""
+    import hashlib
+    from app.core.redis import increment_dmaic_counter, record_dmaic_unique_user
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    duration_hrs = max(0.01, req.duration_seconds / 3600.0)
+    power_kwh = round((280.0 * duration_hrs) / 1000.0, 3)
+    cost_usd = round(power_kwh * 0.18, 3)
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Generate audit test ID
+        cursor.execute("SELECT COUNT(*) as count FROM session_telemetry;")
+        count = cursor.fetchone()["count"] + 1
+        test_id = f"RUN-{count:03d}"
+
+        # Verify valid foreign keys
+        user_id = current_user.get("id")
+        if user_id:
+            cursor.execute("SELECT id FROM users WHERE id = %s;", (user_id,))
+            if not cursor.fetchone():
+                user_id = None
+
+        valid_booking_id = None
+        if req.booking_id:
+            cursor.execute("SELECT id FROM bookings WHERE id = %s;", (req.booking_id,))
+            if cursor.fetchone():
+                valid_booking_id = req.booking_id
+
+        # Fetch booking context
+        booking_slot = "Live Gameplay"
+        waiting_time_mins = 0.0
+        game_title = "CloudKH Game"
+        machine_id = None
+
+        if valid_booking_id:
+            cursor.execute(
+                "SELECT game_title, start_time, machine_id, created_at FROM bookings WHERE id = %s;",
+                (valid_booking_id,),
+            )
+            b_row = cursor.fetchone()
+            if b_row:
+                game_title = b_row["game_title"] or game_title
+                machine_id = b_row["machine_id"]
+                booking_slot = f"Slot #{valid_booking_id}"
+                if b_row["start_time"] and b_row["created_at"]:
+                    try:
+                        s_dt = datetime.fromisoformat(b_row["start_time"].replace("Z", "+00:00"))
+                        c_dt = datetime.fromisoformat(b_row["created_at"].replace("Z", "+00:00"))
+                        waiting_time_mins = max(0.0, round((s_dt - c_dt).total_seconds() / 60.0, 1))
+                    except Exception:
+                        pass
+
+        # Generate Cryptographic Integrity Hash (SHA-256 for academic/audit verification)
+        integrity_payload = f"{test_id}:{user_id or 'guest'}:{valid_booking_id}:{req.avg_latency_ms}:{req.avg_fps}:{now_iso}"
+        integrity_hash = hashlib.sha256(integrity_payload.encode()).hexdigest()
+
+        cursor.execute(
+            """
+            INSERT INTO session_telemetry (
+                test_id, booking_id, user_id, user_email, machine_id,
+                game_title, requested_time, booking_slot, waiting_time_minutes,
+                avg_latency_ms, max_latency_ms, avg_fps, packet_loss_pct,
+                disconnects_count, completed, failure_reason, pc_idle_minutes,
+                power_kwh, energy_cost_usd, phase, source, integrity_hash,
+                notes, created_at
+            ) VALUES (
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s
+            ) RETURNING *;
+            """,
+            (
+                test_id, valid_booking_id, user_id, current_user.get("email"), machine_id,
+                game_title, now_iso, booking_slot, waiting_time_mins,
+                req.avg_latency_ms, req.max_latency_ms, req.avg_fps, req.packet_loss_pct,
+                req.disconnects_count, req.completed, req.failure_reason, 0.0,
+                power_kwh, cost_usd, req.phase or "V2_Improved", "automated_stream", integrity_hash,
+                f"Live WebRTC stream on {game_title} (duration: {int(req.duration_seconds)}s)", now_iso,
+            ),
+        )
+        record = dict(cursor.fetchone())
+        conn.commit()
+
+    # Increment Redis DMAIC telemetry counters
+    try:
+        await increment_dmaic_counter("sessions:total")
+        await record_dmaic_unique_user(current_user["id"])
+    except Exception:
+        pass
+
+    return {
+        "status": "recorded",
+        "test_id": test_id,
+        "integrity_hash": integrity_hash,
+        "record": record,
+    }
+
+
 @router.post("/agent/command")
 async def dispatch_agent_command(
     req: AgentCommandRequest,

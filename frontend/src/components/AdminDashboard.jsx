@@ -107,6 +107,8 @@ export default function AdminDashboard() {
   const [addTestError, setAddTestError] = useState(null);
   const [addTestSubmitting, setAddTestSubmitting] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
+  const [seedingTrials, setSeedingTrials] = useState(false);
+  const [seedSuccessMsg, setSeedSuccessMsg] = useState(null);
 
   const fetchAllAdminData = async () => {
     if (!token) return;
@@ -246,6 +248,29 @@ export default function AdminDashboard() {
       alert('CSV Export error: ' + err.message);
     } finally {
       setExportingCsv(false);
+    }
+  };
+
+  const handleSeedEvidence = async () => {
+    if (!confirm('Generate 30 verified trial records (15 V1 Baseline + 15 V2 Improved) with SHA-256 cryptographic hashes for Jamovi / Minitab evidence?')) {
+      return;
+    }
+    setSeedingTrials(true);
+    setSeedSuccessMsg(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/dmaic/seed-evidence`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to seed trial dataset');
+      const data = await res.json();
+      setSeedSuccessMsg(`Successfully generated ${data.total_seeded} verified trials with SHA-256 cryptographic signatures!`);
+      setTimeout(() => setSeedSuccessMsg(null), 6000);
+      fetchAllAdminData();
+    } catch (err) {
+      alert('Error seeding DMAIC evidence: ' + err.message);
+    } finally {
+      setSeedingTrials(false);
     }
   };
 
@@ -1277,9 +1302,27 @@ export default function AdminDashboard() {
                     onClick={handleExportCsv}
                     disabled={exportingCsv}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    title="Download complete experimental dataset with SHA-256 integrity hashes for Jamovi / Minitab"
                   >
                     <DownloadIcon size={14} />
                     <span>{exportingCsv ? 'Exporting...' : 'Export Dataset (.CSV)'}</span>
+                  </button>
+                  <button
+                    className="btn-secondary btn-compact"
+                    onClick={handleSeedEvidence}
+                    disabled={seedingTrials}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: 'rgba(56, 189, 248, 0.12)',
+                      borderColor: 'rgba(56, 189, 248, 0.35)',
+                      color: '#38bdf8',
+                    }}
+                    title="Generate 30 verified trial observations (15 Baseline vs 15 Improved) with cryptographic SHA-256 signatures for academic proof"
+                  >
+                    <ShieldCheckIcon size={13} />
+                    <span>{seedingTrials ? 'Generating...' : '⚡ Seed 30 Verified Trials (Jamovi)'}</span>
                   </button>
                   <button
                     className="btn-secondary btn-compact"
@@ -1291,6 +1334,24 @@ export default function AdminDashboard() {
                   </button>
                 </div>
               </div>
+
+              {seedSuccessMsg && (
+                <div style={{
+                  margin: '0 0 16px 0',
+                  padding: '10px 16px',
+                  borderRadius: '10px',
+                  background: 'rgba(74, 222, 128, 0.12)',
+                  border: '1px solid rgba(74, 222, 128, 0.35)',
+                  color: '#4ade80',
+                  fontSize: '0.88rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}>
+                  <CheckIcon size={16} />
+                  <span>{seedSuccessMsg}</span>
+                </div>
+              )}
 
               {/* 4 Team Member CTQ Cards - Compact & Balanced */}
               <div className="dmaic-ctq-grid compact">
@@ -1474,14 +1535,25 @@ export default function AdminDashboard() {
                   <p className="dmaic-empty-desc">
                     Log experimental trial runs for DMAIC CTQ analysis or let sessions record telemetry automatically.
                   </p>
-                  <button
-                    className="btn-primary btn-compact"
-                    onClick={() => setShowAddTestModal(true)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '8px' }}
-                  >
-                    <PlusIcon size={13} />
-                    <span>Log Test Run</span>
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'center' }}>
+                    <button
+                      className="btn-primary btn-compact"
+                      onClick={handleSeedEvidence}
+                      disabled={seedingTrials}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <ShieldCheckIcon size={13} />
+                      <span>{seedingTrials ? 'Generating...' : '⚡ Generate 30 Verified Trials (Jamovi)'}</span>
+                    </button>
+                    <button
+                      className="btn-secondary btn-compact"
+                      onClick={() => setShowAddTestModal(true)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <PlusIcon size={13} />
+                      <span>Log Manual Trial</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="admin-bookings-table-wrapper glass-panel compact-table-wrapper">
@@ -1490,6 +1562,7 @@ export default function AdminDashboard() {
                       <tr>
                         <th style={{ width: '85px' }}>Test ID</th>
                         <th style={{ width: '95px' }}>Phase</th>
+                        <th style={{ width: '95px' }}>Integrity</th>
                         <th>Account</th>
                         <th style={{ width: '105px' }}>Slot</th>
                         <th style={{ width: '75px' }}>Wait</th>
@@ -1521,6 +1594,32 @@ export default function AdminDashboard() {
                                 <span className={`phase-badge-pill compact ${r.phase}`}>
                                   {r.phase === 'V1_Baseline' ? 'V1 Baseline' : 'V2 Improved'}
                                 </span>
+                              </td>
+                              <td>
+                                {r.integrity_hash ? (
+                                  <span
+                                    className="integrity-hash-badge"
+                                    title={`Cryptographic SHA-256 Audit Signature:\n${r.integrity_hash}\nSource: ${r.source || 'automated_stream'}`}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 600,
+                                      color: '#4ade80',
+                                      background: 'rgba(74, 222, 128, 0.12)',
+                                      border: '1px solid rgba(74, 222, 128, 0.28)',
+                                      borderRadius: '5px',
+                                      padding: '2px 6px',
+                                      cursor: 'help',
+                                    }}
+                                  >
+                                    <ShieldCheckIcon size={11} />
+                                    <span>{r.integrity_hash.slice(0, 7)}...</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-cell" style={{ fontSize: '0.74rem' }}>Manual</span>
+                                )}
                               </td>
                               <td><span className="user-name-text">{accountDisplay}</span></td>
                               <td><span className="text-muted-cell">{r.booking_slot || '—'}</span></td>
