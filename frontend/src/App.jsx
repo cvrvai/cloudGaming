@@ -13,7 +13,7 @@ import './App.css';
 import './CloudKH.css';
 
 function CloudKHPlatform() {
-  const { token, user } = useAuth();
+  const { token, user, openAuth } = useAuth();
   const [activeTab, setActiveTab] = useState('games'); // games | bookings | profile | admin | stream
   const [activeSession, setActiveSession] = useState(null);
   const [activeBookingsCount, setActiveBookingsCount] = useState(0);
@@ -111,7 +111,13 @@ function CloudKHPlatform() {
           <main className="cloudkh-main-content">
             {activeTab === 'games' && (
               <GamesView
-                onSelectGame={(game) => setSelectedGameForBooking(game)}
+                onSelectGame={(game) => {
+                  if (!token) {
+                    openAuth?.('login');
+                    return;
+                  }
+                  setSelectedGameForBooking(game);
+                }}
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
               />

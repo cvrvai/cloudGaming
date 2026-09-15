@@ -242,13 +242,13 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
                 </div>
 
                 <div className="upcoming-times-row">
-                  <div>
-                    <label>Date</label>
-                    <span>{new Date(b.start_time).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+                  <div className="upcoming-time-col">
+                    <span className="upcoming-time-label">Date</span>
+                    <span className="upcoming-time-val">{new Date(b.start_time).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
                   </div>
-                  <div>
-                    <label>Time Slot</label>
-                    <span>
+                  <div className="upcoming-time-col" style={{ textAlign: 'right' }}>
+                    <span className="upcoming-time-label">Time Slot</span>
+                    <span className="upcoming-time-val">
                       {new Date(b.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -{' '}
                       {new Date(b.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
@@ -261,7 +261,7 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
                     onClick={() => handleCancelBooking(b.id)}
                     disabled={cancellingId === b.id}
                   >
-                    {cancellingId === b.id ? 'Cancelling...' : 'Cancel Reservation'}
+                    {cancellingId === b.id ? 'Cancelling...' : 'Cancel'}
                   </button>
                 </div>
               </div>

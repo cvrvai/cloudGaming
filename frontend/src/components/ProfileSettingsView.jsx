@@ -405,9 +405,9 @@ export default function ProfileSettingsView({ onNavigateToBookings, onNavigateTo
                   <p>Customize video resolution, latency, and input controller behavior for cloud play.</p>
                 </div>
                 {settingsSavedToast && (
-                  <span className="settings-saved-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span className="settings-saved-badge">
                     <CheckIcon size={12} />
-                    <span>Auto-saved to device</span>
+                    <span>Saved</span>
                   </span>
                 )}
               </div>
@@ -422,7 +422,7 @@ export default function ProfileSettingsView({ onNavigateToBookings, onNavigateTo
                 </div>
                 <div className="pref-options-pills">
                   {[
-                    { id: '1080p', label: '1080p (Full HD)' },
+                    { id: '1080p', label: '1080p (FHD)' },
                     { id: '720p', label: '720p (Recommended)' },
                     { id: '480p', label: '480p (Data Saver)' },
                   ].map((opt) => (
@@ -446,8 +446,8 @@ export default function ProfileSettingsView({ onNavigateToBookings, onNavigateTo
                 </div>
                 <div className="pref-options-pills">
                   {[
-                    { id: '60', label: '60 FPS (Ultra Smooth)' },
-                    { id: '30', label: '30 FPS (Low Bandwidth)' },
+                    { id: '60', label: '60 FPS (Smooth)' },
+                    { id: '30', label: '30 FPS (Saver)' },
                   ].map((opt) => (
                     <button
                       key={opt.id}
@@ -470,8 +470,8 @@ export default function ProfileSettingsView({ onNavigateToBookings, onNavigateTo
                 <div className="pref-options-pills">
                   {[
                     { id: 'auto', label: 'Auto-Detect' },
-                    { id: 'touch', label: 'On-Screen Touch Gamepad' },
-                    { id: 'gamepad', label: 'Physical Controller (Bluetooth/USB)' },
+                    { id: 'touch', label: 'Virtual Touchpad' },
+                    { id: 'gamepad', label: 'Physical Gamepad' },
                     { id: 'keyboard', label: 'Keyboard & Mouse' },
                   ].map((opt) => (
                     <button

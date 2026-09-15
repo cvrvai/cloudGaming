@@ -3,18 +3,23 @@ import { API_BASE } from '../config';
 import { SparkleIcon, PlayIcon, GamepadIcon } from './Icons';
 
 let cachedGames = null;
+try {
+  const stored = typeof window !== 'undefined' ? localStorage.getItem('cloudkh_cached_games') : null;
+  if (stored) cachedGames = JSON.parse(stored);
+} catch (e) {}
+
 let lastGamesFetchTime = 0;
 const CACHE_TTL_MS = 60000; // 60s cache
 
 export default function GamesView({ onSelectGame, searchQuery = '', onSearchChange }) {
-  const [games, setGames] = useState(() => cachedGames || []);
-  const [loading, setLoading] = useState(() => !cachedGames);
+  const [games, setGames] = useState(() => (Array.isArray(cachedGames) && cachedGames.length > 0 ? cachedGames : []));
+  const [loading, setLoading] = useState(() => !(Array.isArray(cachedGames) && cachedGames.length > 0));
   const [selectedGenre, setSelectedGenre] = useState('All');
   const [heroIndex, setHeroIndex] = useState(0);
 
   const fetchGames = async (force = false) => {
     const now = Date.now();
-    if (!force && cachedGames && now - lastGamesFetchTime < CACHE_TTL_MS) {
+    if (!force && cachedGames && cachedGames.length > 0 && now - lastGamesFetchTime < CACHE_TTL_MS) {
       setGames(cachedGames);
       setLoading(false);
       return;
@@ -23,9 +28,14 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
       const res = await fetch(`${API_BASE}/api/games`);
       if (res.ok) {
         const data = await res.json();
-        cachedGames = data;
-        lastGamesFetchTime = Date.now();
-        setGames(data);
+        if (Array.isArray(data)) {
+          cachedGames = data;
+          lastGamesFetchTime = Date.now();
+          setGames(data);
+          try {
+            localStorage.setItem('cloudkh_cached_games', JSON.stringify(data));
+          } catch (e) {}
+        }
       }
     } catch (err) {
       console.error('Failed to load games:', err);
@@ -43,8 +53,8 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
     };
   }, []);
 
-  // Genuine available games configured and ready on connected PC nodes
-  const availableGames = games.filter((g) => (g.ready_nodes_count || 0) > 0);
+  // Show all catalog games (ready nodes show green 'Available', offline nodes show 'Rig Offline' / 'Reserve')
+  const availableGames = games;
   const featuredGames = availableGames.slice(0, 5);
   const activeHero = featuredGames[heroIndex] || featuredGames[0] || null;
 
@@ -102,14 +112,11 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
 
             <div className="luna-hero-actions">
               <button
-                className={`luna-hero-play-btn ${activeHero.ready_nodes_count > 0 ? '' : 'disabled'}`}
-                style={activeHero.ready_nodes_count > 0 ? {} : { opacity: 0.6, cursor: 'not-allowed' }}
-                onClick={() => {
-                  if (activeHero.ready_nodes_count > 0) onSelectGame(activeHero);
-                }}
+                className="luna-hero-play-btn"
+                onClick={() => onSelectGame(activeHero)}
               >
-                <span className="play-triangle">{activeHero.ready_nodes_count > 0 ? '▶' : '⏸'}</span>
-                {activeHero.ready_nodes_count > 0 ? ' Play Now' : ' Host PC Offline'}
+                <span className="play-triangle">{activeHero.ready_nodes_count > 0 ? '▶' : '📅'}</span>
+                {activeHero.ready_nodes_count > 0 ? ' Play Now' : ' Reserve Slot'}
               </button>
             </div>
 

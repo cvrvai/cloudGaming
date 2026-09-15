@@ -136,7 +136,7 @@ export default function Navbar({
                   title="Daily Free Beta Quota: 2 Hours maximum per day. Resets every midnight at 12:00 AM (UTC+7)."
                 >
                   <span className="nav-quota-text">
-                    {dailyQuota ? `${dailyQuota.remaining_minutes}m left today` : '2h left today'}
+                    {dailyQuota ? `${dailyQuota.remaining_minutes}m` : '120m'}
                   </span>
                 </button>
               )}

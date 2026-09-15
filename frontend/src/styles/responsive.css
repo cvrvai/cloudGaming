@@ -679,15 +679,31 @@
     gap: 8px !important;
   }
   .upcoming-card {
-    padding: 8px !important;
-    border-radius: 8px !important;
+    padding: 10px 12px !important;
+    border-radius: 10px !important;
   }
   .upcoming-game-banner {
     height: 50px !important;
-    margin: -8px -8px 6px !important;
+    margin: -10px -12px 8px !important;
   }
   .upcoming-game-title {
     font-size: 12px !important;
+    font-weight: 700 !important;
+  }
+  .upcoming-times-row {
+    padding: 6px 10px !important;
+    margin-bottom: 8px !important;
+  }
+  .upcoming-time-label {
+    font-size: 9px !important;
+  }
+  .upcoming-time-val {
+    font-size: 11px !important;
+  }
+  .btn-cancel-booking {
+    padding: 5px 10px !important;
+    font-size: 10.5px !important;
+    border-radius: 6px !important;
   }
 
   /* Admin Dashboard */

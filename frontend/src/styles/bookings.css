@@ -17,6 +17,27 @@
   margin: 0;
 }
 
+.btn-browse-games-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 8px;
+  background: rgba(0, 210, 255, 0.12);
+  border: 1px solid rgba(0, 210, 255, 0.35);
+  color: #00d2ff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-browse-games-cta:hover {
+  background: rgba(0, 210, 255, 0.22);
+  border-color: #00d2ff;
+  box-shadow: 0 0 12px rgba(0, 210, 255, 0.3);
+}
+
 .bookings-section {
   display: flex;
   flex-direction: column;
@@ -201,44 +222,54 @@
 }
 
 .upcoming-times-row {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 10px;
-  background: rgba(0, 0, 0, 0.25);
-  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 8px 12px;
   border-radius: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.upcoming-times-row label {
-  display: block;
+.upcoming-time-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.upcoming-time-label {
   font-size: 10px;
   color: var(--text-3);
   text-transform: uppercase;
-  font-weight: 600;
-  margin-bottom: 2px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
 
-.upcoming-times-row span {
-  font-size: 13px;
-  color: var(--text-1);
+.upcoming-time-val {
+  font-size: 12px;
+  color: #fff;
   font-weight: 600;
 }
 
 .btn-cancel-booking {
-  background: transparent;
+  background: rgba(255, 69, 58, 0.1);
   border: 1px solid rgba(255, 69, 58, 0.3);
   color: #ff453a;
-  padding: 6px 12px;
+  padding: 5px 12px;
   border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11.5px;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
 }
 
 .btn-cancel-booking:hover:not(:disabled) {
-  background: rgba(255, 69, 58, 0.15);
+  background: rgba(255, 69, 58, 0.2);
+  border-color: #ff453a;
 }
 
 .past-bookings-table {
