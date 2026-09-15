@@ -249,12 +249,14 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
       let isMyBooking = false;
 
       if (!isPast && bookings.length > 0) {
-        const slotStartIso = `${scheduleDate}T${String(h).padStart(2, '0')}:00:00`;
-        const slotEndHour = h + Math.max(1, Math.ceil(durationMinutes / 60));
-        const slotEndIso = `${scheduleDate}T${String(Math.min(23, slotEndHour)).padStart(2, '0')}:59:59`;
+        const slotStartMs = new Date(`${scheduleDate}T${String(h).padStart(2, '0')}:00:00`).getTime();
+        const durationMs = durationMinutes * 60 * 1000;
+        const slotEndMs = slotStartMs + durationMs;
 
         const overlaps = bookings.filter((b) => {
-          return b.start_time < slotEndIso && b.end_time > slotStartIso;
+          const bStart = new Date(b.start_time).getTime();
+          const bEnd = new Date(b.end_time).getTime();
+          return bStart < slotEndMs && bEnd > slotStartMs;
         });
 
         if (overlaps.length >= capableCount) {

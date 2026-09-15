@@ -73,21 +73,21 @@ async def create_booking(
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (end_time::timestamptz - start_time::timestamptz)) / 60.0), 0) as booked_minutes
+                SELECT COALESCE(SUM(GREATEST(0.0, EXTRACT(EPOCH FROM (end_time::timestamptz - start_time::timestamptz)) / 60.0)), 0) as booked_minutes
                 FROM bookings
                 WHERE user_id = %s
-                  AND status = 'confirmed'
+                  AND status IN ('confirmed', 'completed')
                   AND (start_time::timestamptz AT TIME ZONE 'Asia/Phnom_Penh')::date = (%s::timestamptz AT TIME ZONE 'Asia/Phnom_Penh')::date;
                 """,
                 (current_user["id"], start_dt.isoformat()),
             )
             booked_minutes = float(cursor.fetchone()["booked_minutes"] or 0)
-            remaining_minutes = max(0, 120 - int(booked_minutes))
+            remaining_minutes = max(0, 120 - int(round(booked_minutes)))
 
             if booked_minutes + duration_minutes > 120:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Daily 2-hour free quota reached: You already have {int(booked_minutes)} minutes booked for this date ({remaining_minutes} mins remaining). Requested: {int(duration_minutes)} mins.",
+                    detail=f"Daily 2-hour free quota reached: You already have {int(round(booked_minutes))} minutes booked for this date ({remaining_minutes} mins remaining). Requested: {int(duration_minutes)} mins.",
                 )
 
     # Normalize ISO strings
@@ -282,15 +282,15 @@ def get_daily_quota(
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (end_time::timestamptz - start_time::timestamptz)) / 60.0), 0) as booked_minutes
+            SELECT COALESCE(SUM(GREATEST(0.0, EXTRACT(EPOCH FROM (end_time::timestamptz - start_time::timestamptz)) / 60.0)), 0) as booked_minutes
             FROM bookings
             WHERE user_id = %s
-              AND status = 'confirmed'
+              AND status IN ('confirmed', 'completed')
               AND (start_time::timestamptz AT TIME ZONE 'Asia/Phnom_Penh')::date = (%s::timestamptz AT TIME ZONE 'Asia/Phnom_Penh')::date;
             """,
             (current_user["id"], target_iso),
         )
-        booked_minutes = int(float(cursor.fetchone()["booked_minutes"] or 0))
+        booked_minutes = int(round(float(cursor.fetchone()["booked_minutes"] or 0)))
 
     daily_limit = 120  # 2 hours per day
     remaining = max(0, daily_limit - booked_minutes)
@@ -378,15 +378,17 @@ async def cancel_booking(
         if booking["status"] != "confirmed":
             raise HTTPException(status_code=400, detail=f"Booking is already {booking['status']}.")
 
-        is_active = booking["start_time"] <= now_iso <= booking["end_time"]
+        has_started = booking["start_time"] <= now_iso
 
-        # If booking is actively running, truncate end_time to now so remaining time slot is immediately released!
-        if is_active:
+        # If booking was actively running or already started, mark as 'completed' and truncate end_time to now
+        # so remaining slot is freed, and actual elapsed time is deducted from daily quota.
+        if has_started:
             cursor.execute(
-                "UPDATE bookings SET status = 'cancelled', end_time = %s WHERE id = %s;",
+                "UPDATE bookings SET status = 'completed', end_time = %s WHERE id = %s;",
                 (now_iso, booking_id),
             )
         else:
+            # Future booking that has not started yet: cancel and refund full slot
             cursor.execute(
                 "UPDATE bookings SET status = 'cancelled' WHERE id = %s;",
                 (booking_id,),

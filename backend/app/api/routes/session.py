@@ -136,12 +136,18 @@ async def verify_session_access(
     }
 
 
+class StopSessionRequest(BaseModel):
+    booking_id: Optional[int] = None
+
+
 @router.post("/stop")
 async def stop_session(
+    req: Optional[StopSessionRequest] = None,
     current_user: Dict = Depends(get_current_user),
 ):
-    """End active streaming session, terminate game process, and archive saves."""
+    """End active streaming session, terminate game process, and release remaining slot."""
     from app.services.streaming.node_relay import node_relay
+    from app.core.redis import cache_delete
     host_res = host_agent.stop_game()
 
     if node_relay.is_node_connected():
@@ -150,6 +156,34 @@ async def stop_session(
                 await node_relay.forward_game_command(node_id, "STOP_GAME", timeout=4.0)
             except Exception:
                 pass
+
+    # Complete active booking so remaining time slot is released and quota is deducted
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            if req and req.booking_id:
+                cursor.execute(
+                    """
+                    UPDATE bookings
+                    SET status = 'completed', end_time = %s
+                    WHERE id = %s AND (user_id = %s OR %s = 'admin') AND status = 'confirmed';
+                    """,
+                    (now_iso, req.booking_id, current_user["id"], current_user.get("role")),
+                )
+            else:
+                cursor.execute(
+                    """
+                    UPDATE bookings
+                    SET status = 'completed', end_time = %s
+                    WHERE user_id = %s AND status = 'confirmed' AND start_time <= %s AND end_time > %s;
+                    """,
+                    (now_iso, current_user["id"], now_iso, now_iso),
+                )
+            conn.commit()
+        await cache_delete("machines:raw")
+    except Exception:
+        pass
 
     return {"status": "session_stopped", "host": host_res}
 

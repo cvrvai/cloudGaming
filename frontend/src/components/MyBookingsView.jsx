@@ -84,6 +84,7 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
       });
       if (res.ok) {
         fetchBookings();
+        fetchQuota();
       } else {
         const errData = await res.json();
         alert(errData.detail || 'Could not cancel booking');
@@ -113,8 +114,12 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
     const remainingMs = new Date(endIso).getTime() - currentTime;
     if (remainingMs <= 0) return '00:00 (Ending)';
     const totalSecs = Math.floor(remainingMs / 1000);
-    const mins = Math.floor(totalSecs / 60);
+    const hours = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
     const secs = totalSecs % 60;
+    if (hours > 0) {
+      return `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 

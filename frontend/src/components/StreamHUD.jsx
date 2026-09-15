@@ -33,11 +33,21 @@ export default function StreamHUD({
   const [cutoffModalVisible, setCutoffModalVisible] = useState(false);
 
   useEffect(() => {
-    if (!sessionData?.end_time) return;
+    if (!sessionData) return;
+
+    // Use server-provided remaining_seconds as the authoritative base, or fallback to end_time
+    const initialRemaining = typeof sessionData.remaining_seconds === 'number'
+      ? sessionData.remaining_seconds
+      : sessionData.end_time
+        ? Math.max(0, Math.floor((new Date(sessionData.end_time).getTime() - Date.now()) / 1000))
+        : 60;
+
+    const startTimestamp = Date.now();
+    setRemainingSeconds(initialRemaining);
 
     const interval = setInterval(() => {
-      const remainingMs = new Date(sessionData.end_time).getTime() - Date.now();
-      const secs = Math.max(0, Math.floor(remainingMs / 1000));
+      const elapsed = Math.floor((Date.now() - startTimestamp) / 1000);
+      const secs = Math.max(0, initialRemaining - elapsed);
       setRemainingSeconds(secs);
 
       if (secs <= 0) {
@@ -47,11 +57,20 @@ export default function StreamHUD({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [sessionData]);
+  }, [sessionData?.booking_id, sessionData?.remaining_seconds, sessionData?.end_time]);
 
-  const mins = Math.floor(remainingSeconds / 60);
-  const secs = remainingSeconds % 60;
-  const timeFormatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  // Format time properly with hours if >= 1 hour (e.g. 1:55:23 instead of 115:23)
+  const formatTime = (totalSecs) => {
+    const hours = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    if (hours > 0) {
+      return `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const timeFormatted = formatTime(remainingSeconds);
   const isWarning = remainingSeconds <= 120 && remainingSeconds > 0;
 
   return (
