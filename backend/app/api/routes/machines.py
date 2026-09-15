@@ -330,13 +330,13 @@ async def stop_machine_stream(
                 test_id, user_email, machine_id, requested_time, booking_slot,
                 waiting_time_minutes, avg_latency_ms, max_latency_ms, avg_fps,
                 packet_loss_pct, disconnects_count, completed,
-                pc_idle_minutes, power_kwh, energy_cost_usd, phase, source,
+                pc_idle_minutes, power_kwh, energy_cost_usd, duration_seconds, phase, source,
                 created_at, notes
             ) VALUES (
                 %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s,
-                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s,
                 %s, %s
             );
             """,
@@ -344,7 +344,7 @@ async def stop_machine_stream(
                 test_id, admin_user.get("email", "admin@cloudkh.space"), machine_id, now_iso, "Live Stream Session",
                 0.0, 42.5, 68.0, 60.0,
                 0.1, 0, True,
-                0.0, power_kwh, cost_usd, "V2_Improved", "admin_stream",
+                0.0, power_kwh, cost_usd, round(duration_seconds, 1), "V2_Improved", "admin_stream",
                 now_iso, f"Live stream run on {m_dict['name']} ({round(duration_seconds)}s)",
             ),
         )

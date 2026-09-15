@@ -249,6 +249,7 @@ def init_db() -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_phase ON session_telemetry(phase);")
         cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS integrity_hash TEXT;")
         cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'automated_stream';")
+        cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS duration_seconds DOUBLE PRECISION DEFAULT 0.0;")
 
         # 8. Enable Row Level Security (RLS) on all public tables
         for tbl in ["users", "machines", "games", "node_games", "bookings", "machine_pairings", "audit_logs", "session_telemetry"]:

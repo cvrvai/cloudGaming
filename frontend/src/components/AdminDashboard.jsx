@@ -439,6 +439,19 @@ export default function AdminDashboard() {
     }
   };
 
+  const formatLoggedHours = (hrs) => {
+    if (hrs === undefined || hrs === null || hrs <= 0) return '0h';
+    if (hrs < 0.05) {
+      const s = Math.max(1, Math.round(hrs * 3600));
+      return `${s}s`;
+    }
+    if (hrs < 1.0) {
+      const m = Math.round(hrs * 60);
+      return `${hrs}h (${m}m)`;
+    }
+    return `${hrs}h`;
+  };
+
   const handleTogglePower = async (machine) => {
     const isCurrentlyOnline = ['available', 'in-use', 'streaming'].includes(machine.live_status || machine.status);
     const targetAction = isCurrentlyOnline ? 'standby' : 'online';
@@ -1597,11 +1610,13 @@ export default function AdminDashboard() {
                               </div>
                             </td>
                             <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                              <span style={{ color: '#4ade80', fontWeight: 600 }}>{row.gaming_hours}h play</span>
+                              <span style={{ color: '#4ade80', fontWeight: 600 }}>{formatLoggedHours(row.gaming_hours)} play</span>
                               {' / '}
-                              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>{row.idle_hours}h standby</span>
+                              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>
+                                {row.idle_hours > 0 ? `${formatLoggedHours(row.idle_hours)} standby` : '0h standby (closed)'}
+                              </span>
                               <span style={{ fontSize: '10.5px', color: 'var(--text-muted, #94a3b8)', display: 'block' }}>
-                                Total: {row.total_hours}h
+                                Total: {formatLoggedHours(row.total_hours)}
                               </span>
                             </td>
                             <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
@@ -1610,13 +1625,17 @@ export default function AdminDashboard() {
                               <span style={{ color: '#38bdf8' }}>{row.idle_watts}W</span>
                             </td>
                             <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                              <strong style={{ fontSize: '13px' }}>{row.total_kwh} kWh</strong>
+                              <strong style={{ fontSize: '13px' }}>
+                                {row.total_kwh < 0.01 && row.total_kwh > 0 ? Number(row.total_kwh).toFixed(4) : Number(row.total_kwh || 0).toFixed(2)} kWh
+                              </strong>
                               <span style={{ fontSize: '10.5px', color: 'var(--text-muted, #94a3b8)', display: 'block' }}>
-                                ({row.active_kwh} kWh act + {row.idle_kwh} kWh idl)
+                                ({row.active_kwh < 0.01 && row.active_kwh > 0 ? Number(row.active_kwh).toFixed(4) : Number(row.active_kwh || 0).toFixed(2)} kWh act + {row.idle_kwh < 0.01 && row.idle_kwh > 0 ? Number(row.idle_kwh).toFixed(4) : Number(row.idle_kwh || 0).toFixed(2)} kWh idl)
                               </span>
                             </td>
                             <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                              <strong style={{ color: '#4ade80', fontSize: '13px' }}>${row.total_cost_usd}</strong>
+                              <strong style={{ color: '#4ade80', fontSize: '13px' }}>
+                                {row.total_cost_usd < 0.01 && row.total_cost_usd > 0 ? '< $0.01' : `$${Number(row.total_cost_usd || 0).toFixed(2)}`}
+                              </strong>
                               <span style={{ fontSize: '10.5px', color: 'var(--text-muted, #94a3b8)', display: 'block' }}>
                                 ({(row.total_cost_khr || 0).toLocaleString()} ៛)
                               </span>
@@ -1642,20 +1661,25 @@ export default function AdminDashboard() {
                             <strong>Fleet Daily Total ({dailyFilteredRecords.length} Observations)</strong>
                           </td>
                           <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                            <strong>{totalDailyGamingHours.toFixed(1)}h play / {totalDailyIdleHours.toFixed(1)}h idle</strong>
+                            <strong>{formatLoggedHours(totalDailyGamingHours)} play / {formatLoggedHours(totalDailyIdleHours)} idle</strong>
                           </td>
                           <td style={{ textAlign: 'right' }}>
                             <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Combined Draw</span>
                           </td>
                           <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                            <strong style={{ color: '#38bdf8', fontSize: '13px' }}>{totalDailyKwh.toFixed(2)} kWh</strong>
+                            <strong style={{ color: '#38bdf8', fontSize: '13px' }}>
+                              {totalDailyKwh < 0.01 && totalDailyKwh > 0 ? totalDailyKwh.toFixed(4) : totalDailyKwh.toFixed(2)} kWh
+                            </strong>
                           </td>
                           <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                            <strong style={{ color: '#4ade80', fontSize: '13.5px' }}>${totalDailyUsd.toFixed(2)} USD</strong>
+                            <strong style={{ color: '#4ade80', fontSize: '13.5px' }}>
+                              {totalDailyUsd < 0.01 && totalDailyUsd > 0 ? '< $0.01 USD' : `$${totalDailyUsd.toFixed(2)} USD`}
+                            </strong>
                             <span style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.7)', display: 'block' }}>
                               ({Math.round(totalDailyUsd * 4050).toLocaleString()} ៛)
                             </span>
                           </td>
+
                           <td style={{ textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
                             <strong>{totalDailyCompleted} Completed</strong>
                           </td>

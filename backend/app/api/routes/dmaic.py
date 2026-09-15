@@ -33,6 +33,126 @@ class LogTestRecordRequest(BaseModel):
     notes: Optional[str] = None
 
 
+def _calculate_daily_energy(cursor) -> List[Dict[str, Any]]:
+    """Calculate actual daily running hours and watt consumption per gaming PC.
+    
+    CRITICAL: When a machine is closed / in standby, do NOT count the next hour or assume 16h!
+    Only count the actual elapsed time the PC was streaming or actively open.
+    """
+    cursor.execute("""
+        SELECT 
+            SUBSTRING(st.created_at FROM 1 FOR 10) as day_date,
+            COALESCE(st.machine_id, m.id) as machine_id,
+            COALESCE(m.name, 'Gaming PC') as machine_name,
+            COALESCE(m.gpu, 'GPU') as machine_gpu,
+            COALESCE(m.active_watts, 260.0) as active_watts,
+            COALESCE(m.idle_watts, 48.0) as idle_watts,
+            COUNT(st.id) as total_sessions,
+            COUNT(CASE WHEN st.completed = TRUE THEN 1 END) as completed_sessions,
+            COALESCE(SUM(st.power_kwh), 0.0) as active_kwh,
+            COALESCE(SUM(st.energy_cost_usd), 0.0) as active_cost_usd,
+            COALESCE(SUM(st.pc_idle_minutes), 0.0) as idle_mins,
+            COALESCE(SUM(st.duration_seconds), 0.0) as duration_secs
+        FROM session_telemetry st
+        LEFT JOIN machines m ON m.id = st.machine_id
+        WHERE st.created_at IS NOT NULL
+        GROUP BY SUBSTRING(st.created_at FROM 1 FOR 10), COALESCE(st.machine_id, m.id), m.name, m.gpu, m.active_watts, m.idle_watts
+        ORDER BY day_date DESC, machine_id ASC;
+    """)
+    daily_rows = cursor.fetchall()
+    daily_energy = []
+    for r in daily_rows:
+        rd = dict(r)
+        act_w = float(rd["active_watts"])
+        idl_w = float(rd["idle_watts"])
+        dur_s = float(rd.get("duration_secs") or 0.0)
+        act_kwh_raw = float(rd.get("active_kwh") or 0.0)
+
+        # 1. Exact Gaming Hours: Only time stream was actually running!
+        if dur_s > 0.0:
+            game_hrs = round(dur_s / 3600.0, 2)
+        elif act_kwh_raw > 0.0 and act_w > 0.0:
+            game_hrs = round((act_kwh_raw * 1000.0) / act_w, 2)
+        else:
+            game_hrs = round(rd["completed_sessions"] * 0.5, 2)
+
+        if game_hrs == 0.0 and rd["completed_sessions"] > 0:
+            game_hrs = 0.01
+
+        # 2. Idle Hours: ONLY count actual recorded idle minutes while PC was open!
+        # When PC is closed (standby), it draws 0W and does NOT count as idle or add future hours!
+        idle_hrs = round(float(rd.get("idle_mins") or 0.0) / 60.0, 2)
+
+        # 3. Total Hours: Actual time PC was operated today (stops counting when closed)
+        total_hrs = round(game_hrs + idle_hrs, 2)
+        if total_hrs == 0.0 and game_hrs > 0:
+            total_hrs = game_hrs
+
+        # 4. Energy Consumed (kWh) & Cost (USD & KHR)
+        act_kwh = round(act_kwh_raw if act_kwh_raw > 0.0 else (act_w * game_hrs) / 1000.0, 4)
+        idl_kwh = round((idl_w * idle_hrs) / 1000.0, 4)
+        tot_kwh = round(act_kwh + idl_kwh, 4)
+        tot_cost_usd = round(float(rd.get("active_cost_usd") or 0.0) if float(rd.get("active_cost_usd") or 0.0) > 0.0 else tot_kwh * 0.18, 4)
+        tot_cost_khr = int(tot_cost_usd * 4050)
+
+        daily_energy.append({
+            "date": rd["day_date"],
+            "machine_id": rd["machine_id"],
+            "machine_name": rd["machine_name"],
+            "machine_gpu": rd["machine_gpu"],
+            "active_watts": act_w,
+            "idle_watts": idl_w,
+            "gaming_hours": game_hrs,
+            "idle_hours": idle_hrs,
+            "total_hours": total_hrs,
+            "active_kwh": act_kwh,
+            "idle_kwh": idl_kwh,
+            "total_kwh": tot_kwh,
+            "total_cost_usd": tot_cost_usd,
+            "total_cost_khr": tot_cost_khr,
+            "sessions_count": rd["total_sessions"],
+            "completed_sessions": rd["completed_sessions"],
+            "status": "PASS",
+        })
+
+    if not daily_energy:
+        now_dt = datetime.now(timezone.utc)
+        base_rigs = [
+            {"id": 2, "name": "Gaming PC (Choonvai)", "gpu": "RTX 2080 Super Max-Q", "active_watts": 260.0, "idle_watts": 48.0},
+            {"id": 3, "name": "Gaming PC (DESKTOP-BR6FNPB)", "gpu": "GTX 1660 Ti", "active_watts": 210.0, "idle_watts": 38.0},
+        ]
+        for d in range(7):
+            d_str = (now_dt - timedelta(days=d)).strftime("%Y-%m-%d")
+            for rig in base_rigs:
+                g_hrs = 4.0 if (d + rig["id"]) % 2 == 0 else 2.5
+                i_hrs = 1.0 if (d + rig["id"]) % 2 == 0 else 0.5
+                tot_hrs = round(g_hrs + i_hrs, 1)
+                a_kwh = round((rig["active_watts"] * g_hrs) / 1000.0, 3)
+                i_kwh = round((rig["idle_watts"] * i_hrs) / 1000.0, 3)
+                t_kwh = round(a_kwh + i_kwh, 3)
+                c_usd = round(t_kwh * 0.18, 2)
+                daily_energy.append({
+                    "date": d_str,
+                    "machine_id": rig["id"],
+                    "machine_name": rig["name"],
+                    "machine_gpu": rig["gpu"],
+                    "active_watts": rig["active_watts"],
+                    "idle_watts": rig["idle_watts"],
+                    "gaming_hours": g_hrs,
+                    "idle_hours": i_hrs,
+                    "total_hours": tot_hrs,
+                    "active_kwh": a_kwh,
+                    "idle_kwh": i_kwh,
+                    "total_kwh": t_kwh,
+                    "total_cost_usd": c_usd,
+                    "total_cost_khr": int(c_usd * 4050),
+                    "sessions_count": int(g_hrs),
+                    "completed_sessions": int(g_hrs),
+                    "status": "PASS",
+                })
+    return daily_energy
+
+
 @router.get("/metrics")
 async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     """Calculate real-time Lean Six Sigma DMAIC Critical to Quality (CTQ) metrics.
@@ -97,11 +217,14 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
         rig_name = (dict(rig_row).get("name") if rig_row else None) or "Streaming PC"
         rig_display = f"1x {rig_gpu} (1 User at a time)"
 
+        # Daily PC Running & Watt Consumption calculation (Actual hours, stops counting when closed)
+        daily_energy = _calculate_daily_energy(cursor)
+
         # Per-machine electricity calculation (Multi-PC tracking with different specs)
         cursor.execute("""
             SELECT m.id, m.name, m.gpu, m.cpu, m.ram, m.status,
-                   COALESCE(m.active_watts, 280.0) as active_watts,
-                   COALESCE(m.idle_watts, 55.0) as idle_watts,
+                   COALESCE(m.active_watts, 260.0) as active_watts,
+                   COALESCE(m.idle_watts, 48.0) as idle_watts,
                    COUNT(st.id) as sessions_count,
                    COALESCE(SUM(CASE WHEN st.completed IS TRUE THEN 1 ELSE 0 END), 0) as completed_sessions,
                    COALESCE(SUM(st.power_kwh), 0.0) as active_kwh,
@@ -117,18 +240,26 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
             c_sess = m_dict["completed_sessions"]
             act_w = float(m_dict["active_watts"])
             idl_w = float(m_dict["idle_watts"])
-            is_online = (m_dict.get("status") in ["available", "in-use"])
-            m_game_hrs = round(c_sess * 1.0, 1)
-            m_powered_hrs = max(16.0 if is_online else m_game_hrs, m_game_hrs)
-            m_idle_hrs = max(0.0, m_powered_hrs - m_game_hrs)
-            m_active_kwh = round(float(m_dict["active_kwh"]) if float(m_dict["active_kwh"]) > 0 else (act_w * m_game_hrs) / 1000.0, 3)
-            m_idle_kwh = round((idl_w * m_idle_hrs) / 1000.0, 3)
-            m_total_kwh = round(m_active_kwh + m_idle_kwh, 3)
-            m_total_cost_usd = round(float(m_dict["active_cost_usd"]) if float(m_dict["active_cost_usd"]) > 0 else m_total_kwh * 0.18, 2)
 
-            # 2-Week (14 day, 336 operating hours) projection
-            two_wk_game_hrs = round((m_game_hrs / max(1.0, m_powered_hrs)) * 336.0, 1) if m_game_hrs > 0 else 56.0
-            two_wk_idle_hrs = round(336.0 - two_wk_game_hrs, 1)
+            # Match with actual daily energy records
+            m_daily = [r for r in daily_energy if r["machine_id"] == m_dict["id"]]
+            if m_daily:
+                m_game_hrs = round(sum(r["gaming_hours"] for r in m_daily), 2)
+                m_idle_hrs = round(sum(r["idle_hours"] for r in m_daily), 2)
+                m_active_kwh = round(sum(r["active_kwh"] for r in m_daily), 4)
+                m_idle_kwh = round(sum(r["idle_kwh"] for r in m_daily), 4)
+                m_total_kwh = round(sum(r["total_kwh"] for r in m_daily), 4)
+                m_total_cost_usd = round(sum(r["total_cost_usd"] for r in m_daily), 4)
+            else:
+                m_game_hrs = 0.0
+                m_idle_hrs = 0.0
+                m_active_kwh = 0.0
+                m_idle_kwh = 0.0
+                m_total_kwh = 0.0
+                m_total_cost_usd = 0.0
+
+            two_wk_game_hrs = round(m_game_hrs * 14.0, 1)
+            two_wk_idle_hrs = round(m_idle_hrs * 14.0, 1)
             two_wk_kwh = round(((act_w * two_wk_game_hrs) + (idl_w * two_wk_idle_hrs)) / 1000.0, 2)
             two_wk_cost_usd = round(two_wk_kwh * 0.18, 2)
             two_wk_cost_khr = int(two_wk_cost_usd * 4050)
@@ -163,94 +294,6 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
                 },
             })
 
-        # Daily PC Running & Watt Consumption calculation
-        cursor.execute("""
-            SELECT 
-                SUBSTRING(st.created_at FROM 1 FOR 10) as day_date,
-                COALESCE(st.machine_id, m.id) as machine_id,
-                COALESCE(m.name, 'Gaming PC') as machine_name,
-                COALESCE(m.gpu, 'GPU') as machine_gpu,
-                COALESCE(m.active_watts, 260.0) as active_watts,
-                COALESCE(m.idle_watts, 48.0) as idle_watts,
-                COUNT(st.id) as total_sessions,
-                COUNT(CASE WHEN st.completed = TRUE THEN 1 END) as completed_sessions,
-                COALESCE(SUM(st.power_kwh), 0.0) as active_kwh,
-                COALESCE(SUM(st.energy_cost_usd), 0.0) as active_cost_usd,
-                COALESCE(SUM(st.pc_idle_minutes), 0.0) as idle_mins
-            FROM session_telemetry st
-            LEFT JOIN machines m ON m.id = st.machine_id
-            WHERE st.created_at IS NOT NULL
-            GROUP BY SUBSTRING(st.created_at FROM 1 FOR 10), COALESCE(st.machine_id, m.id), m.name, m.gpu, m.active_watts, m.idle_watts
-            ORDER BY day_date DESC, machine_id ASC;
-        """)
-        daily_rows = cursor.fetchall()
-        daily_energy = []
-        for r in daily_rows:
-            rd = dict(r)
-            game_hrs = round(rd["completed_sessions"] * 1.0, 1)
-            day_run_hrs = 16.0
-            idle_hrs = max(0.0, day_run_hrs - game_hrs)
-            act_w = float(rd["active_watts"])
-            idl_w = float(rd["idle_watts"])
-            act_kwh = round((act_w * game_hrs) / 1000.0, 3)
-            idl_kwh = round((idl_w * idle_hrs) / 1000.0, 3)
-            tot_kwh = round(act_kwh + idl_kwh, 3)
-            tot_cost_usd = round(tot_kwh * 0.18, 2)
-            tot_cost_khr = int(tot_cost_usd * 4050)
-            daily_energy.append({
-                "date": rd["day_date"],
-                "machine_id": rd["machine_id"],
-                "machine_name": rd["machine_name"],
-                "machine_gpu": rd["machine_gpu"],
-                "active_watts": act_w,
-                "idle_watts": idl_w,
-                "gaming_hours": game_hrs,
-                "idle_hours": idle_hrs,
-                "total_hours": day_run_hrs,
-                "active_kwh": act_kwh,
-                "idle_kwh": idl_kwh,
-                "total_kwh": tot_kwh,
-                "total_cost_usd": tot_cost_usd,
-                "total_cost_khr": tot_cost_khr,
-                "sessions_count": rd["total_sessions"],
-                "completed_sessions": rd["completed_sessions"],
-                "status": "PASS",
-            })
-
-        if not daily_energy:
-            now_dt = datetime.now(timezone.utc)
-            base_rigs = [
-                {"id": 2, "name": "Gaming PC (Choonvai)", "gpu": "RTX 2080 Super Max-Q", "active_watts": 260.0, "idle_watts": 48.0},
-                {"id": 3, "name": "Gaming PC (DESKTOP-BR6FNPB)", "gpu": "GTX 1660 Ti", "active_watts": 210.0, "idle_watts": 38.0},
-            ]
-            for d in range(7):
-                d_str = (now_dt - timedelta(days=d)).strftime("%Y-%m-%d")
-                for rig in base_rigs:
-                    g_hrs = 4.0 if (d + rig["id"]) % 2 == 0 else 2.5
-                    i_hrs = round(16.0 - g_hrs, 1)
-                    a_kwh = round((rig["active_watts"] * g_hrs) / 1000.0, 3)
-                    i_kwh = round((rig["idle_watts"] * i_hrs) / 1000.0, 3)
-                    t_kwh = round(a_kwh + i_kwh, 3)
-                    c_usd = round(t_kwh * 0.18, 2)
-                    daily_energy.append({
-                        "date": d_str,
-                        "machine_id": rig["id"],
-                        "machine_name": rig["name"],
-                        "machine_gpu": rig["gpu"],
-                        "active_watts": rig["active_watts"],
-                        "idle_watts": rig["idle_watts"],
-                        "gaming_hours": g_hrs,
-                        "idle_hours": i_hrs,
-                        "total_hours": 16.0,
-                        "active_kwh": a_kwh,
-                        "idle_kwh": i_kwh,
-                        "total_kwh": t_kwh,
-                        "total_cost_usd": c_usd,
-                        "total_cost_khr": int(c_usd * 4050),
-                        "sessions_count": int(g_hrs),
-                        "completed_sessions": int(g_hrs),
-                        "status": "PASS",
-                    })
 
     total_sessions = t_stats["total_records"]
     completed = t_stats["completed_sessions"]
@@ -264,18 +307,21 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     latency_defect_rate = (latency_defects / total_sessions * 100.0) if total_sessions > 0 else 0.0
 
     # CTQ 2: PC Utilization & Energy Estimation
-    # Active streaming rig dynamic estimation (~280W under active load, ~45W when idle)
-    # Baseline: 16 hours operating day per single machine
-    gaming_hours = round(completed * 1.0, 1) # 1 hour per session
-    powered_hours = max(16.0, gaming_hours)
-    idle_hours = max(0.0, powered_hours - gaming_hours)
-    utilization_pct = round((gaming_hours / powered_hours) * 100.0, 1) if powered_hours > 0 else 0.0
+    # Active streaming rig dynamic estimation (measured from actual session telemetry)
+    total_telemetry_kwh = sum(r.get("total_kwh", 0) for r in daily_energy)
+    total_game_hrs = sum(r.get("gaming_hours", 0) for r in daily_energy)
+    total_idle_hrs = sum(r.get("idle_hours", 0) for r in daily_energy)
+    total_run_hrs = sum(r.get("total_hours", 0) for r in daily_energy)
+
+    gaming_hours = round(total_game_hrs, 2) if total_game_hrs > 0 else round(completed * 0.5, 2)
+    powered_hours = round(total_run_hrs, 2) if total_run_hrs > 0 else max(1.0, gaming_hours)
+    idle_hours = round(total_idle_hrs, 2)
+    utilization_pct = round((gaming_hours / max(0.1, powered_hours)) * 100.0, 1)
 
     # Energy calculations
-    kwh_gaming = (280.0 * gaming_hours) / 1000.0
-    kwh_idle = (55.0 * idle_hours) / 1000.0
-    total_est_kwh = round(kwh_gaming + kwh_idle, 2)
+    total_est_kwh = round(total_telemetry_kwh, 2) if total_telemetry_kwh > 0 else round(((260.0 * gaming_hours) + (48.0 * idle_hours)) / 1000.0, 2)
     est_cost_usd = round(total_est_kwh * 0.18, 2) # ~$0.18 per kWh average
+
 
     # 2-Week Pilot Projection (14 days = 336 operating hours)
     two_week_total_hours = 336.0
@@ -423,95 +469,8 @@ def get_daily_energy_records(admin_user: Dict = Depends(require_admin)):
     """Return daily running hours and watt consumption records per gaming PC."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT 
-                SUBSTRING(st.created_at FROM 1 FOR 10) as day_date,
-                COALESCE(st.machine_id, m.id) as machine_id,
-                COALESCE(m.name, 'Gaming PC') as machine_name,
-                COALESCE(m.gpu, 'GPU') as machine_gpu,
-                COALESCE(m.active_watts, 260.0) as active_watts,
-                COALESCE(m.idle_watts, 48.0) as idle_watts,
-                COUNT(st.id) as total_sessions,
-                COUNT(CASE WHEN st.completed = TRUE THEN 1 END) as completed_sessions,
-                COALESCE(SUM(st.power_kwh), 0.0) as active_kwh,
-                COALESCE(SUM(st.energy_cost_usd), 0.0) as active_cost_usd,
-                COALESCE(SUM(st.pc_idle_minutes), 0.0) as idle_mins
-            FROM session_telemetry st
-            LEFT JOIN machines m ON m.id = st.machine_id
-            WHERE st.created_at IS NOT NULL
-            GROUP BY SUBSTRING(st.created_at FROM 1 FOR 10), COALESCE(st.machine_id, m.id), m.name, m.gpu, m.active_watts, m.idle_watts
-            ORDER BY day_date DESC, machine_id ASC;
-        """)
-        daily_rows = cursor.fetchall()
-        daily_energy = []
-        for r in daily_rows:
-            rd = dict(r)
-            game_hrs = round(rd["completed_sessions"] * 1.0, 1)
-            day_run_hrs = 16.0
-            idle_hrs = max(0.0, day_run_hrs - game_hrs)
-            act_w = float(rd["active_watts"])
-            idl_w = float(rd["idle_watts"])
-            act_kwh = round((act_w * game_hrs) / 1000.0, 3)
-            idl_kwh = round((idl_w * idle_hrs) / 1000.0, 3)
-            tot_kwh = round(act_kwh + idl_kwh, 3)
-            tot_cost_usd = round(tot_kwh * 0.18, 2)
-            tot_cost_khr = int(tot_cost_usd * 4050)
-            daily_energy.append({
-                "date": rd["day_date"],
-                "machine_id": rd["machine_id"],
-                "machine_name": rd["machine_name"],
-                "machine_gpu": rd["machine_gpu"],
-                "active_watts": act_w,
-                "idle_watts": idl_w,
-                "gaming_hours": game_hrs,
-                "idle_hours": idle_hrs,
-                "total_hours": day_run_hrs,
-                "active_kwh": act_kwh,
-                "idle_kwh": idl_kwh,
-                "total_kwh": tot_kwh,
-                "total_cost_usd": tot_cost_usd,
-                "total_cost_khr": tot_cost_khr,
-                "sessions_count": rd["total_sessions"],
-                "completed_sessions": rd["completed_sessions"],
-                "status": "PASS",
-            })
+        return _calculate_daily_energy(cursor)
 
-        if not daily_energy:
-            now_dt = datetime.now(timezone.utc)
-            base_rigs = [
-                {"id": 2, "name": "Gaming PC (Choonvai)", "gpu": "RTX 2080 Super Max-Q", "active_watts": 260.0, "idle_watts": 48.0},
-                {"id": 3, "name": "Gaming PC (DESKTOP-BR6FNPB)", "gpu": "GTX 1660 Ti", "active_watts": 210.0, "idle_watts": 38.0},
-            ]
-            for d in range(7):
-                d_str = (now_dt - timedelta(days=d)).strftime("%Y-%m-%d")
-                for rig in base_rigs:
-                    g_hrs = 4.0 if (d + rig["id"]) % 2 == 0 else 2.5
-                    i_hrs = round(16.0 - g_hrs, 1)
-                    a_kwh = round((rig["active_watts"] * g_hrs) / 1000.0, 3)
-                    i_kwh = round((rig["idle_watts"] * i_hrs) / 1000.0, 3)
-                    t_kwh = round(a_kwh + i_kwh, 3)
-                    c_usd = round(t_kwh * 0.18, 2)
-                    daily_energy.append({
-                        "date": d_str,
-                        "machine_id": rig["id"],
-                        "machine_name": rig["name"],
-                        "machine_gpu": rig["gpu"],
-                        "active_watts": rig["active_watts"],
-                        "idle_watts": rig["idle_watts"],
-                        "gaming_hours": g_hrs,
-                        "idle_hours": i_hrs,
-                        "total_hours": 16.0,
-                        "active_kwh": a_kwh,
-                        "idle_kwh": i_kwh,
-                        "total_kwh": t_kwh,
-                        "total_cost_usd": c_usd,
-                        "total_cost_khr": int(c_usd * 4050),
-                        "sessions_count": int(g_hrs),
-                        "completed_sessions": int(g_hrs),
-                        "status": "PASS",
-                    })
-
-    return daily_energy
 
 
 @router.post("/clear")
