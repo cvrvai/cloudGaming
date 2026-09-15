@@ -9,6 +9,7 @@ import {
   VolumeXIcon,
   KeyboardIcon,
 } from './Icons';
+import { formatRigName } from '../config';
 
 export default function StreamHUD({
   sessionData,
@@ -76,7 +77,14 @@ export default function StreamHUD({
       >
         <div className="hud-machine-meta">
           <span className="hud-live-dot" />
-          <span className="hud-rig-name">{sessionData?.machine_name || 'Host Rig'}</span>
+          <span className="hud-rig-name">
+            {sessionData?.game_title || formatRigName(sessionData?.machine_name)}
+          </span>
+          {sessionData?.game_title && sessionData?.machine_name && (
+            <span className="hud-rig-sub-pill">
+              {formatRigName(sessionData.machine_name)}
+            </span>
+          )}
         </div>
 
         {hasGamepad && (
@@ -157,12 +165,12 @@ export default function StreamHUD({
             </div>
             <h2>Session Time Concluded</h2>
             <p className="cutoff-message">
-              Your reserved time slot on <strong>{sessionData?.machine_name}</strong> has reached its scheduled
+              Your reserved time slot on <strong>{formatRigName(sessionData?.machine_name)}</strong> has reached its scheduled
               conclusion. The game process was terminated immediately to release the rig for the next student.
             </p>
             <div className="cutoff-meta-summary">
-              <span>Machine: {sessionData?.machine_name}</span>
-              <span>Student: {sessionData?.user_name}</span>
+              <span>Rig: {formatRigName(sessionData?.machine_name)}</span>
+              <span>Player: {sessionData?.user_name}</span>
               <span>Status: Slot Completed & Game Exited</span>
             </div>
             <button type="button" className="btn-primary cutoff-return-btn" onClick={onSessionEnd}>

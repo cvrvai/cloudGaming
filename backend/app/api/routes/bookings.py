@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.db import BookingConflictError, create_booking_atomic, get_db
-from app.services.auth import get_current_user, require_admin
+from app.services.auth import get_current_user, get_current_user_optional, require_admin
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
@@ -130,6 +130,143 @@ async def create_booking(
         )
     finally:
         await release_lock(lock_key)
+
+
+@router.get("/availability")
+async def get_slot_availability(
+    game_id: Optional[int] = None,
+    machine_id: Optional[int] = None,
+    date: Optional[str] = None,
+    current_user: Optional[Dict] = Depends(get_current_user_optional),
+):
+    """Return real-time rig availability, currently active playing sessions, and booked time slots (FR-03, FR-04)."""
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    target_date = date or now.strftime("%Y-%m-%d")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 1. Identify capable machines for this game
+        if machine_id:
+            cursor.execute(
+                "SELECT id, name, status, is_host FROM machines WHERE id = %s AND status != 'maintenance';",
+                (machine_id,),
+            )
+            capable_machines = cursor.fetchall()
+        elif game_id:
+            cursor.execute(
+                """
+                SELECT m.id, m.name, m.status, m.is_host
+                FROM machines m
+                JOIN node_games ng ON m.id = ng.node_id
+                WHERE ng.game_id = %s
+                  AND ng.enabled = TRUE
+                  AND ng.status = 'ready'
+                  AND m.status != 'maintenance'
+                ORDER BY m.is_host DESC, m.id ASC;
+                """,
+                (game_id,),
+            )
+            capable_machines = cursor.fetchall()
+        else:
+            cursor.execute(
+                "SELECT id, name, status, is_host FROM machines WHERE status != 'maintenance' ORDER BY is_host DESC, id ASC;"
+            )
+            capable_machines = cursor.fetchall()
+
+        capable_count = len(capable_machines)
+        if capable_count == 0:
+            return {
+                "capable_machines_count": 0,
+                "is_currently_in_use": False,
+                "current_session": None,
+                "date": target_date,
+                "server_time": now_iso,
+                "bookings": [],
+            }
+
+        m_ids = tuple(m["id"] for m in capable_machines)
+
+        # 2. Check if a session is actively playing RIGHT NOW
+        cursor.execute(
+            """
+            SELECT b.id, b.machine_id, b.user_id, b.game_title, b.start_time, b.end_time,
+                   m.name as machine_name, u.name as user_name
+            FROM bookings b
+            JOIN machines m ON b.machine_id = m.id
+            LEFT JOIN users u ON b.user_id = u.id
+            WHERE b.machine_id IN %s
+              AND b.status = 'confirmed'
+              AND b.start_time <= %s
+              AND b.end_time > %s
+            ORDER BY b.end_time ASC;
+            """,
+            (m_ids, now_iso, now_iso),
+        )
+        active_sessions = cursor.fetchall()
+
+        # Rig is currently in-use if all capable machines have an active session right now
+        is_currently_in_use = len(active_sessions) >= capable_count
+        current_session_info = None
+
+        if active_sessions:
+            earliest = active_sessions[0]
+            end_dt = datetime.fromisoformat(earliest["end_time"].replace("Z", "+00:00"))
+            rem_sec = max(0, int((end_dt - now).total_seconds()))
+            rem_mins = max(1, round(rem_sec / 60))
+            is_my_active = bool(current_user and earliest["user_id"] == current_user["id"])
+
+            current_session_info = {
+                "booking_id": earliest["id"],
+                "machine_id": earliest["machine_id"],
+                "machine_name": earliest["machine_name"],
+                "game_title": earliest["game_title"],
+                "user_name": earliest["user_name"],
+                "start_time": earliest["start_time"],
+                "end_time": earliest["end_time"],
+                "remaining_seconds": rem_sec,
+                "remaining_minutes": rem_mins,
+                "is_mine": is_my_active,
+            }
+
+        # 3. Fetch all confirmed bookings for target date
+        cursor.execute(
+            """
+            SELECT b.id, b.machine_id, b.user_id, b.start_time, b.end_time, b.game_title
+            FROM bookings b
+            WHERE b.machine_id IN %s
+              AND b.status = 'confirmed'
+              AND (
+                (b.start_time::timestamptz AT TIME ZONE 'Asia/Phnom_Penh')::date = %s::date
+                OR (b.end_time::timestamptz AT TIME ZONE 'Asia/Phnom_Penh')::date = %s::date
+              )
+            ORDER BY b.start_time ASC;
+            """,
+            (m_ids, target_date, target_date),
+        )
+        day_bookings = cursor.fetchall()
+
+        bookings_list = []
+        for b in day_bookings:
+            is_mine = bool(current_user and b["user_id"] == current_user["id"])
+            bookings_list.append({
+                "id": b["id"],
+                "machine_id": b["machine_id"],
+                "start_time": b["start_time"],
+                "end_time": b["end_time"],
+                "game_title": b["game_title"],
+                "is_mine": is_mine,
+            })
+
+    return {
+        "capable_machines_count": capable_count,
+        "is_currently_in_use": is_currently_in_use,
+        "current_session": current_session_info,
+        "date": target_date,
+        "server_time": now_iso,
+        "bookings": bookings_list,
+    }
 
 
 @router.get("/quota")

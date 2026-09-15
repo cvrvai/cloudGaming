@@ -22,3 +22,16 @@ export const INPUT_WS_URL = apiBaseOverride
       ? `${wsScheme}//${server}:${port}/ws/input`
       : `${wsScheme}//${window.location.host}/ws/input`);
 
+/**
+ * Format machine/rig display name for player-facing UI.
+ * Strips raw internal computer names, DESKTOP-XXXX codes, and parenthesized hardware tags.
+ */
+export function formatRigName(machineName) {
+  if (!machineName) return 'Cloud Gaming Rig';
+  let cleaned = machineName.replace(/\s*\([dD][eE][sS][kK][tT][oO][pP][^)]*\)/g, '');
+  cleaned = cleaned.replace(/[dD][eE][sS][kK][tT][oO][pP]-[A-Za-z0-9]+/gi, '').trim();
+  cleaned = cleaned.replace(/[()]/g, '').trim();
+  cleaned = cleaned.replace(/^[-–—\s]+|[-–—\s]+$/g, '').trim();
+  return cleaned || 'Cloud Gaming Rig';
+}
+

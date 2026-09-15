@@ -96,7 +96,7 @@ def detect_local_hardware() -> dict:
             pass
 
     return {
-        "name": f"Gaming PC ({computer_name})",
+        "name": "Cloud Gaming Rig",
         "gpu": gpu_name,
         "cpu": cpu_name,
         "ram": ram_str,

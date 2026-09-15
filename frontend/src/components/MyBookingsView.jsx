@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { API_BASE } from '../config';
+import { API_BASE, formatRigName } from '../config';
 import { GamepadIcon, RocketIcon, CalendarIcon, LockIcon, HistoryIcon, PlayIcon, ClockIcon, XIcon } from './Icons';
 
 let cachedBookingsData = null;
@@ -181,7 +181,7 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
                   <div className="active-card-top">
                     <div className="active-card-title-group">
                       <h3 className="active-game-name">{b.game_title || 'Cloud Game'}</h3>
-                      <span className="active-rig-sub">{b.machine_name || 'Cloud Rig'}</span>
+                      <span className="active-rig-sub">{formatRigName(b.machine_name)}</span>
                     </div>
                     <span className="live-status-badge">
                       <span className="live-dot" /> Ready to Play

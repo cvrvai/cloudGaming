@@ -173,6 +173,18 @@ async def get_current_user(
         return user_dict
 
 
+async def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security_scheme),
+) -> Optional[Dict[str, Any]]:
+    """Optional authentication dependency: returns user dict if valid token, else None."""
+    if not credentials:
+        return None
+    try:
+        return await get_current_user(credentials)
+    except Exception:
+        return None
+
+
 async def require_admin(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     """Dependency requiring user to have admin role AND completed MFA verification."""
     if user.get("role") != "admin":

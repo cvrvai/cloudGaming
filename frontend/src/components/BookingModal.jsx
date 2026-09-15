@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { API_BASE } from '../config';
+import { API_BASE, formatRigName } from '../config';
 import { CalendarIcon, ClockIcon, BoltIcon, RocketIcon, CheckCircleIcon, PlayIcon, XIcon, AlertTriangleIcon, UserIcon } from './Icons';
 
 export default function BookingModal({ game, machine, onClose, onBookingSuccess, onLaunchNow }) {
@@ -186,17 +186,6 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
     return `${displayH}:${mStr || '00'} ${ampm}`;
   };
 
-  // Hourly slots from 08:00 AM to 11:00 PM
-  const timeSlots = [];
-  for (let h = 8; h <= 23; h++) {
-    const timeStr = `${String(h).padStart(2, '0')}:00`;
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const displayH = h % 12 === 0 ? 12 : h % 12;
-    const label = `${displayH}:00 ${ampm}`;
-    const isPast = scheduleDate === todayStr && h <= currentHour;
-    timeSlots.push({ timeStr, label, isPast, hour: h });
-  }
-
   const durationOptions = [
     { label: '30 Mins', value: 30 },
     { label: '1 Hour', value: 60 },
@@ -204,9 +193,105 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
   ];
 
   const [dailyQuota, setDailyQuota] = useState(null);
+  const [availability, setAvailability] = useState(null);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState(null);
+
+  // Fetch real-time slot availability for selected game/machine and date
+  useEffect(() => {
+    let active = true;
+    const fetchAvailability = async () => {
+      setLoadingAvailability(true);
+      try {
+        const targetDate = mode === 'instant' ? todayStr : scheduleDate;
+        const query = new URLSearchParams({
+          date: targetDate,
+          ...(game?.id ? { game_id: game.id } : {}),
+          ...(machine?.id ? { machine_id: machine.id } : {}),
+        });
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await fetch(`${API_BASE}/api/bookings/availability?${query.toString()}`, { headers });
+        if (res.ok && active) {
+          const data = await res.json();
+          setAvailability(data);
+
+          // If rig is currently in use by another user right now, switch to schedule mode
+          if (data.is_currently_in_use && data.current_session && !data.current_session.is_mine) {
+            setMode('schedule');
+          }
+        }
+      } catch (err) {
+        console.debug('Failed to fetch slot availability:', err);
+      } finally {
+        if (active) setLoadingAvailability(false);
+      }
+    };
+    fetchAvailability();
+    return () => { active = false; };
+  }, [token, scheduleDate, mode, game?.id, machine?.id, todayStr]);
+
+  // Hourly slots from 08:00 AM to 11:00 PM with real-time availability
+  const timeSlots = useMemo(() => {
+    const slots = [];
+    const bookings = availability?.bookings || [];
+    const capableCount = availability?.capable_machines_count || 1;
+
+    for (let h = 8; h <= 23; h++) {
+      const timeStr = `${String(h).padStart(2, '0')}:00`;
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const displayH = h % 12 === 0 ? 12 : h % 12;
+      const label = `${displayH}:00 ${ampm}`;
+      const isPast = scheduleDate === todayStr && h <= currentHour;
+
+      let isBooked = false;
+      let isMyBooking = false;
+
+      if (!isPast && bookings.length > 0) {
+        const slotStartIso = `${scheduleDate}T${String(h).padStart(2, '0')}:00:00`;
+        const slotEndHour = h + Math.max(1, Math.ceil(durationMinutes / 60));
+        const slotEndIso = `${scheduleDate}T${String(Math.min(23, slotEndHour)).padStart(2, '0')}:59:59`;
+
+        const overlaps = bookings.filter((b) => {
+          return b.start_time < slotEndIso && b.end_time > slotStartIso;
+        });
+
+        if (overlaps.length >= capableCount) {
+          isBooked = true;
+        }
+        if (overlaps.some((b) => b.is_mine)) {
+          isMyBooking = true;
+        }
+      }
+
+      const isAvailable = !isPast && !isBooked;
+
+      slots.push({
+        timeStr,
+        label,
+        isPast,
+        isBooked,
+        isMyBooking,
+        isAvailable,
+        hour: h,
+      });
+    }
+    return slots;
+  }, [scheduleDate, todayStr, currentHour, durationMinutes, availability]);
+
+  // Automatically select the next open available slot if current scheduleTime is booked or past
+  useEffect(() => {
+    if (!availability) return;
+    const currentSlot = timeSlots.find((s) => s.timeStr === scheduleTime);
+    if (currentSlot && (currentSlot.isPast || currentSlot.isBooked)) {
+      const firstFree = timeSlots.find((s) => s.isAvailable);
+      if (firstFree) {
+        setScheduleTime(firstFree.timeStr);
+        setActivePeriod(getPeriodForHour(firstFree.hour));
+      }
+    }
+  }, [availability, timeSlots, scheduleTime]);
 
   // Fetch remaining 2-hour daily free quota for current date
   useEffect(() => {
@@ -235,7 +320,7 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
 
   if (!game && !machine) return null;
 
-  const title = game?.title || machine?.name || 'Cloud Session';
+  const title = game?.title || formatRigName(machine?.name) || 'Cloud Session';
   const coverUrl = game?.cover_url || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=80';
   const genre = game?.genre || 'Cloud Rig Session';
 
@@ -290,7 +375,9 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
       const data = await res.json();
       if (!res.ok) {
         if (res.status === 409) {
-          throw new Error(data.detail || 'This time slot overlaps with another reservation.');
+          setMode('schedule');
+          setError(data.detail || 'Gaming rig is currently reserved or occupied. Please select an available time slot below.');
+          return;
         }
         throw new Error(data.detail || 'Failed to complete game reservation.');
       }
@@ -399,6 +486,24 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                 </button>
               </div>
             </div>
+
+            {/* Rig Busy / In-Use Alert Banner */}
+            {availability?.is_currently_in_use && availability.current_session && !availability.current_session.is_mine && (
+              <div className="rig-busy-banner">
+                <div className="rig-busy-icon">
+                  <ClockIcon size={18} />
+                </div>
+                <div className="rig-busy-info">
+                  <div className="rig-busy-title">
+                    <span>⚡ Gaming Rig Currently in Use</span>
+                    <span className="rig-busy-badge">Occupied</span>
+                  </div>
+                  <p className="rig-busy-desc">
+                    Another player is actively streaming right now (~{availability.current_session.remaining_minutes} min{availability.current_session.remaining_minutes > 1 ? 's' : ''} left until {formatTimeDisplay(availability.current_session.end_time.substring(11, 16))}). Please choose an available time slot below to reserve your turn.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {error && <div className="booking-error-banner">{error}</div>}
 
@@ -606,17 +711,34 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                               const p = timePeriods.find((tp) => tp.id === activePeriod);
                               return p ? p.hours.includes(slot.hour) : true;
                             })
-                            .map((slot) => (
-                              <button
-                                key={slot.timeStr}
-                                type="button"
-                                className={`time-slot-btn ${scheduleTime === slot.timeStr ? 'selected' : ''} ${slot.isPast ? 'disabled' : ''}`}
-                                onClick={() => handleSelectSlot(slot.timeStr, slot.hour)}
-                                disabled={slot.isPast || submitting}
-                              >
-                                {slot.label}
-                              </button>
-                            ))}
+                            .map((slot) => {
+                              const isSelected = scheduleTime === slot.timeStr;
+                              const isDisabled = slot.isPast || (slot.isBooked && !slot.isMyBooking);
+
+                              return (
+                                <button
+                                  key={slot.timeStr}
+                                  type="button"
+                                  className={`time-slot-btn ${isSelected ? 'selected' : ''} ${slot.isPast ? 'disabled' : ''} ${slot.isBooked ? 'is-booked' : slot.isAvailable ? 'is-available' : ''} ${slot.isMyBooking ? 'is-mine' : ''}`}
+                                  onClick={() => !isDisabled && handleSelectSlot(slot.timeStr, slot.hour)}
+                                  disabled={isDisabled || submitting}
+                                  title={
+                                    slot.isPast
+                                      ? 'Past time slot'
+                                      : slot.isMyBooking
+                                      ? 'You already booked this slot'
+                                      : slot.isBooked
+                                      ? 'Slot occupied by another player'
+                                      : 'Available slot'
+                                  }
+                                >
+                                  <span className="slot-time-text">{slot.label}</span>
+                                  <span className={`slot-status-pill ${slot.isPast ? 'past' : slot.isMyBooking ? 'mine' : slot.isBooked ? 'booked' : 'open'}`}>
+                                    {slot.isPast ? 'Past' : slot.isMyBooking ? 'Yours' : slot.isBooked ? 'Booked' : 'Open'}
+                                  </span>
+                                </button>
+                              );
+                            })}
                         </div>
                       </div>
                     )}

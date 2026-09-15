@@ -142,6 +142,17 @@
   color: #fff;
 }
 
+.hud-rig-sub-pill {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 1px 6px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
 .hud-user-tag {
   font-size: 10px;
   color: var(--text-3);

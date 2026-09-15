@@ -4,7 +4,7 @@ import WebRTCPlayer from './WebRTCPlayer';
 import GamepadController from './GamepadController';
 import SessionFeedbackModal from './SessionFeedbackModal';
 import { AlertTriangleIcon, RefreshIcon, GamepadIcon, CheckIcon, XIcon } from './Icons';
-import { INPUT_WS_URL } from '../config';
+import { INPUT_WS_URL, formatRigName } from '../config';
 
 const isTouchDevice = () => {
   if (typeof window === 'undefined') return false;
@@ -684,8 +684,8 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
         ) : gstreamerAvailable === null ? (
           <div className="stream-connecting-box glass-panel">
             <div className="stream-status-spinner" />
-            <h3>Connecting to Gaming PC</h3>
-            <p>Initializing WebRTC screen capture pipeline on {sessionData?.machine_name || 'Host PC'}...</p>
+            <h3>Connecting to Gaming Rig</h3>
+            <p>Initializing WebRTC screen capture pipeline on {formatRigName(sessionData?.machine_name)}...</p>
           </div>
         ) : (
           <div className="stream-connecting-box glass-panel" style={{ maxWidth: '520px', padding: '32px' }}>
