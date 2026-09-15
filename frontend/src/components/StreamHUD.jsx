@@ -7,6 +7,7 @@ import {
   MinimizeIcon,
   Volume2Icon,
   VolumeXIcon,
+  KeyboardIcon,
 } from './Icons';
 
 export default function StreamHUD({
@@ -21,6 +22,8 @@ export default function StreamHUD({
   isMuted = true,
   onToggleMute,
   audioState = 'waiting',
+  isKeyboardOpen = false,
+  onToggleKeyboard,
 }) {
   const [remainingSeconds, setRemainingSeconds] = useState(
     sessionData?.remaining_seconds || 60
@@ -106,6 +109,19 @@ export default function StreamHUD({
               <span className="hud-btn-text">
                 {audioState === 'unavailable' ? 'No audio' : isMuted ? 'Muted' : 'Sound'}
               </span>
+            </button>
+          )}
+
+          {onToggleKeyboard && (
+            <button
+              type="button"
+              className={`hud-icon-btn ${isKeyboardOpen ? 'active-glow' : ''}`}
+              onClick={onToggleKeyboard}
+              title="Open keyboard to type name or chat in game"
+              aria-label="Toggle keyboard"
+            >
+              <KeyboardIcon size={15} />
+              <span className="hud-btn-text">Keyboard</span>
             </button>
           )}
 

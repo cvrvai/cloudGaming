@@ -3,23 +3,41 @@ import { getQualityParams } from '../quality';
 
 const DEFAULT_ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 
-function waitForIceGatheringComplete(peerConnection, timeoutMs = 5000) {
+function waitForIceGatheringComplete(peerConnection, timeoutMs = 1200) {
     if (peerConnection.iceGatheringState === 'complete') return Promise.resolve();
 
     return new Promise((resolve) => {
         let settled = false;
+        let candidateTimer = null;
+
         const finish = () => {
             if (settled) return;
             settled = true;
+            if (candidateTimer) clearTimeout(candidateTimer);
             peerConnection.removeEventListener('icegatheringstatechange', handleStateChange);
+            peerConnection.removeEventListener('icecandidate', handleCandidate);
             clearTimeout(timeoutId);
             resolve();
         };
+
         const handleStateChange = () => {
             if (peerConnection.iceGatheringState === 'complete') finish();
         };
+
+        const handleCandidate = (event) => {
+            if (event.candidate) {
+                // When candidates arrive, wait 200ms for extra candidates to arrive then continue immediately
+                if (!candidateTimer) {
+                    candidateTimer = setTimeout(finish, 200);
+                }
+            } else {
+                finish();
+            }
+        };
+
         const timeoutId = setTimeout(finish, timeoutMs);
         peerConnection.addEventListener('icegatheringstatechange', handleStateChange);
+        peerConnection.addEventListener('icecandidate', handleCandidate);
     });
 }
 
@@ -42,6 +60,7 @@ export default function WebRTCPlayer({
     onToggleMute,
     onStatsSample,
     onAudioState,
+    isExiting = false,
 }) {
     const videoRef = useRef(null);
     const pcRef = useRef(null);
@@ -50,10 +69,27 @@ export default function WebRTCPlayer({
     const audioCheckTimerRef = useRef(null);
     const mediaStreamRef = useRef(null);
     const isMutedRef = useRef(isMuted);
+    const isExitingRef = useRef(isExiting);
     const [status, setStatus] = useState('connecting');
     const [errorDetail, setErrorDetail] = useState('');
     const [fps, setFps] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
+
+    useEffect(() => {
+        isExitingRef.current = isExiting;
+        if (isExiting) {
+            if (retryTimerRef.current) {
+                clearTimeout(retryTimerRef.current);
+                retryTimerRef.current = null;
+            }
+            if (pcRef.current) {
+                try {
+                    pcRef.current.close();
+                } catch {}
+                pcRef.current = null;
+            }
+        }
+    }, [isExiting]);
 
     useEffect(() => {
         isMutedRef.current = isMuted;
@@ -67,6 +103,10 @@ export default function WebRTCPlayer({
     }, [isMuted]);
 
     const cleanup = useCallback(() => {
+        if (retryTimerRef.current) {
+            clearTimeout(retryTimerRef.current);
+            retryTimerRef.current = null;
+        }
         if (statsTimerRef.current) {
             clearInterval(statsTimerRef.current);
             statsTimerRef.current = null;
@@ -95,14 +135,18 @@ export default function WebRTCPlayer({
     }, []);
 
     const scheduleReconnect = useCallback((connectFn) => {
+        if (isExitingRef.current) return;
         if (retryTimerRef.current) return;
         retryTimerRef.current = setTimeout(() => {
             retryTimerRef.current = null;
-            connectFn();
+            if (!isExitingRef.current) {
+                connectFn();
+            }
         }, 3000);
     }, []);
 
     const connect = useCallback(async () => {
+        if (isExitingRef.current) return;
         cleanup();
         setStatus('connecting');
         setErrorDetail('');
@@ -216,7 +260,9 @@ export default function WebRTCPlayer({
             if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
                 setStatus('disconnected');
                 cleanup();
-                scheduleReconnect(connect);
+                if (!isExitingRef.current) {
+                    scheduleReconnect(connect);
+                }
             }
         };
 

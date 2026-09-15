@@ -1687,39 +1687,6 @@
   box-shadow: 0 6px 20px rgba(0, 210, 255, 0.55);
 }
 
-.live-pulsing-badge {
-  color: #00d2ff;
-  animation: pulse-dot 1.2s infinite;
-  display: inline-block;
-  margin-right: 6px;
-}
-
-.active-booking-card {
-  display: flex;
-  gap: 14px;
-  border-color: #00d2ff !important;
-  box-shadow: 0 0 24px rgba(0, 82, 255, 0.25) !important;
-  padding: 14px 16px;
-  border-radius: 14px;
-}
-
-.booking-game-poster {
-  width: 95px;
-  min-height: 95px;
-  border-radius: 10px;
-  background-size: cover;
-  background-position: center;
-  flex-shrink: 0;
-  border: 1px solid rgba(0, 210, 255, 0.2);
-}
-
-.active-game-name {
-  font-size: 17px;
-  font-weight: 800;
-  color: #fff;
-  margin: 4px 0 2px;
-}
-
 .upcoming-game-banner {
   height: 75px;
   background-size: cover;

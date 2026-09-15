@@ -59,6 +59,7 @@ KEYBOARD_SPECIAL_KEYS = {
     "ALT": Key.alt,
     "ENTER": Key.enter,
     "ESC": Key.esc,
+    "ESCAPE": Key.esc,
     "TAB": Key.tab,
     "BACKSPACE": Key.backspace,
     "DELETE": Key.delete,

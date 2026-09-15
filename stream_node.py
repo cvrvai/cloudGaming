@@ -310,19 +310,21 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                         ts = datetime.now().strftime("%H:%M:%S")
                         print(f"\n[{ts}] [STREAM] Incoming session offer from browser client...")
 
-                        # Privacy / Kiosk Protection: Strictly prohibit streaming Windows desktop
-                        # Wait up to 15 seconds for authorized game process and its native window HWND
+                        # Verify authorized game process and its native window HWND
                         wait_sec = 0.0
                         game_hwnd = None
-                        print(f"[{ts}] [STREAM] Waiting for game window...")
-                        while wait_sec < 15.0:
+                        print(f"[{ts}] [STREAM] Verifying active game session...")
+                        while wait_sec < 6.0:
                             if host_agent.is_game_running():
                                 game_hwnd = host_agent.get_active_game_window_handle()
                                 if game_hwnd:
                                     host_agent.bring_game_to_foreground(game_hwnd)
                                     break
-                            await asyncio.sleep(0.5)
-                            wait_sec += 0.5
+                                # If game process is confirmed running, proceed immediately
+                                if wait_sec >= 1.5:
+                                    break
+                            await asyncio.sleep(0.1)
+                            wait_sec += 0.1
 
                         if not game_hwnd and not host_agent.is_game_running():
                             err_msg = "Streaming blocked: No authorized game is actively running on this PC."
@@ -412,6 +414,10 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                             gamepad_service.handle_mouse_button(
                                 payload.get("button", "left"),
                                 bool(payload.get("pressed", False)),
+                            )
+                        elif inp == "text":
+                            gamepad_service.handle_text(
+                                payload.get("text", "")
                             )
                         elif inp in ("stop_session", "exit_game", "STOP_GAME"):
                             ts = datetime.now().strftime("%H:%M:%S")

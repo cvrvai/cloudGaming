@@ -26,7 +26,7 @@ class StreamManager:
         """Register callback invoked when all stream peers disconnect without reconnecting."""
         self.on_empty_callback = cb
 
-    def _start_disconnect_timer(self, delay: float = 6.0) -> None:
+    def _start_disconnect_timer(self, delay: float = 20.0) -> None:
         with self._lock:
             if self._disconnect_timer is not None:
                 try:

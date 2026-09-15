@@ -3,7 +3,7 @@ import StreamHUD from './StreamHUD';
 import WebRTCPlayer from './WebRTCPlayer';
 import GamepadController from './GamepadController';
 import SessionFeedbackModal from './SessionFeedbackModal';
-import { AlertTriangleIcon, RefreshIcon, GamepadIcon, CheckIcon } from './Icons';
+import { AlertTriangleIcon, RefreshIcon, GamepadIcon, CheckIcon, XIcon } from './Icons';
 import { INPUT_WS_URL } from '../config';
 
 const isTouchDevice = () => {
@@ -36,7 +36,7 @@ const GAMEPAD_BUTTON_MAP = [
 ];
 
 export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, serverIP }) {
-  const [gstreamerAvailable, setGstreamerAvailable] = useState(null); // null: checking, true: ok, false: offline
+  const [gstreamerAvailable, setGstreamerAvailable] = useState(true); // Optimistic: start WebRTC immediately
   const [iceServers, setIceServers] = useState(undefined);
   const [hasGamepad, setHasGamepad] = useState(false);
   const [gamepadName, setGamepadName] = useState('');
@@ -44,6 +44,9 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
   const [wsConnected, setWsConnected] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [keyboardText, setKeyboardText] = useState('');
+  const keyboardInputRef = useRef(null);
   const [gameExitedData, setGameExitedData] = useState(null);
   const [isExiting, setIsExiting] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -261,11 +264,54 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
     }
   };
 
-  // Proactively ensure game process is launched on the host machine
+  // Virtual keyboard text & key senders for games (character names, save names, chat)
+  const handleSendKeyboardText = useCallback(() => {
+    if (!keyboardText) return;
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'text',
+        text: keyboardText,
+        node_id: sessionData?.machine_id,
+        sequence: ++keySequenceRef.current,
+        clientTimestamp: performance.now(),
+      }));
+    }
+    setKeyboardText('');
+  }, [keyboardText, sessionData?.machine_id]);
+
+  const sendVirtualKey = useCallback((key) => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'key',
+        key: key,
+        pressed: true,
+        node_id: sessionData?.machine_id,
+        sequence: ++keySequenceRef.current,
+        clientTimestamp: performance.now(),
+      }));
+      setTimeout(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'key',
+            key: key,
+            pressed: false,
+            node_id: sessionData?.machine_id,
+            sequence: ++keySequenceRef.current,
+            clientTimestamp: performance.now(),
+          }));
+        }
+      }, 50);
+    }
+  }, [sessionData?.machine_id]);
+
+  // Proactively ensure game process is launched on the host machine only if not already authorized
   useEffect(() => {
     let triggered = false;
     const ensureGameLaunched = async () => {
-      if (triggered || !sessionData?.booking_id) return;
+      // If session was already authorized by handleLaunchSession, skip duplicate verification
+      if (triggered || !sessionData?.booking_id || sessionData?.session_token) return;
       triggered = true;
       try {
         const token = localStorage.getItem('token');
@@ -284,7 +330,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
       }
     };
     ensureGameLaunched();
-  }, [apiBase, sessionData?.booking_id]);
+  }, [apiBase, sessionData?.booking_id, sessionData?.session_token]);
 
   // Maintain persistent WebSocket connection to input service
   useEffect(() => {
@@ -553,12 +599,55 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
         isMuted={isMuted}
         onToggleMute={toggleMute}
         audioState={audioState}
+        isKeyboardOpen={isKeyboardOpen}
+        onToggleKeyboard={() => setIsKeyboardOpen((prev) => !prev)}
       />
 
       {gamepadToast && (
         <div className="controller-toast">
           <GamepadIcon size={16} />
           <span>Controller Connected: {gamepadToast}</span>
+        </div>
+      )}
+
+      {/* Floating Virtual Keyboard Bar for Mobile & Touch Text Entry */}
+      {isKeyboardOpen && (
+        <div className="stream-keyboard-bar">
+          <input
+            ref={keyboardInputRef}
+            type="text"
+            className="stream-text-input"
+            placeholder="Type character name or text for game..."
+            value={keyboardText}
+            onChange={(e) => setKeyboardText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleSendKeyboardText();
+              }
+            }}
+            autoFocus
+          />
+          <button
+            type="button"
+            className="btn-send-text"
+            onClick={handleSendKeyboardText}
+          >
+            Send
+          </button>
+          <div className="stream-quick-keys">
+            <button type="button" className="stream-quick-key-btn" onClick={() => sendVirtualKey('Backspace')}>⌫</button>
+            <button type="button" className="stream-quick-key-btn" onClick={() => sendVirtualKey('Enter')}>↵</button>
+            <button type="button" className="stream-quick-key-btn" onClick={() => sendVirtualKey('Space')}>Space</button>
+            <button type="button" className="stream-quick-key-btn" onClick={() => sendVirtualKey('Escape')}>Esc</button>
+          </div>
+          <button
+            type="button"
+            className="stream-keyboard-close"
+            onClick={() => setIsKeyboardOpen(false)}
+            title="Close keyboard"
+          >
+            <XIcon size={16} />
+          </button>
         </div>
       )}
 
@@ -575,6 +664,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
             onToggleMute={toggleMute}
             onAudioState={setAudioState}
             onStatsSample={handleStatsSample}
+            isExiting={isExiting}
           />
         ) : gameExitedData ? (
           <div className="stream-connecting-box glass-panel" style={{ maxWidth: '460px', padding: '28px' }}>
@@ -602,12 +692,9 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
             <div className="stream-offline-icon" style={{ marginBottom: '16px' }}>
               <AlertTriangleIcon size={36} />
             </div>
-            <h3 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Host Screen Capture Offline</h3>
+            <h3 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Screen Capture Reconnecting</h3>
             <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem', lineHeight: '1.5', margin: '0 0 12px 0' }}>
-              The WebRTC streaming pipeline on <strong>{sessionData?.machine_name || 'Host PC'}</strong> is waiting for the GStreamer screen capture service.
-            </p>
-            <p className="stream-offline-hint" style={{ fontSize: '0.82rem', background: 'rgba(255,255,255,0.05)', padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-              Run <code>python stream_node.py</code> on your Gaming PC to connect the streaming service.
+              The cloud gaming rig is preparing your stream. Please wait a moment or tap Retry Connection.
             </p>
             <div style={{ display: 'flex', gap: '12px', marginTop: '20px', justifyContent: 'center' }}>
               <button className="btn-primary" onClick={checkGst} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px' }}>

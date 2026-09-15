@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../config';
-import { GamepadIcon, RocketIcon, CalendarIcon, LockIcon, HistoryIcon, PlayIcon } from './Icons';
+import { GamepadIcon, RocketIcon, CalendarIcon, LockIcon, HistoryIcon, PlayIcon, ClockIcon, XIcon } from './Icons';
 
 let cachedBookingsData = null;
 let cachedDailyQuota = null;
@@ -160,30 +160,39 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
       {/* 1. ACTIVE SESSIONS */}
       <div className="bookings-section">
         <h2 className="section-title active-section-title">
-          <span className="live-pulsing-badge">● LIVE NOW</span> Active Sessions ({bookingsData.active.length})
+          <span className="live-pulsing-badge">
+            <span className="live-pulsing-dot" /> LIVE NOW
+          </span>
+          Active Sessions ({bookingsData.active.length})
         </h2>
 
         {bookingsData.active.length > 0 ? (
           <div className="active-sessions-list">
             {bookingsData.active.map((b) => (
               <div key={b.id} className="active-booking-card glass-panel">
-                <div className="active-card-glow" />
-
-                {b.game_cover_url && (
-                  <div
-                    className="booking-game-poster"
-                    style={{ backgroundImage: `url(${b.game_cover_url})` }}
-                  />
-                )}
+                <div
+                  className="booking-game-poster"
+                  style={{ backgroundImage: b.game_cover_url ? `url(${b.game_cover_url})` : undefined }}
+                >
+                  {!b.game_cover_url && <GamepadIcon size={26} />}
+                </div>
 
                 <div className="active-card-body">
                   <div className="active-card-top">
-                    <span className="live-status-badge">READY TO PLAY</span>
-                    <h3 className="active-game-name">{b.game_title || 'Cloud Game'}</h3>
+                    <div className="active-card-title-group">
+                      <h3 className="active-game-name">{b.game_title || 'Cloud Game'}</h3>
+                      <span className="active-rig-sub">{b.machine_name || 'Cloud Rig'}</span>
+                    </div>
+                    <span className="live-status-badge">
+                      <span className="live-dot" /> Ready to Play
+                    </span>
                   </div>
 
                   <div className="countdown-timer-box">
-                    <span className="timer-label">Time Remaining</span>
+                    <div className="timer-label-wrap">
+                      <ClockIcon size={13} />
+                      <span className="timer-label">Time Remaining</span>
+                    </div>
                     <span className="timer-digits">{formatCountdown(b.end_time)}</span>
                   </div>
 
@@ -198,9 +207,9 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
                       className="btn-cancel-active-session"
                       onClick={() => handleCancelBooking(b.id, true)}
                       disabled={cancellingId === b.id}
-                      title="Cancel session early and free up remaining time"
+                      title="End session early and release remaining time"
                     >
-                      {cancellingId === b.id ? 'Cancelling...' : 'Cancel'}
+                      <XIcon size={14} /> {cancellingId === b.id ? 'Ending...' : 'End Session'}
                     </button>
                   </div>
                 </div>
@@ -288,16 +297,25 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
               <span>Time</span>
               <span>Status</span>
             </div>
-            {bookingsData.past.slice(0, 5).map((b) => (
-              <div key={b.id} className="past-table-row">
-                <span><strong>{b.game_title || 'Cloud Game'}</strong></span>
-                <span>{new Date(b.start_time).toLocaleDateString()}</span>
-                <span>
-                  {new Date(b.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-                <span className={`status-tag ${b.status}`}>{b.status.toUpperCase()}</span>
-              </div>
-            ))}
+            {bookingsData.past.slice(0, 8).map((b) => {
+              const isCancelled = b.status === 'cancelled';
+              const isCompleted = b.status === 'completed' || b.status === 'confirmed';
+              return (
+                <div key={b.id} className="past-table-row">
+                  <span className="past-cell-game"><strong>{b.game_title || 'Cloud Game'}</strong></span>
+                  <span className="past-cell-date">{new Date(b.start_time).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+                  <span className="past-cell-time">
+                    {new Date(b.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <span className="past-cell-status">
+                    <span className={`past-status-pill ${b.status}`}>
+                      <span className="past-status-dot" />
+                      {isCancelled ? 'Cancelled' : isCompleted ? 'Completed' : b.status}
+                    </span>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
