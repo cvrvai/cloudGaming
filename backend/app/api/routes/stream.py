@@ -67,7 +67,9 @@ async def create_stream(offer: SdpOffer) -> dict:
             raise HTTPException(status_code=500, detail=str(exc))
 
     # 2. Cloud Relay Mode: Backend is running on Cloud (Render) - forward offer to connected gaming PC node
-    target_node_id = offer.node_id or offer.machine_id or node_relay.get_any_connected_node_id()
+    target_node_id = offer.node_id or offer.machine_id
+    if not target_node_id or not node_relay.is_node_connected(target_node_id):
+        target_node_id = node_relay.get_any_connected_node_id()
     if target_node_id and node_relay.is_node_connected(target_node_id):
         try:
             _, turn_uri = await get_ice_configuration()

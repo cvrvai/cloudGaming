@@ -81,15 +81,23 @@ async def verify_session_access(
 
     remaining_seconds = max(1, int((end_dt - now).total_seconds()))
 
-    # Trigger trusted host agent to start game if this machine is host and a game was reserved
+    target_machine_id = booking["machine_id"]
+    from app.services.streaming.node_relay import node_relay
+    from app.services.streaming.manager import stream_manager
+
+    # If the reserved machine is not connected, fallback to any connected node
+    if not node_relay.is_node_connected(target_machine_id):
+        fallback_node = node_relay.get_any_connected_node_id()
+        if fallback_node:
+            target_machine_id = fallback_node
+
+    # Trigger trusted host agent to start game if a game was reserved
     agent_launch_info = None
     if booking["game_id"]:
-        from app.services.streaming.node_relay import node_relay
-        from app.services.streaming.manager import stream_manager
-        if node_relay.is_node_connected(booking["machine_id"]):
+        if node_relay.is_node_connected(target_machine_id):
             try:
                 cmd_res = await node_relay.forward_game_command(
-                    booking["machine_id"],
+                    target_machine_id,
                     "START_GAME",
                     {
                         "game_id": booking["game_id"],
@@ -114,7 +122,7 @@ async def verify_session_access(
         {
             "sub": current_user["id"],
             "booking_id": booking["id"],
-            "machine_id": booking["machine_id"],
+            "machine_id": target_machine_id,
             "type": "game_stream_session",
         }
     )
@@ -122,7 +130,7 @@ async def verify_session_access(
     return {
         "status": "authorized",
         "booking_id": booking["id"],
-        "machine_id": booking["machine_id"],
+        "machine_id": target_machine_id,
         "machine_name": booking["machine_name"],
         "is_host": bool(booking["is_host"]),
         "gpu": booking["gpu"],
