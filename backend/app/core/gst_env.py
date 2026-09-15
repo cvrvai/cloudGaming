@@ -7,8 +7,6 @@ RUN_SERVICES.md flow.
 import os
 import sys
 
-from app.core.config import settings
-
 _configured = False
 
 
@@ -18,8 +16,15 @@ def configure_gstreamer_env() -> None:
         return
     _configured = True
 
+    configured_bin = os.getenv("GSTREAMER_BIN", "")
+    try:
+        from app.core.config import settings
+        configured_bin = getattr(settings, "gstreamer_bin", configured_bin)
+    except Exception:
+        pass
+
     candidates = [
-        settings.gstreamer_bin,
+        configured_bin,
         os.path.expandvars(r"%LOCALAPPDATA%\Programs\gstreamer\1.0\msvc_x86_64\bin"),
         r"C:\Program Files\gstreamer\1.0\msvc_x86_64\bin",
         r"C:\gstreamer\1.0\msvc_x86_64\bin",

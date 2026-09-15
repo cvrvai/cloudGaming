@@ -15,9 +15,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from app.db import get_db
-from app.services.storage.save_manager import save_manager
-
 logger = logging.getLogger("agent")
 
 # Predefined, strictly permitted operations

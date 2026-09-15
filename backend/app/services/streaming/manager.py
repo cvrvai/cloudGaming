@@ -6,7 +6,6 @@ import threading
 import uuid
 from typing import Dict
 
-from app.core.config import settings
 from app.services.streaming.diagnostics import GSTREAMER_AVAILABLE, GSTREAMER_IMPORT_ERROR
 from app.services.streaming.peer import GStreamerWebRTCPeer
 

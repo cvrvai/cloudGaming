@@ -68,10 +68,15 @@ def audio_plugins_available() -> bool:
 
 
 def _find_gst_inspect() -> Optional[str]:
-    from app.core.config import settings
+    gst_bin = os.getenv("GSTREAMER_BIN", r"C:\gstreamer\1.0\msvc_x86_64\bin")
+    try:
+        from app.core.config import settings
+        gst_bin = getattr(settings, "gstreamer_bin", gst_bin)
+    except Exception:
+        pass
 
     candidates = [
-        os.path.join(settings.gstreamer_bin, "gst-inspect-1.0.exe"),
+        os.path.join(gst_bin, "gst-inspect-1.0.exe"),
         shutil.which("gst-inspect-1.0"),
         shutil.which("gst-inspect-1.0.exe"),
     ]
