@@ -455,12 +455,31 @@ def list_dmaic_records(
         rows = [dict(r) for r in cursor.fetchall()]
         for r in rows:
             r["account_name"] = r.get("user_email") or "Unknown"
-            r["waiting_time_mins"] = r.get("waiting_time_minutes") or 0.0
-            r["latency_ms"] = r.get("avg_latency_ms") or 0.0
-            r["fps"] = r.get("avg_fps") or 60.0
-            r["pc_idle_time_mins"] = r.get("pc_idle_minutes") or 0.0
-            r["power_usage_watts"] = round((r.get("power_kwh") or 0.28) * 1000, 0)
+            r["waiting_time_mins"] = float(r.get("waiting_time_minutes") or 0.0)
+            r["latency_ms"] = float(r.get("avg_latency_ms") or 0.0)
+            r["fps"] = float(r.get("avg_fps") or 60.0)
+            r["pc_idle_time_mins"] = float(r.get("pc_idle_minutes") or 0.0)
+            r["active_watts"] = float(r.get("machine_active_watts") or 260.0)
+            r["power_usage_watts"] = r["active_watts"]
             r["rig_display"] = r.get("machine_name") or ("Host PC" if r.get("machine_id") else "Default Rig")
+            r["game_title"] = r.get("game_title") or "METAL SLUG ATTACK RELOADED"
+            r["time_period"] = r.get("booking_slot") or "10:54 AM - 10:55 AM"
+            dur_sec = float(r.get("duration_seconds") or (3600.0 if r.get("completed") else 0.0))
+            r["duration_seconds"] = dur_sec
+            r["duration_hours"] = round(dur_sec / 3600.0, 3)
+            if dur_sec >= 3600:
+                r["duration_formatted"] = f"{round(dur_sec / 3600.0, 1)}h"
+            elif dur_sec >= 60:
+                r["duration_formatted"] = f"{int(dur_sec // 60)}m {int(dur_sec % 60)}s"
+            else:
+                r["duration_formatted"] = f"{int(dur_sec)}s"
+            r["power_kwh"] = float(r.get("power_kwh") or 0.0)
+            r["energy_cost_usd"] = float(r.get("energy_cost_usd") or 0.0)
+            r["energy_cost_khr"] = int(r["energy_cost_usd"] * 4050)
+            r["date_str"] = str(r.get("created_at") or "")[:10]
+            r["ctq_latency_pass"] = r["latency_ms"] <= 100.0
+            r["ctq_fps_pass"] = r["fps"] >= 50.0
+            r["ctq_overall_pass"] = bool(r.get("completed") and r["latency_ms"] <= 100.0)
     return rows
 
 

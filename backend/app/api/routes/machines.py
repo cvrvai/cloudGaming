@@ -319,6 +319,28 @@ async def stop_machine_stream(
             (now_iso, machine_id),
         )
 
+        # Look up installed game for machine
+        cursor.execute(
+            """
+            SELECT g.title FROM node_games ng
+            JOIN games g ON ng.game_id = g.id
+            WHERE ng.node_id = %s
+            ORDER BY ng.id ASC LIMIT 1;
+            """,
+            (machine_id,)
+        )
+        game_row = cursor.fetchone()
+        game_title = game_row["title"] if game_row else "METAL SLUG ATTACK RELOADED"
+
+        # Calculate time period string in local time (UTC+7 / Cambodia time)
+        try:
+            tz_offset = timedelta(hours=7)
+            start_local = (start_dt + tz_offset).strftime("%I:%M %p")
+            end_local = (now + tz_offset).strftime("%I:%M %p")
+            time_window = f"{start_local} - {end_local}"
+        except Exception:
+            time_window = "Live Stream Session"
+
         # Insert telemetry record into session_telemetry so it immediately records to Daily Watt Log
         cursor.execute("SELECT COUNT(*) as count FROM session_telemetry;")
         count = cursor.fetchone()["count"] + 1
@@ -327,13 +349,13 @@ async def stop_machine_stream(
         cursor.execute(
             """
             INSERT INTO session_telemetry (
-                test_id, user_email, machine_id, requested_time, booking_slot,
+                test_id, user_email, machine_id, game_title, requested_time, booking_slot,
                 waiting_time_minutes, avg_latency_ms, max_latency_ms, avg_fps,
                 packet_loss_pct, disconnects_count, completed,
                 pc_idle_minutes, power_kwh, energy_cost_usd, duration_seconds, phase, source,
                 created_at, notes
             ) VALUES (
-                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s,
                 %s, %s, %s, %s, %s, %s,
@@ -341,11 +363,11 @@ async def stop_machine_stream(
             );
             """,
             (
-                test_id, admin_user.get("email", "admin@cloudkh.space"), machine_id, now_iso, "Live Stream Session",
+                test_id, admin_user.get("email", "admin@cloudkh.space"), machine_id, game_title, now_iso, time_window,
                 0.0, 42.5, 68.0, 60.0,
                 0.1, 0, True,
                 0.0, power_kwh, cost_usd, round(duration_seconds, 1), "V2_Improved", "admin_stream",
-                now_iso, f"Live stream run on {m_dict['name']} ({round(duration_seconds)}s)",
+                now_iso, f"Live stream of {game_title} on {m_dict['name']} ({round(duration_seconds)}s)",
             ),
         )
         conn.commit()

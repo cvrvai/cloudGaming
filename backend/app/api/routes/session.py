@@ -252,14 +252,14 @@ async def record_live_session_telemetry(
                 game_title, requested_time, booking_slot, waiting_time_minutes,
                 avg_latency_ms, max_latency_ms, avg_fps, packet_loss_pct,
                 disconnects_count, completed, failure_reason, pc_idle_minutes,
-                power_kwh, energy_cost_usd, phase, source, integrity_hash,
+                power_kwh, energy_cost_usd, duration_seconds, phase, source, integrity_hash,
                 notes, created_at
             ) VALUES (
                 %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s, %s,
-                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s,
                 %s, %s
             ) RETURNING *;
             """,
@@ -268,7 +268,7 @@ async def record_live_session_telemetry(
                 game_title, now_iso, booking_slot, waiting_time_mins,
                 req.avg_latency_ms, req.max_latency_ms, req.avg_fps, req.packet_loss_pct,
                 req.disconnects_count, req.completed, req.failure_reason, 0.0,
-                power_kwh, cost_usd, req.phase or "V2_Improved", "automated_stream", integrity_hash,
+                power_kwh, cost_usd, float(req.duration_seconds), req.phase or "V2_Improved", "automated_stream", integrity_hash,
                 f"Live WebRTC stream on {game_title} (duration: {int(req.duration_seconds)}s)", now_iso,
             ),
         )
