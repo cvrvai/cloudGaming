@@ -26,6 +26,7 @@ except Exception as exc:
     PYNPUT_AVAILABLE = False
     logger.info("pynput not available in headless environment (%s) - keyboard/mouse emulation disabled", exc)
 
+from app.core.config import settings
 from app.utils.display_linux import get_monitor_geometry
 
 try:
@@ -127,11 +128,8 @@ class GamepadService:
         self.mouse_buttons_down: set = set()
         self.gamepad = None
         self.left_stick: Dict[str, float] = {"x": 0.0, "y": 0.0}
-        try:
-            from app.core.config import settings
-            self.mouse_sensitivity = getattr(settings, "mouse_sensitivity", 20)
-        except Exception:
-            self.mouse_sensitivity = 20
+        self.right_stick: Dict[str, float] = {"x": 0.0, "y": 0.0}
+        self.mouse_sensitivity = getattr(settings, "mouse_sensitivity", 20)
         # The browser sends normalized coordinates (0..1). Resolve the X11
         # monitor once rather than spawning xrandr for every pointer event.
         self._mouse_region = None

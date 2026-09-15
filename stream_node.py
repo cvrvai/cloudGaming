@@ -22,6 +22,12 @@ import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Auto-switch to project virtual environment if running under global python
+VENV_PYTHON = Path(__file__).resolve().parent / "backend" / ".venv" / ("Scripts" if sys.platform == "win32" else "bin") / ("python.exe" if sys.platform == "win32" else "python")
+if VENV_PYTHON.is_file() and os.path.abspath(sys.executable).lower() != os.path.abspath(VENV_PYTHON).lower() and os.environ.get("STREAM_NODE_VENV_LAUNCHED") != "1":
+    os.environ["STREAM_NODE_VENV_LAUNCHED"] = "1"
+    sys.exit(subprocess.call([str(VENV_PYTHON)] + sys.argv))
+
 # Add backend directory to sys.path so app packages can be imported
 BACKEND_DIR = Path(__file__).resolve().parent / "backend"
 if str(BACKEND_DIR) not in sys.path:

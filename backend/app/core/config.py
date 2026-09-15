@@ -3,7 +3,20 @@ from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+try:
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+except ImportError:
+    class BaseSettings:  # type: ignore
+        def __init__(self, **kwargs):
+            for cls in reversed(self.__class__.__mro__):
+                for k, v in cls.__dict__.items():
+                    if not k.startswith("_") and not callable(v):
+                        setattr(self, k, v)
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+
+    def SettingsConfigDict(**kwargs):  # type: ignore
+        return kwargs
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
