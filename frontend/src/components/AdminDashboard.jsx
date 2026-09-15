@@ -1253,6 +1253,23 @@ export default function AdminDashboard() {
           <h1 className="admin-title">Admin Console</h1>
         </div>
         <div className="admin-header-actions">
+          {backendError && (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: '#fca5a5',
+              padding: '4px 10px',
+              borderRadius: '8px',
+              fontSize: '11px',
+              fontWeight: 600,
+            }}>
+              <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }} />
+              <span>Reconnecting to server...</span>
+            </div>
+          )}
           <button className="btn-pair-pc-header" onClick={openPairModal}>
             <KeyIcon size={14} />
             <span>Pair PC</span>
@@ -1376,28 +1393,46 @@ export default function AdminDashboard() {
             Please sign in with your administrator account to access fleet hardware, DMAIC evidence, and electricity tracking.
           </p>
         </div>
-      ) : backendError ? (
-        <div style={{
-          margin: '2rem 0',
-          padding: '1.25rem 1.5rem',
-          borderRadius: '12px',
-          background: '#fef2f2',
-          border: '1px solid #fecaca',
-          color: '#991b1b',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1rem',
-        }}>
-          <AlertTriangleIcon size={24} style={{ flexShrink: 0, color: '#dc2626' }} />
-          <div>
-            <strong style={{ display: 'block', fontSize: '1rem', marginBottom: '0.25rem' }}>Backend Connection Error</strong>
-            <span style={{ fontSize: '0.875rem' }}>{backendError}</span>
-          </div>
-        </div>
-      ) : loading ? (
+      ) : loading && machines.length === 0 && !cachedAdminData ? (
         <div className="admin-loading">Loading management data...</div>
       ) : (
         <>
+          {backendError && (
+            <div style={{
+              margin: '0.75rem 0 1rem',
+              padding: '0.65rem 1rem',
+              borderRadius: '8px',
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              color: '#fca5a5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '12px',
+              gap: '12px',
+            }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
+                <span>Backend server temporarily offline or reconnecting &bull; Displaying cached telemetry &amp; rig data</span>
+              </div>
+              <button
+                onClick={fetchAllAdminData}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: '#e2e8f0',
+                  padding: '3px 10px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          )}
           {/* TAB 1: GAMING PCS IN-LINE LIST & DAILY WATT CONSUMPTION TABLE */}
           {adminTab === 'machines' && (
             <div className="admin-tab-content">
