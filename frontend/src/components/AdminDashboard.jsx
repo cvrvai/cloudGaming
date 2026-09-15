@@ -112,6 +112,7 @@ export default function AdminDashboard() {
   const [seedingTrials, setSeedingTrials] = useState(false);
   const [clearingEvidence, setClearingEvidence] = useState(false);
   const [seedSuccessMsg, setSeedSuccessMsg] = useState(null);
+  const [dmaicWhiteBg, setDmaicWhiteBg] = useState(true); // Default to clean white background for academic review / teacher presentation
 
   const fetchAllAdminData = async () => {
     if (!token) return;
@@ -366,6 +367,18 @@ export default function AdminDashboard() {
       userEvents.forEach((evt) => window.removeEventListener(evt, resetIdleTimer));
     };
   }, [token]);
+
+  // Sync white background class to body when on DMAIC tab for university teacher review
+  useEffect(() => {
+    if (adminTab === 'dmaic' && dmaicWhiteBg) {
+      document.body.classList.add('dmaic-white-page-mode');
+    } else {
+      document.body.classList.remove('dmaic-white-page-mode');
+    }
+    return () => {
+      document.body.classList.remove('dmaic-white-page-mode');
+    };
+  }, [adminTab, dmaicWhiteBg]);
 
   const handleToggleMaintenance = async (machine) => {
     const nextStatus = machine.status === 'maintenance' ? 'available' : 'maintenance';
@@ -842,7 +855,7 @@ export default function AdminDashboard() {
   const sumCost = filteredDmaicRecords.reduce((s, r) => s + (r.energy_cost_usd ?? ((r.power_kwh ?? 0.28) * 0.18)), 0);
 
   return (
-    <div className="admin-dashboard-container">
+    <div className={`admin-dashboard-container ${adminTab === 'dmaic' && dmaicWhiteBg ? 'dmaic-white-container' : ''}`}>
       {/* Top Overview & Action Toolbar */}
       <div className="admin-header-clean">
         <div>
@@ -1379,13 +1392,21 @@ export default function AdminDashboard() {
 
           {/* TAB 5: LEAN SIX SIGMA DMAIC CTQ DASHBOARD */}
           {adminTab === 'dmaic' && (
-            <div className="admin-tab-content">
+            <div className={`admin-tab-content ${dmaicWhiteBg ? 'dmaic-academic-white-theme' : ''}`}>
               {/* Project Hero Banner - Compact Executive Header */}
               <div className="dmaic-hero-banner glass-panel compact">
                 <div className="dmaic-hero-content">
                   <div className="dmaic-badge-row compact">
                     <span className="dmaic-badge">Operations Research &bull; Lean Six Sigma DMAIC</span>
                     <span className="dmaic-subbadge">CloudKH &bull; {machines.length || 2} Campus Gaming PCs</span>
+                    <button
+                      type="button"
+                      className={`dmaic-theme-toggle-btn ${dmaicWhiteBg ? 'white-active' : 'dark-active'}`}
+                      onClick={() => setDmaicWhiteBg(!dmaicWhiteBg)}
+                      title="Toggle pure white presentation mode for teacher/academic grading review"
+                    >
+                      {dmaicWhiteBg ? '☀️ White Paper (Teacher View)' : '🌙 Dark Cyberpunk Theme'}
+                    </button>
                   </div>
                   <h2 className="dmaic-hero-title compact">Voice of Customer (VOC) to Critical to Quality (CTQ) Telemetry</h2>
                   <p className="dmaic-hero-desc compact">

@@ -2973,3 +2973,401 @@
   gap: 16px;
 }
 
+/* ==========================================================================
+   DMAIC ACADEMIC WHITE PAPER PRESENTATION MODE (TEACHER VIEW)
+   Pure white background for university professor review, paper slides & grading
+   ========================================================================== */
+
+body.dmaic-white-page-mode {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+body.dmaic-white-page-mode .app-container {
+  background: #ffffff !important;
+}
+
+body.dmaic-white-page-mode .cloudkh-main-content {
+  background: #ffffff !important;
+}
+
+/* Theme Toggle Button */
+.dmaic-theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.dmaic-theme-toggle-btn.white-active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+  box-shadow: 0 1px 4px rgba(2, 132, 199, 0.25);
+}
+
+.dmaic-theme-toggle-btn.white-active:hover {
+  background: #0369a1;
+}
+
+.dmaic-theme-toggle-btn.dark-active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #a1a1aa;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.dmaic-theme-toggle-btn.dark-active:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+/* White Container Styling */
+.dmaic-white-container .admin-header-clean .admin-title {
+  color: #0f172a !important;
+}
+
+.dmaic-white-container .pairing-mfa-badge {
+  background: #f0fdf4 !important;
+  border: 1px solid #86efac !important;
+  color: #166534 !important;
+}
+
+.dmaic-white-container .admin-bento-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+}
+
+.dmaic-white-container .admin-bento-card:hover {
+  border-color: #0284c7 !important;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.12) !important;
+}
+
+.dmaic-white-container .bento-tag {
+  color: #64748b !important;
+}
+
+.dmaic-white-container .bento-value {
+  color: #0f172a !important;
+}
+
+.dmaic-white-container .bento-value.highlight-green {
+  color: #15803d !important;
+  text-shadow: none !important;
+}
+
+.dmaic-white-container .bento-subval {
+  color: #64748b !important;
+}
+
+.dmaic-white-container .admin-subnav-btn {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+.dmaic-white-container .admin-subnav-btn:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.dmaic-white-container .admin-subnav-btn.active {
+  background: #0284c7 !important;
+  color: #ffffff !important;
+  border-color: #0284c7 !important;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.25) !important;
+}
+
+/* Pure White DMAIC Tab Content */
+.dmaic-academic-white-theme {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .dmaic-hero-banner {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05) !important;
+}
+
+.dmaic-academic-white-theme .dmaic-hero-title {
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .dmaic-hero-desc {
+  color: #334155 !important;
+}
+
+.dmaic-academic-white-theme .dmaic-badge {
+  background: #e0f2fe !important;
+  color: #0369a1 !important;
+  border: 1px solid #7dd3fc !important;
+}
+
+.dmaic-academic-white-theme .dmaic-subbadge {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.dmaic-academic-white-theme .btn-compact.btn-primary {
+  background: #0284c7 !important;
+  border-color: #0284c7 !important;
+  color: #ffffff !important;
+}
+
+.dmaic-academic-white-theme .btn-compact.btn-seed-trials {
+  background: #f0f9ff !important;
+  border-color: #bae6fd !important;
+  color: #0284c7 !important;
+}
+
+.dmaic-academic-white-theme .btn-compact.btn-secondary {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+}
+
+.dmaic-academic-white-theme .btn-compact.btn-clear-data {
+  background: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #b91c1c !important;
+}
+
+/* 4 CTQ Cards in White Theme */
+.dmaic-academic-white-theme .dmaic-ctq-card {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
+}
+
+.dmaic-academic-white-theme .dmaic-ctq-card:hover {
+  border-color: #0284c7 !important;
+  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.12) !important;
+}
+
+.dmaic-academic-white-theme .ctq-owner-tag {
+  color: #0284c7 !important;
+}
+
+.dmaic-academic-white-theme .ctq-owner-tag.sean {
+  color: #0d9488 !important;
+}
+
+.dmaic-academic-white-theme .ctq-owner-tag.hokann {
+  color: #d97706 !important;
+}
+
+.dmaic-academic-white-theme .ctq-owner-tag.hour {
+  color: #7c3aed !important;
+}
+
+.dmaic-academic-white-theme .ctq-status-badge.pass {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+  border: 1px solid #86efac !important;
+}
+
+.dmaic-academic-white-theme .ctq-status-badge.risk {
+  background: #fee2e2 !important;
+  color: #b91c1c !important;
+  border: 1px solid #fca5a5 !important;
+}
+
+.dmaic-academic-white-theme .ctq-metric-title {
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .ctq-target-spec {
+  color: #475569 !important;
+}
+
+.dmaic-academic-white-theme .ctq-target-spec .spec-label {
+  color: #64748b !important;
+}
+
+.dmaic-academic-white-theme .ctq-big-value {
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .ctq-unit {
+  color: #64748b !important;
+}
+
+.dmaic-academic-white-theme .ctq-stats-breakdown {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.dmaic-academic-white-theme .substat-label {
+  color: #475569 !important;
+}
+
+.dmaic-academic-white-theme .substat-val {
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .text-defect {
+  color: #dc2626 !important;
+}
+
+/* Multi-PC Electricity Section in White Theme */
+.dmaic-academic-white-theme .dmaic-section-tag {
+  color: #0284c7 !important;
+}
+
+.dmaic-academic-white-theme .section-heading-compact {
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .section-sub-compact {
+  color: #475569 !important;
+}
+
+.dmaic-academic-white-theme .electricity-fleet-budget-banner {
+  background: #ffffff !important;
+  border: 1.5px solid #38bdf8 !important;
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.1) !important;
+}
+
+.dmaic-academic-white-theme .fleet-budget-metric-box:not(:last-child) {
+  border-right: 1px solid #e2e8f0 !important;
+}
+
+.dmaic-academic-white-theme .budget-metric-label {
+  color: #475569 !important;
+}
+
+.dmaic-academic-white-theme .budget-metric-val {
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .budget-metric-val.highlight-usd {
+  color: #0284c7 !important;
+  text-shadow: none !important;
+}
+
+.dmaic-academic-white-theme .budget-metric-val.highlight-rate {
+  color: #b45309 !important;
+}
+
+.dmaic-academic-white-theme .budget-metric-val.highlight-green {
+  color: #15803d !important;
+  text-shadow: none !important;
+}
+
+.dmaic-academic-white-theme .budget-currency-tag {
+  color: #64748b !important;
+}
+
+.dmaic-academic-white-theme .budget-metric-sub {
+  color: #1e293b !important;
+}
+
+.dmaic-academic-white-theme .budget-metric-note {
+  color: #475569 !important;
+}
+
+.dmaic-academic-white-theme .pc-power-card {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05) !important;
+}
+
+.dmaic-academic-white-theme .pc-power-card:hover {
+  border-color: #0284c7 !important;
+  box-shadow: 0 6px 20px rgba(2, 132, 199, 0.12) !important;
+}
+
+.dmaic-academic-white-theme .pc-power-badge {
+  color: #0284c7 !important;
+}
+
+.dmaic-academic-white-theme .pc-power-name {
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .pc-specs-subtext {
+  color: #475569 !important;
+}
+
+.dmaic-academic-white-theme .pc-power-status-pill {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+  border: 1px solid #86efac !important;
+}
+
+.dmaic-academic-white-theme .power-draw-specs-strip {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.dmaic-academic-white-theme .draw-label {
+  color: #1e293b !important;
+}
+
+.dmaic-academic-white-theme .draw-val.highlight-watt {
+  color: #b45309 !important;
+}
+
+.dmaic-academic-white-theme .draw-val.highlight-idle {
+  color: #0284c7 !important;
+}
+
+.dmaic-academic-white-theme .draw-breakdown {
+  color: #475569 !important;
+}
+
+.dmaic-academic-white-theme .energy-stat-cell {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.dmaic-academic-white-theme .cell-label {
+  color: #64748b !important;
+}
+
+.dmaic-academic-white-theme .cell-value {
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .pc-two-week-forecast-box {
+  background: #f0fdf4 !important;
+  border: 1px solid #86efac !important;
+}
+
+.dmaic-academic-white-theme .forecast-title {
+  color: #15803d !important;
+}
+
+.dmaic-academic-white-theme .forecast-tag {
+  color: #166534 !important;
+}
+
+.dmaic-academic-white-theme .f-label {
+  color: #334155 !important;
+}
+
+.dmaic-academic-white-theme .f-val {
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .f-val.highlight-usd {
+  color: #0284c7 !important;
+}
+
+.dmaic-academic-white-theme .f-val.highlight-green {
+  color: #15803d !important;
+}
+
+.dmaic-academic-white-theme .f-khr {
+  color: #475569 !important;
+}
+
+
