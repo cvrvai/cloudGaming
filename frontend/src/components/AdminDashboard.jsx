@@ -820,8 +820,8 @@ export default function AdminDashboard() {
         projected_cost_usd: 5.04,
         projected_cost_khr: 20412,
         direct_cost_per_hr: 0.047,
-        recommended_charge_per_hr: 0.50,
-        profit_margin_pct: 91,
+        idle_waste_kwh: 13.44,
+        idle_waste_usd: 2.42,
       },
     },
     {
@@ -845,8 +845,8 @@ export default function AdminDashboard() {
         projected_cost_usd: 4.03,
         projected_cost_khr: 16321,
         direct_cost_per_hr: 0.038,
-        recommended_charge_per_hr: 0.50,
-        profit_margin_pct: 92,
+        idle_waste_kwh: 10.64,
+        idle_waste_usd: 1.92,
       },
     },
   ];
@@ -854,6 +854,8 @@ export default function AdminDashboard() {
   const totalPilotCostUsd = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.projected_cost_usd || 0), 0) || 9.07;
   const totalPilotCostKhr = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.projected_cost_khr || 0), 0) || 36733;
   const totalPilotKwh = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.projected_kwh || 0), 0) || 50.4;
+  const totalIdleWasteKwh = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.idle_waste_kwh || 0), 0) || 24.08;
+  const totalIdleWasteUsd = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.idle_waste_usd || 0), 0) || 4.34;
 
   const filteredDmaicRecords = dmaicRecords.filter((r) => dmaicPhaseFilter === 'all' || r.phase === dmaicPhaseFilter);
   const nDmaic = filteredDmaicRecords.length;
@@ -1632,9 +1634,9 @@ export default function AdminDashboard() {
                       </span>
                     </div>
                     <div className="ctq-substat">
-                      <span className="substat-label">Rec. Price</span>
-                      <span className="substat-val" style={{ color: '#4ade80' }} title="Electricity expense: ~$0.08/hr (break-even). Charging $0.50/hr gives ~84% profit margin.">
-                        $0.50 &ndash; $1.00 / hr
+                      <span className="substat-label">Standby Waste</span>
+                      <span className="substat-val" style={{ color: '#f87171' }} title="Standby electricity wasted when PC is powered on without active gameplay">
+                        {dmaicMetrics?.ctq2_utilization?.idle_waste_kwh ?? 0} kWh (${dmaicMetrics?.ctq2_utilization?.idle_waste_usd ?? 0})
                       </span>
                     </div>
                   </div>
@@ -1745,12 +1747,12 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="fleet-budget-metric-box">
-                  <div className="budget-metric-label">RECOMMENDED BETA CHARGE RATE</div>
-                  <div className="budget-metric-val highlight-green">
-                    $0.50 &ndash; $1.00 <span className="budget-currency-tag">/ hr</span>
+                  <div className="budget-metric-label">2-WEEK STANDBY IDLE WASTE (2 PCs)</div>
+                  <div className="budget-metric-val" style={{ color: '#f87171' }}>
+                    ${totalIdleWasteUsd.toFixed(2)} <span className="budget-currency-tag">USD</span>
                   </div>
                   <div className="budget-metric-sub">
-                    &asymp; 2,000 &ndash; 4,000 ៛ &bull; 84% &ndash; 92% Gross Margin
+                    {totalIdleWasteKwh.toFixed(1)} kWh wasted while idle &bull; Zero revenue
                   </div>
                 </div>
               </div>
@@ -1844,9 +1846,9 @@ export default function AdminDashboard() {
                             <span className="f-val">${forecast.direct_cost_per_hr?.toFixed(3) ?? '0.043'} / hr</span>
                           </div>
                           <div className="f-metric">
-                            <span className="f-label">Recommended Rate:</span>
-                            <span className="f-val highlight-green">
-                              ${forecast.recommended_charge_per_hr?.toFixed(2) ?? '0.50'} / hr ({forecast.profit_margin_pct ?? 91}% margin)
+                            <span className="f-label">Idle Waste (14d):</span>
+                            <span className="f-val" style={{ color: '#f87171' }}>
+                              {forecast.idle_waste_kwh ?? 12.0} kWh (${forecast.idle_waste_usd?.toFixed(2) ?? '2.16'})
                             </span>
                           </div>
                         </div>

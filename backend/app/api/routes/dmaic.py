@@ -133,7 +133,6 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
             two_wk_cost_usd = round(two_wk_kwh * 0.18, 2)
             two_wk_cost_khr = int(two_wk_cost_usd * 4050)
             direct_cost_hr = round((act_w / 1000.0) * 0.18, 3)
-            rec_charge_hr = 0.50
 
             machines_energy.append({
                 "id": m_dict["id"],
@@ -159,8 +158,8 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
                     "projected_cost_usd": two_wk_cost_usd,
                     "projected_cost_khr": two_wk_cost_khr,
                     "direct_cost_per_hr": direct_cost_hr,
-                    "recommended_charge_per_hr": rec_charge_hr,
-                    "profit_margin_pct": round(((rec_charge_hr - direct_cost_hr) / rec_charge_hr) * 100),
+                    "idle_waste_kwh": round((idl_w * two_wk_idle_hrs) / 1000.0, 2),
+                    "idle_waste_usd": round(((idl_w * two_wk_idle_hrs) / 1000.0) * 0.18, 2),
                 },
             })
 
@@ -198,10 +197,9 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     proj_cost_usd_14d = round(proj_kwh_14d * 0.18, 2)
     proj_cost_khr_14d = int(proj_cost_usd_14d * 4050)
 
-    # Cost per hour & Recommended commercial charge
+    # Direct electricity cost per hour
     direct_elec_cost_per_hr = round((280.0 / 1000.0) * 0.18, 3) # $0.050/hr
     full_amortized_cost_per_hr = round((proj_cost_usd_14d / max(1.0, proj_gaming_hours_14d)), 2) if proj_gaming_hours_14d > 0 else 0.08
-    recommended_price_usd = 0.50 # $0.50/hr gives ~84% gross profit margin
 
     # Realtime Redis Telemetry with graceful fallback
     try:
@@ -229,7 +227,7 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
         },
         "ctq2_utilization": {
             "owner": "Sean Pheavyraksonya",
-            "target": "Maximize Rig Efficiency & Minimize Idle Waste",
+            "target": "PC Utilization & Energy Waste (>= 70% Rig Utilization)",
             "pc_powered_hours": powered_hours,
             "gaming_hours": gaming_hours,
             "idle_hours": idle_hours,
@@ -239,6 +237,9 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
             "idle_watts": 55,
             "idle_power_breakdown": {"gpu_watts": 15, "cpu_watts": 20, "system_watts": 20},
             "total_kwh": total_est_kwh,
+            "active_kwh": round(kwh_gaming, 3),
+            "idle_waste_kwh": round(kwh_idle, 3),
+            "idle_waste_usd": round(kwh_idle * 0.18, 2),
             "est_cost_usd": est_cost_usd,
             "cost_per_session_usd": round(est_cost_usd / max(1, completed), 2),
             "two_week_forecast": {
@@ -250,9 +251,8 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
                 "proj_cost_usd": proj_cost_usd_14d,
                 "proj_cost_khr": proj_cost_khr_14d,
                 "direct_cost_per_game_hr_usd": direct_elec_cost_per_hr,
-                "full_breakeven_cost_per_hr_usd": full_amortized_cost_per_hr,
-                "recommended_hourly_charge_usd": recommended_price_usd,
-                "estimated_profit_margin_pct": 84,
+                "proj_idle_waste_kwh": round((55.0 * proj_idle_hours_14d) / 1000.0, 2),
+                "proj_idle_waste_usd": round(((55.0 * proj_idle_hours_14d) / 1000.0) * 0.18, 2),
             },
             "per_machine_energy": machines_energy,
         },
