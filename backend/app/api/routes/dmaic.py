@@ -97,6 +97,73 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
         rig_name = (dict(rig_row).get("name") if rig_row else None) or "Streaming PC"
         rig_display = f"1x {rig_gpu} (1 User at a time)"
 
+        # Per-machine electricity calculation (Multi-PC tracking with different specs)
+        cursor.execute("""
+            SELECT m.id, m.name, m.gpu, m.cpu, m.ram, m.status,
+                   COALESCE(m.active_watts, 280.0) as active_watts,
+                   COALESCE(m.idle_watts, 55.0) as idle_watts,
+                   COUNT(st.id) as sessions_count,
+                   COALESCE(SUM(CASE WHEN st.completed IS TRUE THEN 1 ELSE 0 END), 0) as completed_sessions,
+                   COALESCE(SUM(st.power_kwh), 0.0) as active_kwh,
+                   COALESCE(SUM(st.energy_cost_usd), 0.0) as active_cost_usd
+            FROM machines m
+            LEFT JOIN session_telemetry st ON st.machine_id = m.id
+            GROUP BY m.id, m.name, m.gpu, m.cpu, m.ram, m.status, m.active_watts, m.idle_watts
+            ORDER BY m.id ASC;
+        """)
+        machines_energy = []
+        for m in cursor.fetchall():
+            m_dict = dict(m)
+            c_sess = m_dict["completed_sessions"]
+            act_w = float(m_dict["active_watts"])
+            idl_w = float(m_dict["idle_watts"])
+            is_online = (m_dict.get("status") in ["available", "in-use"])
+            m_game_hrs = round(c_sess * 1.0, 1)
+            m_powered_hrs = max(16.0 if is_online else m_game_hrs, m_game_hrs)
+            m_idle_hrs = max(0.0, m_powered_hrs - m_game_hrs)
+            m_active_kwh = round(float(m_dict["active_kwh"]) if float(m_dict["active_kwh"]) > 0 else (act_w * m_game_hrs) / 1000.0, 3)
+            m_idle_kwh = round((idl_w * m_idle_hrs) / 1000.0, 3)
+            m_total_kwh = round(m_active_kwh + m_idle_kwh, 3)
+            m_total_cost_usd = round(float(m_dict["active_cost_usd"]) if float(m_dict["active_cost_usd"]) > 0 else m_total_kwh * 0.18, 2)
+
+            # 2-Week (14 day, 336 operating hours) projection
+            two_wk_game_hrs = round((m_game_hrs / max(1.0, m_powered_hrs)) * 336.0, 1) if m_game_hrs > 0 else 56.0
+            two_wk_idle_hrs = round(336.0 - two_wk_game_hrs, 1)
+            two_wk_kwh = round(((act_w * two_wk_game_hrs) + (idl_w * two_wk_idle_hrs)) / 1000.0, 2)
+            two_wk_cost_usd = round(two_wk_kwh * 0.18, 2)
+            two_wk_cost_khr = int(two_wk_cost_usd * 4050)
+            direct_cost_hr = round((act_w / 1000.0) * 0.18, 3)
+            rec_charge_hr = 0.50
+
+            machines_energy.append({
+                "id": m_dict["id"],
+                "name": m_dict["name"],
+                "gpu": m_dict["gpu"],
+                "cpu": m_dict["cpu"],
+                "ram": m_dict["ram"],
+                "status": m_dict.get("status", "offline"),
+                "active_watts": act_w,
+                "idle_watts": idl_w,
+                "completed_sessions": c_sess,
+                "gaming_hours": m_game_hrs,
+                "idle_hours": m_idle_hrs,
+                "active_kwh": m_active_kwh,
+                "idle_kwh": m_idle_kwh,
+                "total_kwh": m_total_kwh,
+                "total_cost_usd": m_total_cost_usd,
+                "total_cost_khr": int(m_total_cost_usd * 4050),
+                "two_week_forecast": {
+                    "projected_gaming_hours": two_wk_game_hrs,
+                    "projected_idle_hours": two_wk_idle_hrs,
+                    "projected_kwh": two_wk_kwh,
+                    "projected_cost_usd": two_wk_cost_usd,
+                    "projected_cost_khr": two_wk_cost_khr,
+                    "direct_cost_per_hr": direct_cost_hr,
+                    "recommended_charge_per_hr": rec_charge_hr,
+                    "profit_margin_pct": round(((rec_charge_hr - direct_cost_hr) / rec_charge_hr) * 100),
+                },
+            })
+
     total_sessions = t_stats["total_records"]
     completed = t_stats["completed_sessions"]
     failed = t_stats["failed_sessions"]
@@ -117,8 +184,6 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     utilization_pct = round((gaming_hours / powered_hours) * 100.0, 1) if powered_hours > 0 else 0.0
 
     # Energy calculations
-    # Active Gaming Power: ~280W (GPU ~180W, CPU ~65W, Motherboard/RAM/SSD/Fans ~35W)
-    # Idle Standby Power: ~55W (GPU ~15W, CPU ~20W, Motherboard/RAM/Fans ~20W)
     kwh_gaming = (280.0 * gaming_hours) / 1000.0
     kwh_idle = (55.0 * idle_hours) / 1000.0
     total_est_kwh = round(kwh_gaming + kwh_idle, 2)
@@ -138,70 +203,17 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     full_amortized_cost_per_hr = round((proj_cost_usd_14d / max(1.0, proj_gaming_hours_14d)), 2) if proj_gaming_hours_14d > 0 else 0.08
     recommended_price_usd = 0.50 # $0.50/hr gives ~84% gross profit margin
 
-    # Per-machine electricity calculation (Multi-PC tracking with different specs)
-    cursor.execute("""
-        SELECT m.id, m.name, m.gpu, m.cpu, m.ram,
-               COALESCE(m.active_watts, 280.0) as active_watts,
-               COALESCE(m.idle_watts, 55.0) as idle_watts,
-               COUNT(st.id) as sessions_count,
-               COALESCE(SUM(CASE WHEN st.completed = TRUE THEN 1 ELSE 0 END), 0) as completed_sessions,
-               COALESCE(SUM(st.power_kwh), 0.0) as active_kwh,
-               COALESCE(SUM(st.energy_cost_usd), 0.0) as active_cost_usd
-        FROM machines m
-        LEFT JOIN session_telemetry st ON st.machine_id = m.id
-        GROUP BY m.id, m.name, m.gpu, m.cpu, m.ram, m.active_watts, m.idle_watts
-        ORDER BY m.id ASC;
-    """)
-    machines_energy = []
-    for m in cursor.fetchall():
-        m_dict = dict(m)
-        c_sess = m_dict["completed_sessions"]
-        act_w = float(m_dict["active_watts"])
-        idl_w = float(m_dict["idle_watts"])
-        m_game_hrs = round(c_sess * 1.0, 1)
-        m_powered_hrs = max(16.0, m_game_hrs)
-        m_idle_hrs = max(0.0, m_powered_hrs - m_game_hrs)
-        m_active_kwh = round((act_w * m_game_hrs) / 1000.0, 3)
-        m_idle_kwh = round((idl_w * m_idle_hrs) / 1000.0, 3)
-        m_total_kwh = round(m_active_kwh + m_idle_kwh, 3)
-        m_total_cost_usd = round(m_total_kwh * 0.18, 2)
-
-        # 2-Week (14 day, 336 operating hours) projection
-        two_wk_game_hrs = round((m_game_hrs / max(1.0, m_powered_hrs)) * 336.0, 1) if m_game_hrs > 0 else 56.0
-        two_wk_idle_hrs = round(336.0 - two_wk_game_hrs, 1)
-        two_wk_kwh = round(((act_w * two_wk_game_hrs) + (idl_w * two_wk_idle_hrs)) / 1000.0, 2)
-        two_wk_cost_usd = round(two_wk_kwh * 0.18, 2)
-        two_wk_cost_khr = int(two_wk_cost_usd * 4050)
-        direct_cost_hr = round((act_w / 1000.0) * 0.18, 3)
-        rec_charge_hr = 0.50
-
-        machines_energy.append({
-            "id": m_dict["id"],
-            "name": m_dict["name"],
-            "gpu": m_dict["gpu"],
-            "cpu": m_dict["cpu"],
-            "ram": m_dict["ram"],
-            "active_watts": act_w,
-            "idle_watts": idl_w,
-            "completed_sessions": c_sess,
-            "gaming_hours": m_game_hrs,
-            "idle_hours": m_idle_hrs,
-            "active_kwh": m_active_kwh,
-            "idle_kwh": m_idle_kwh,
-            "total_kwh": m_total_kwh,
-            "total_cost_usd": m_total_cost_usd,
-            "total_cost_khr": int(m_total_cost_usd * 4050),
-            "two_week_forecast": {
-                "projected_gaming_hours": two_wk_game_hrs,
-                "projected_idle_hours": two_wk_idle_hrs,
-                "projected_kwh": two_wk_kwh,
-                "projected_cost_usd": two_wk_cost_usd,
-                "projected_cost_khr": two_wk_cost_khr,
-                "direct_cost_per_hr": direct_cost_hr,
-                "recommended_charge_per_hr": rec_charge_hr,
-                "profit_margin_pct": round(((rec_charge_hr - direct_cost_hr) / rec_charge_hr) * 100),
-            },
-        })
+    # Realtime Redis Telemetry with graceful fallback
+    try:
+        redis_telemetry = await get_dmaic_redis_metrics()
+    except Exception as exc:
+        logger.warning(f"Could not load Redis telemetry: {exc}")
+        redis_telemetry = {
+            "redis_connected": False,
+            "total_sessions_launched": total_sessions,
+            "today_sessions": 0,
+            "unique_beta_players": 1,
+        }
 
     return {
         "ctq1_latency": {
@@ -265,7 +277,7 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
             "failure_breakdown": failure_breakdown,
         },
         "per_machine_energy": machines_energy,
-        "realtime_redis_telemetry": await get_dmaic_redis_metrics(),
+        "realtime_redis_telemetry": redis_telemetry,
         "dmaic_meta": {
             "project_name": "CloudKH Cloud Gaming MVP",
             "organization": "CloudKH",

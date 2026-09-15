@@ -113,9 +113,13 @@ export default function AdminDashboard() {
   const [clearingEvidence, setClearingEvidence] = useState(false);
   const [seedSuccessMsg, setSeedSuccessMsg] = useState(null);
   const [dmaicWhiteBg, setDmaicWhiteBg] = useState(true); // Default to clean white background for academic review / teacher presentation
+  const [backendError, setBackendError] = useState(null);
 
   const fetchAllAdminData = async () => {
-    if (!token) return;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     try {
       const [mRes, bRes, gRes, uRes, dMetricsRes, dRecordsRes] = await Promise.all([
         fetch(`${API_BASE}/api/machines`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -125,6 +129,15 @@ export default function AdminDashboard() {
         fetch(`${API_BASE}/api/admin/dmaic/metrics`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${API_BASE}/api/admin/dmaic/records`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
+
+      if (!mRes.ok && mRes.status === 404) {
+        setBackendError('Port 8000 is occupied by another application or the CloudKH backend is offline. Please start CloudKH backend (python backend/run.py).');
+      } else if (!mRes.ok && (mRes.status === 401 || mRes.status === 403)) {
+        setBackendError('Administrator privileges required. Please log in with an admin account.');
+      } else {
+        setBackendError(null);
+      }
+
       const mData = mRes.ok ? await mRes.json() : (cachedAdminData?.machines || []);
       const bData = bRes.ok ? await bRes.json() : (cachedAdminData?.bookings || []);
       let gData = cachedAdminData?.games || [];
@@ -153,6 +166,7 @@ export default function AdminDashboard() {
       };
     } catch (err) {
       console.error('Failed to load admin data:', err);
+      setBackendError('Failed to connect to backend server at http://localhost:8000. Ensure the CloudKH backend is running.');
     } finally {
       setLoading(false);
     }
@@ -279,7 +293,7 @@ export default function AdminDashboard() {
   };
 
   const handleClearEvidence = async () => {
-    if (!window.confirm('⚠️ Clear All Experimental & Telemetry Data?\n\nThis will permanently delete all session telemetry records and reset the observation dataset to 0 records.')) {
+    if (!window.confirm('Clear All Experimental & Telemetry Data?\n\nThis will permanently delete all session telemetry records and reset the observation dataset to 0 records.')) {
       return;
     }
     setClearingEvidence(true);
@@ -978,7 +992,33 @@ export default function AdminDashboard() {
         </button>
       </div>
 
-      {loading ? (
+      {!token ? (
+        <div className="admin-loading" style={{ padding: '3.5rem 1.5rem', textAlign: 'center' }}>
+          <AlertTriangleIcon size={40} style={{ color: '#f59e0b', margin: '0 auto 1rem', display: 'block' }} />
+          <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: '#1e293b' }}>Administrator Login Required</h3>
+          <p style={{ color: '#64748b', fontSize: '0.925rem', maxWidth: '480px', margin: '0 auto' }}>
+            Please sign in with your administrator account to access fleet hardware, DMAIC evidence, and electricity tracking.
+          </p>
+        </div>
+      ) : backendError ? (
+        <div style={{
+          margin: '2rem 0',
+          padding: '1.25rem 1.5rem',
+          borderRadius: '12px',
+          background: '#fef2f2',
+          border: '1px solid #fecaca',
+          color: '#991b1b',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+        }}>
+          <AlertTriangleIcon size={24} style={{ flexShrink: 0, color: '#dc2626' }} />
+          <div>
+            <strong style={{ display: 'block', fontSize: '1rem', marginBottom: '0.25rem' }}>Backend Connection Error</strong>
+            <span style={{ fontSize: '0.875rem' }}>{backendError}</span>
+          </div>
+        </div>
+      ) : loading ? (
         <div className="admin-loading">Loading management data...</div>
       ) : (
         <>
@@ -1089,9 +1129,21 @@ export default function AdminDashboard() {
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '12px' }}>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '10px' }}>
                       <button
-                        style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                        style={{
+                          flex: 1,
+                          height: '32px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '5px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          borderRadius: '6px',
+                          marginTop: 0,
+                          padding: '0 8px',
+                        }}
                         className={`btn-toggle-maintenance ${m.status === 'maintenance' ? 'restore' : ''}`}
                         onClick={() => handleToggleMaintenance(m)}
                         disabled={updatingId === m.id}
@@ -1100,36 +1152,49 @@ export default function AdminDashboard() {
                           'Updating...'
                         ) : m.status === 'maintenance' ? (
                           <>
-                            <CheckIcon size={14} />
+                            <CheckIcon size={12} />
                             <span>Restore Available</span>
                           </>
                         ) : (
                           <>
-                            <AlertTriangleIcon size={14} />
+                            <AlertTriangleIcon size={12} />
                             <span>Maintenance Mode</span>
                           </>
                         )}
                       </button>
                       <button
                         className="btn-game-delete"
-                        style={{ padding: '0 16px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                        style={{
+                          height: '32px',
+                          padding: '0 12px',
+                          borderRadius: '6px',
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          border: '1px solid rgba(239, 68, 68, 0.25)',
+                          color: '#f87171',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          fontSize: '11px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                        }}
                         onClick={() => handleDeleteMachine(m.id, m.name)}
                         title="Delete this gaming PC node"
                       >
-                        <TrashIcon size={13} />
+                        <TrashIcon size={12} />
                         <span>Delete</span>
                       </button>
                     </div>
                   </div>
                 ))}
 
-                {/* Direct Pair PC Card Tile */}
-                <div className="pc-add-tile" onClick={openPairModal}>
-                  <div className="pc-add-icon-circle">
-                    <KeyIcon size={20} />
+                {/* Direct Pair PC Card Tile - Compact */}
+                <div className="pc-add-tile" onClick={openPairModal} style={{ minHeight: 'auto', padding: '16px' }}>
+                  <div className="pc-add-icon-circle" style={{ width: '32px', height: '32px', marginBottom: '6px' }}>
+                    <KeyIcon size={16} />
                   </div>
-                  <div className="pc-add-title">Pair PC</div>
-                  <span className="pc-add-badge">MFA Keypair</span>
+                  <div className="pc-add-title" style={{ fontSize: '13px' }}>Pair PC</div>
+                  <span className="pc-add-badge" style={{ fontSize: '10px' }}>MFA Keypair</span>
                 </div>
               </div>
             </div>
@@ -1394,34 +1459,33 @@ export default function AdminDashboard() {
           {adminTab === 'dmaic' && (
             <div className={`admin-tab-content ${dmaicWhiteBg ? 'dmaic-academic-white-theme' : ''}`}>
               {/* Project Hero Banner - Compact Executive Header */}
-              <div className="dmaic-hero-banner glass-panel compact">
-                <div className="dmaic-hero-content">
-                  <div className="dmaic-badge-row compact">
-                    <span className="dmaic-badge">Operations Research &bull; Lean Six Sigma DMAIC</span>
-                    <span className="dmaic-subbadge">CloudKH &bull; {machines.length || 2} Campus Gaming PCs</span>
+              <div className="dmaic-hero-banner glass-panel compact" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                <div className="dmaic-hero-content" style={{ maxWidth: 'none', flex: 1, minWidth: '240px' }}>
+                  <div className="dmaic-badge-row compact" style={{ marginBottom: '6px' }}>
+                    <span className="dmaic-badge">Operations Research &bull; Lean Six Sigma</span>
+                    <span className="dmaic-subbadge">2 Campus Rigs (Laptop 2080 + Desktop 1660 Ti)</span>
                     <button
                       type="button"
                       className={`dmaic-theme-toggle-btn ${dmaicWhiteBg ? 'white-active' : 'dark-active'}`}
                       onClick={() => setDmaicWhiteBg(!dmaicWhiteBg)}
-                      title="Toggle pure white presentation mode for teacher/academic grading review"
+                      title="Toggle academic white paper mode for grading review"
                     >
-                      {dmaicWhiteBg ? '☀️ White Paper (Teacher View)' : '🌙 Dark Cyberpunk Theme'}
+                      {dmaicWhiteBg ? 'Academic White Paper' : 'Dark Theme'}
                     </button>
                   </div>
-                  <h2 className="dmaic-hero-title compact">Voice of Customer (VOC) to Critical to Quality (CTQ) Telemetry</h2>
-                  <p className="dmaic-hero-desc compact">
-                    Operations research pilot tracking Queue Waiting Times, Network Latency, Multi-PC Power Draw (Active vs Idle), and Session Defect Rates across 2 campus rigs.
-                  </p>
+                  <h2 className="dmaic-hero-title compact" style={{ fontSize: '1.2rem', margin: 0, fontWeight: 700 }}>
+                    DMAIC CTQ Telemetry
+                  </h2>
                 </div>
-                <div className="dmaic-hero-actions compact dmaic-actions-grid-2x2">
+                <div className="dmaic-hero-actions compact" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <button
                     className="btn-primary btn-compact"
                     onClick={handleExportCsv}
                     disabled={exportingCsv || dmaicRecords.length === 0}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                    title="Download complete experimental dataset with SHA-256 integrity hashes for Jamovi / Minitab"
+                    style={{ height: '30px', padding: '0 10px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '5px', borderRadius: '6px' }}
+                    title="Export dataset as .CSV"
                   >
-                    <DownloadIcon size={14} />
+                    <DownloadIcon size={13} />
                     <span>{exportingCsv ? 'Exporting...' : 'Export .CSV'}</span>
                   </button>
                   <button
@@ -1429,25 +1493,29 @@ export default function AdminDashboard() {
                     onClick={handleSeedEvidence}
                     disabled={seedingTrials}
                     style={{
+                      height: '30px',
+                      padding: '0 10px',
+                      fontSize: '11px',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '6px',
+                      gap: '5px',
+                      borderRadius: '6px',
                       background: 'rgba(56, 189, 248, 0.12)',
                       borderColor: 'rgba(56, 189, 248, 0.35)',
                       color: '#38bdf8',
                     }}
-                    title="Generate 30 verified trial observations (15 Baseline vs 15 Improved) distributed across both Gaming PCs with SHA-256 signatures"
+                    title="Generate 30 trial observations across both Gaming PCs"
                   >
-                    <ShieldCheckIcon size={13} />
-                    <span>{seedingTrials ? 'Generating...' : '⚡ Seed 30 Trials'}</span>
+                    <ShieldCheckIcon size={12} />
+                    <span>{seedingTrials ? 'Generating...' : 'Seed 30 Trials'}</span>
                   </button>
                   <button
                     className="btn-secondary btn-compact"
                     onClick={() => setShowAddTestModal(true)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                    title="Log an experimental trial run manually"
+                    style={{ height: '30px', padding: '0 10px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '5px', borderRadius: '6px' }}
+                    title="Log trial manually"
                   >
-                    <PlusIcon size={13} />
+                    <PlusIcon size={12} />
                     <span>Log Test Run</span>
                   </button>
                   <button
@@ -1455,16 +1523,20 @@ export default function AdminDashboard() {
                     onClick={handleClearEvidence}
                     disabled={clearingEvidence || dmaicRecords.length === 0}
                     style={{
+                      height: '30px',
+                      padding: '0 10px',
+                      fontSize: '11px',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '6px',
-                      background: 'rgba(239, 68, 68, 0.12)',
-                      borderColor: 'rgba(239, 68, 68, 0.35)',
+                      gap: '5px',
+                      borderRadius: '6px',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      borderColor: 'rgba(239, 68, 68, 0.25)',
                       color: '#f87171',
                     }}
-                    title="Wipe all observation trials and reset dataset to 0 records"
+                    title="Wipe dataset to 0 records"
                   >
-                    <TrashIcon size={13} />
+                    <TrashIcon size={12} />
                     <span>{clearingEvidence ? 'Clearing...' : 'Clear All Data'}</span>
                   </button>
                 </div>
@@ -1642,31 +1714,23 @@ export default function AdminDashboard() {
               </div>
 
               {/* SECTION: MULTI-PC ELECTRICITY & OPERATING EXPENSE TRACKER */}
-              <div className="tab-section-header compact" style={{ marginTop: '24px' }}>
+              <div className="tab-section-header compact" style={{ marginTop: '20px', marginBottom: '10px' }}>
                 <div>
-                  <div className="dmaic-section-tag">
-                    <ZapIcon size={12} />
-                    <span>Cost Accounting &bull; Operations Research</span>
-                  </div>
-                  <h2 className="section-heading-compact">Multi-PC Electricity &amp; Operating Expense Tracker</h2>
-                  <p className="section-sub-compact">
-                    Independent power monitoring across 2 campus gaming rigs with distinct hardware specs. Tracks active gaming draw (GPU+CPU under load) vs idle standby, calculates electricity at Phnom Penh EDC standard rates ($0.18/kWh | ~740 Riel/kWh), and forecasts 2-week pilot budget requirements and pricing recommendations.
-                  </p>
+                  <h2 className="section-heading-compact" style={{ fontSize: '1.1rem', margin: 0, fontWeight: 700 }}>
+                    Multi-PC Electricity &amp; Operating Cost
+                  </h2>
                 </div>
               </div>
 
               {/* Fleet-Wide 2-Week Electricity Budget Summary Banner */}
               <div className="electricity-fleet-budget-banner glass-panel">
                 <div className="fleet-budget-metric-box">
-                  <div className="budget-metric-label">2-WEEK PILOT ELECTRICITY BUDGET (2 PCs)</div>
+                  <div className="budget-metric-label">2-WEEK PILOT POWER BUDGET (2 PCs)</div>
                   <div className="budget-metric-val highlight-usd">
                     ${totalPilotCostUsd.toFixed(2)} <span className="budget-currency-tag">USD</span>
                   </div>
                   <div className="budget-metric-sub">
                     &asymp; {totalPilotCostKhr.toLocaleString()} ៛ KHR &bull; {totalPilotKwh.toFixed(1)} kWh combined
-                  </div>
-                  <div className="budget-metric-note">
-                    Prepare <strong>$10.00 USD (40,000 Riel)</strong> to cover 24/7 power for both rigs for 14 full days.
                   </div>
                 </div>
 
@@ -1676,10 +1740,7 @@ export default function AdminDashboard() {
                     $0.038 &ndash; $0.047 <span className="budget-currency-tag">/ hr</span>
                   </div>
                   <div className="budget-metric-sub">
-                    &asymp; 154 &ndash; 190 ៛ Riel / hour of active gaming
-                  </div>
-                  <div className="budget-metric-note">
-                    Running an intensive 1-hour session consumes less than <strong>5 cents</strong> in electricity.
+                    &asymp; 154 &ndash; 190 ៛ Riel / hour of gaming
                   </div>
                 </div>
 
@@ -1689,10 +1750,7 @@ export default function AdminDashboard() {
                     $0.50 &ndash; $1.00 <span className="budget-currency-tag">/ hr</span>
                   </div>
                   <div className="budget-metric-sub">
-                    &asymp; 2,000 &ndash; 4,000 ៛ Riel &bull; <strong>84% &ndash; 92% Gross Margin</strong>
-                  </div>
-                  <div className="budget-metric-note">
-                    Electricity is only ~8% to 10% of revenue, leaving ~90% margin for maintenance and cooling.
+                    &asymp; 2,000 &ndash; 4,000 ៛ &bull; 84% &ndash; 92% Gross Margin
                   </div>
                 </div>
               </div>
@@ -1704,34 +1762,37 @@ export default function AdminDashboard() {
                   const cpuFormatted = pc.cpu ? formatCpu(pc.cpu) : (idx === 0 ? 'Core i7-10875H' : 'Core i3-10100F');
                   const ramFormatted = pc.ram ? formatRam(pc.ram) : (idx === 0 ? '32 GB' : '16 GB');
                   const forecast = pc.two_week_forecast || {};
+                  const isLaptop = idx === 0;
 
                   return (
                     <div key={pc.id || idx} className="pc-power-card glass-panel">
                       <div className="pc-power-card-header">
                         <div className="pc-power-title-wrap">
-                          <div className="pc-power-badge">PC #{idx + 1} &bull; RIG NODE</div>
+                          <div className="pc-power-badge">
+                            {isLaptop ? 'RIG #1 (LAPTOP) • RTX 2080 SUPER' : 'RIG #2 (DESKTOP) • GTX 1660 TI'}
+                          </div>
                           <h3 className="pc-power-name">{pc.name}</h3>
                           <div className="pc-specs-subtext">
                             <span>{gpuFormatted}</span> &bull; <span>{cpuFormatted}</span> &bull; <span>{ramFormatted}</span>
                           </div>
                         </div>
                         <div className="pc-power-status-pill">
-                          <span className="live-dot green" />
-                          <span>Telemetry Active</span>
+                          <span className={`live-dot ${pc.status === 'available' || pc.status === 'in-use' ? 'green' : 'gray'}`} />
+                          <span>{pc.status === 'available' || pc.status === 'in-use' ? 'Online' : 'Standby / Offline'}</span>
                         </div>
                       </div>
 
                       {/* Power Profile (Watts) */}
                       <div className="power-draw-specs-strip">
                         <div className="power-draw-item">
-                          <span className="draw-label">⚡ Active Gaming Load:</span>
+                          <span className="draw-label">Active Load:</span>
                           <span className="draw-val highlight-watt">{pc.active_watts}W</span>
                           <span className="draw-breakdown">
                             (GPU ~{Math.round(pc.active_watts * 0.65)}W &bull; CPU ~{Math.round(pc.active_watts * 0.22)}W &bull; Sys ~{Math.round(pc.active_watts * 0.13)}W)
                           </span>
                         </div>
                         <div className="power-draw-item">
-                          <span className="draw-label">💤 Idle Standby:</span>
+                          <span className="draw-label">Idle Standby:</span>
                           <span className="draw-val highlight-idle">{pc.idle_watts}W</span>
                           <span className="draw-breakdown">
                             (GPU ~{Math.round(pc.idle_watts * 0.25)}W &bull; CPU ~{Math.round(pc.idle_watts * 0.38)}W &bull; Sys ~{Math.round(pc.idle_watts * 0.37)}W)
@@ -1742,11 +1803,11 @@ export default function AdminDashboard() {
                       {/* Real-time Observed Hours & kWh */}
                       <div className="pc-energy-stats-row">
                         <div className="energy-stat-cell">
-                          <span className="cell-label">Observed Gaming Time</span>
+                          <span className="cell-label">Observed Gaming</span>
                           <span className="cell-value">{pc.gaming_hours}h</span>
                         </div>
                         <div className="energy-stat-cell">
-                          <span className="cell-label">Observed Idle Time</span>
+                          <span className="cell-label">Observed Idle</span>
                           <span className="cell-value">{pc.idle_hours}h</span>
                         </div>
                         <div className="energy-stat-cell">
@@ -1764,8 +1825,8 @@ export default function AdminDashboard() {
                       {/* 2-Week Pilot Projection Box */}
                       <div className="pc-two-week-forecast-box">
                         <div className="forecast-box-header">
-                          <span className="forecast-title">📅 2-Week Beta Operating Forecast (14 Days / 336 Hrs)</span>
-                          <span className="forecast-tag">Phnom Penh EDC Rate ($0.18/kWh)</span>
+                          <span className="forecast-title">2-Week Forecast (14 Days / 336 Hrs)</span>
+                          <span className="forecast-tag">Phnom Penh EDC ($0.18/kWh)</span>
                         </div>
                         <div className="forecast-metrics-grid">
                           <div className="f-metric">
@@ -1773,19 +1834,19 @@ export default function AdminDashboard() {
                             <span className="f-val">{forecast.projected_kwh ?? 25.0} kWh</span>
                           </div>
                           <div className="f-metric">
-                            <span className="f-label">Electricity Budget to Prepare:</span>
+                            <span className="f-label">Budget Required:</span>
                             <span className="f-val highlight-usd">
                               ${forecast.projected_cost_usd?.toFixed(2) ?? '4.50'} USD <span className="f-khr">({(forecast.projected_cost_khr || 0).toLocaleString()} ៛)</span>
                             </span>
                           </div>
                           <div className="f-metric">
-                            <span className="f-label">Direct Electricity Cost:</span>
-                            <span className="f-val">${forecast.direct_cost_per_hr?.toFixed(3) ?? '0.043'} / gaming hr</span>
+                            <span className="f-label">Cost / Gaming Hr:</span>
+                            <span className="f-val">${forecast.direct_cost_per_hr?.toFixed(3) ?? '0.043'} / hr</span>
                           </div>
                           <div className="f-metric">
-                            <span className="f-label">Recommended Beta Charge:</span>
+                            <span className="f-label">Recommended Rate:</span>
                             <span className="f-val highlight-green">
-                              ${forecast.recommended_charge_per_hr?.toFixed(2) ?? '0.50'} / hr ({forecast.profit_margin_pct ?? 91}% profit margin)
+                              ${forecast.recommended_charge_per_hr?.toFixed(2) ?? '0.50'} / hr ({forecast.profit_margin_pct ?? 91}% margin)
                             </span>
                           </div>
                         </div>
@@ -1796,26 +1857,22 @@ export default function AdminDashboard() {
               </div>
 
               {/* SECTION: CLEAN EXCEL-STYLE DATASET SPREADSHEET */}
-              <div className="tab-section-header compact" style={{ marginTop: '28px' }}>
+              <div className="tab-section-header compact" style={{ marginTop: '22px', marginBottom: '8px' }}>
                 <div>
-                  <div className="dmaic-section-tag">
-                    <TableIcon size={12} />
-                    <span>Raw Research Observations &bull; jamovi / Minitab Format</span>
-                  </div>
-                  <h2 className="section-heading-compact">Experimental Observation Dataset (Excel View)</h2>
-                  <p className="section-sub-compact">
-                    Individual trial observations across both Gaming PCs with SHA-256 cryptographic verification hashes. Formatted as an engineering spreadsheet with column letters, row numbers, and summary formula statistics.
-                  </p>
+                  <h2 className="section-heading-compact" style={{ fontSize: '1.1rem', margin: 0, fontWeight: 700 }}>
+                    Observation Dataset (Excel View)
+                  </h2>
                 </div>
                 <div className="excel-export-actions">
                   <button
                     className="btn-primary btn-compact excel-download-btn"
                     onClick={handleExportCsv}
                     disabled={exportingCsv || dmaicRecords.length === 0}
-                    title="Download dataset as .CSV for Microsoft Excel, Jamovi, or Minitab"
+                    style={{ height: '30px', padding: '0 10px', fontSize: '11px', borderRadius: '6px' }}
+                    title="Export dataset as .CSV"
                   >
-                    <DownloadIcon size={13} />
-                    <span>{exportingCsv ? 'Exporting...' : 'Export Excel (.CSV)'}</span>
+                    <DownloadIcon size={12} />
+                    <span>{exportingCsv ? 'Exporting...' : 'Export .CSV'}</span>
                   </button>
                 </div>
               </div>
@@ -1920,19 +1977,19 @@ export default function AdminDashboard() {
                               <td colSpan={14} className={rowNum === 3 ? 'excel-empty-notice-cell' : 'excel-blank-cell'}>
                                 {rowNum === 3 && (
                                   <div className="excel-empty-message">
-                                    <div className="excel-empty-title">📋 Spreadsheet Dataset is Clean (0 Records)</div>
+                                    <div className="excel-empty-title">Spreadsheet Dataset Clean (0 Records)</div>
                                     <div className="excel-empty-subtitle">
-                                      All test data has been wiped. Click below to generate 30 verified trials across both PCs, or start real streaming sessions to record live telemetry automatically.
+                                      No active trial observations. Live gameplay records telemetry automatically, or click below to seed trials.
                                     </div>
                                     <div className="excel-empty-actions">
                                       <button
                                         className="btn-primary btn-compact"
                                         onClick={handleSeedEvidence}
                                         disabled={seedingTrials}
-                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                        style={{ height: '30px', padding: '0 12px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '5px', borderRadius: '6px' }}
                                       >
-                                        <ShieldCheckIcon size={13} />
-                                        <span>{seedingTrials ? 'Generating...' : '⚡ Seed 30 Verified Trials (Jamovi)'}</span>
+                                        <ShieldCheckIcon size={12} />
+                                        <span>{seedingTrials ? 'Generating...' : 'Seed 30 Trials'}</span>
                                       </button>
                                       <button
                                         className="btn-secondary btn-compact"
@@ -1972,7 +2029,7 @@ export default function AdminDashboard() {
                                     className="excel-hash-dot"
                                     title={`SHA-256 Audit Hash:\n${r.integrity_hash}\nSource: ${r.source || 'automated_stream'}`}
                                   >
-                                    🔒
+                                    <ShieldCheckIcon size={11} style={{ opacity: 0.8 }} />
                                   </span>
                                 )}
                               </td>

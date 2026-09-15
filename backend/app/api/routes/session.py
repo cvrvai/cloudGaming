@@ -176,9 +176,6 @@ async def record_live_session_telemetry(
     from app.core.redis import increment_dmaic_counter, record_dmaic_unique_user
 
     now_iso = datetime.now(timezone.utc).isoformat()
-    duration_hrs = max(0.01, req.duration_seconds / 3600.0)
-    power_kwh = round((280.0 * duration_hrs) / 1000.0, 3)
-    cost_usd = round(power_kwh * 0.18, 3)
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -224,6 +221,25 @@ async def record_live_session_telemetry(
                         waiting_time_mins = max(0.0, round((s_dt - c_dt).total_seconds() / 60.0, 1))
                     except Exception:
                         pass
+
+        # If machine not bound via booking, assign currently active rig or host rig
+        if not machine_id:
+            cursor.execute("SELECT id FROM machines ORDER BY is_host DESC, id ASC LIMIT 1;")
+            m_default = cursor.fetchone()
+            if m_default:
+                machine_id = m_default["id"]
+
+        # Dynamic power calculation from the exact hardware profile of this machine
+        active_watts = 280.0
+        if machine_id:
+            cursor.execute("SELECT COALESCE(active_watts, 280.0) as active_watts FROM machines WHERE id = %s;", (machine_id,))
+            m_w = cursor.fetchone()
+            if m_w and m_w["active_watts"]:
+                active_watts = float(m_w["active_watts"])
+
+        duration_hrs = max(0.01, req.duration_seconds / 3600.0)
+        power_kwh = round((active_watts * duration_hrs) / 1000.0, 3)
+        cost_usd = round(power_kwh * 0.18, 3)
 
         # Generate Cryptographic Integrity Hash (SHA-256 for academic/audit verification)
         integrity_payload = f"{test_id}:{user_id or 'guest'}:{valid_booking_id}:{req.avg_latency_ms}:{req.avg_fps}:{now_iso}"

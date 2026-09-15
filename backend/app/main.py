@@ -8,7 +8,8 @@ Media is handled entirely by GStreamer (D3D11 capture -> H264 -> webrtcbin).
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
@@ -98,6 +99,15 @@ def create_app() -> FastAPI:
     app.include_router(api_router)
     app.include_router(input_ws_router)
     app.include_router(node_ws_router)
+
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        logger.exception("Unhandled server exception on %s %s: %s", request.method, request.url.path, exc)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Internal Server Error: {str(exc)}"},
+        )
+
     return app
 
 
