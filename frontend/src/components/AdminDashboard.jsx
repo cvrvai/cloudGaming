@@ -777,7 +777,13 @@ export default function AdminDashboard() {
 
   const formatCpu = (cpu) => {
     if (!cpu) return 'CPU';
-    return cpu.replace(/\([RTM]+\)/gi, '').replace(/\s+CPU\s+/i, ' ').replace(/\s+/g, ' ').trim();
+    return cpu
+      .replace(/\([RTM]+\)/gi, '')
+      .replace(/@\s*[\d\.]+GHz/gi, '')
+      .replace(/\s+CPU\s+/i, ' ')
+      .replace(/Intel\s+/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
   };
 
   const formatOs = (m) => {
@@ -789,7 +795,11 @@ export default function AdminDashboard() {
 
   const formatRigGpu = (gpu) => {
     if (!gpu) return 'Gaming Rig';
-    return gpu.replace(/NVIDIA\s+/i, '').replace(/\s+with\s+Max-Q\s+Design/i, ' Max-Q');
+    return gpu
+      .replace(/NVIDIA\s+/i, '')
+      .replace(/GeForce\s+/i, '')
+      .replace(/\s+with\s+Max-Q\s+Design/i, ' Max-Q')
+      .trim();
   };
 
   const streamingRigGpu = machines.find((m) => (m.live_status || m.status) === 'available')?.gpu
@@ -1465,7 +1475,6 @@ export default function AdminDashboard() {
                 <div className="dmaic-hero-content" style={{ maxWidth: 'none', flex: 1, minWidth: '240px' }}>
                   <div className="dmaic-badge-row compact" style={{ marginBottom: '6px' }}>
                     <span className="dmaic-badge">Operations Research &bull; Lean Six Sigma</span>
-                    <span className="dmaic-subbadge">2 Campus Rigs (Laptop 2080 + Desktop 1660 Ti)</span>
                     <button
                       type="button"
                       className={`dmaic-theme-toggle-btn ${dmaicWhiteBg ? 'white-active' : 'dark-active'}`}
@@ -1622,20 +1631,20 @@ export default function AdminDashboard() {
                       </span>
                     </div>
                     <div className="ctq-substat">
-                      <span className="substat-label">Power (CPU+GPU)</span>
-                      <span className="substat-val" title="Active: GPU 180W + CPU 65W + Sys 35W = 280W | Idle: GPU 15W + CPU 20W + Sys 20W = 55W">
+                      <span className="substat-label">Power Draw</span>
+                      <span className="substat-val">
                         280W load &bull; 55W idle
                       </span>
                     </div>
                     <div className="ctq-substat">
                       <span className="substat-label">2-Wk Forecast</span>
-                      <span className="substat-val" style={{ color: '#38bdf8' }} title="14-day 336-hour operating pilot at $0.18/kWh (EDC standard)">
-                        ~${dmaicMetrics?.ctq2_utilization?.two_week_forecast?.proj_cost_usd ?? 7.86} ({dmaicMetrics?.ctq2_utilization?.two_week_forecast?.proj_kwh ?? 43.7} kWh)
+                      <span className="substat-val" style={{ color: '#38bdf8' }}>
+                        ${dmaicMetrics?.ctq2_utilization?.two_week_forecast?.proj_cost_usd ?? 7.86} ({dmaicMetrics?.ctq2_utilization?.two_week_forecast?.proj_kwh ?? 43.7} kWh)
                       </span>
                     </div>
                     <div className="ctq-substat">
                       <span className="substat-label">Standby Waste</span>
-                      <span className="substat-val" style={{ color: '#f87171' }} title="Standby electricity wasted when PC is powered on without active gameplay">
+                      <span className="substat-val" style={{ color: '#f87171' }}>
                         {dmaicMetrics?.ctq2_utilization?.idle_waste_kwh ?? 0} kWh (${dmaicMetrics?.ctq2_utilization?.idle_waste_usd ?? 0})
                       </span>
                     </div>
@@ -1686,7 +1695,7 @@ export default function AdminDashboard() {
                   </div>
                   <h3 className="ctq-metric-title compact">Session Completion Rate</h3>
                   <div className="ctq-target-spec compact">
-                    <span className="spec-label">Target:</span> &ge; 95% Completion (6&sigma;)
+                    <span className="spec-label">Target:</span> &ge; 95% Completion
                   </div>
                   <div className="ctq-big-value compact">
                     {dmaicMetrics?.ctq4_completion_rate?.completion_rate_pct || 0}
@@ -1727,32 +1736,32 @@ export default function AdminDashboard() {
               {/* Fleet-Wide 2-Week Electricity Budget Summary Banner */}
               <div className="electricity-fleet-budget-banner glass-panel">
                 <div className="fleet-budget-metric-box">
-                  <div className="budget-metric-label">2-WEEK PILOT POWER BUDGET (2 PCs)</div>
+                  <div className="budget-metric-label">2-WEEK PILOT BUDGET (2 PCs)</div>
                   <div className="budget-metric-val highlight-usd">
                     ${totalPilotCostUsd.toFixed(2)} <span className="budget-currency-tag">USD</span>
                   </div>
                   <div className="budget-metric-sub">
-                    &asymp; {totalPilotCostKhr.toLocaleString()} ៛ KHR &bull; {totalPilotKwh.toFixed(1)} kWh combined
+                    {totalPilotKwh.toFixed(1)} kWh &bull; {totalPilotCostKhr.toLocaleString()} ៛
                   </div>
                 </div>
 
                 <div className="fleet-budget-metric-box">
-                  <div className="budget-metric-label">DIRECT ELECTRICITY COST / GAMING HR</div>
+                  <div className="budget-metric-label">ELECTRICITY COST / GAMING HR</div>
                   <div className="budget-metric-val highlight-rate">
                     $0.038 &ndash; $0.047 <span className="budget-currency-tag">/ hr</span>
                   </div>
                   <div className="budget-metric-sub">
-                    &asymp; 154 &ndash; 190 ៛ Riel / hour of gaming
+                    154 &ndash; 190 ៛ / hr
                   </div>
                 </div>
 
                 <div className="fleet-budget-metric-box">
-                  <div className="budget-metric-label">2-WEEK STANDBY IDLE WASTE (2 PCs)</div>
+                  <div className="budget-metric-label">2-WEEK STANDBY WASTE (2 PCs)</div>
                   <div className="budget-metric-val" style={{ color: '#f87171' }}>
                     ${totalIdleWasteUsd.toFixed(2)} <span className="budget-currency-tag">USD</span>
                   </div>
                   <div className="budget-metric-sub">
-                    {totalIdleWasteKwh.toFixed(1)} kWh wasted while idle &bull; Zero revenue
+                    {totalIdleWasteKwh.toFixed(1)} kWh standby loss
                   </div>
                 </div>
               </div>
@@ -1780,7 +1789,7 @@ export default function AdminDashboard() {
                         </div>
                         <div className="pc-power-status-pill">
                           <span className={`live-dot ${pc.status === 'available' || pc.status === 'in-use' ? 'green' : 'gray'}`} />
-                          <span>{pc.status === 'available' || pc.status === 'in-use' ? 'Online' : 'Standby / Offline'}</span>
+                          <span>{pc.status === 'available' || pc.status === 'in-use' ? 'Online' : 'Standby'}</span>
                         </div>
                       </div>
 
@@ -1789,27 +1798,21 @@ export default function AdminDashboard() {
                         <div className="power-draw-item">
                           <span className="draw-label">Active Load:</span>
                           <span className="draw-val highlight-watt">{pc.active_watts}W</span>
-                          <span className="draw-breakdown">
-                            (GPU ~{Math.round(pc.active_watts * 0.65)}W &bull; CPU ~{Math.round(pc.active_watts * 0.22)}W &bull; Sys ~{Math.round(pc.active_watts * 0.13)}W)
-                          </span>
                         </div>
                         <div className="power-draw-item">
                           <span className="draw-label">Idle Standby:</span>
                           <span className="draw-val highlight-idle">{pc.idle_watts}W</span>
-                          <span className="draw-breakdown">
-                            (GPU ~{Math.round(pc.idle_watts * 0.25)}W &bull; CPU ~{Math.round(pc.idle_watts * 0.38)}W &bull; Sys ~{Math.round(pc.idle_watts * 0.37)}W)
-                          </span>
                         </div>
                       </div>
 
                       {/* Real-time Observed Hours & kWh */}
                       <div className="pc-energy-stats-row">
                         <div className="energy-stat-cell">
-                          <span className="cell-label">Observed Gaming</span>
+                          <span className="cell-label">Gaming Hours</span>
                           <span className="cell-value">{pc.gaming_hours}h</span>
                         </div>
                         <div className="energy-stat-cell">
-                          <span className="cell-label">Observed Idle</span>
+                          <span className="cell-label">Idle Hours</span>
                           <span className="cell-value">{pc.idle_hours}h</span>
                         </div>
                         <div className="energy-stat-cell">
@@ -1827,18 +1830,18 @@ export default function AdminDashboard() {
                       {/* 2-Week Pilot Projection Box */}
                       <div className="pc-two-week-forecast-box">
                         <div className="forecast-box-header">
-                          <span className="forecast-title">2-Week Forecast (14 Days / 336 Hrs)</span>
-                          <span className="forecast-tag">Phnom Penh EDC ($0.18/kWh)</span>
+                          <span className="forecast-title">2-Week Forecast</span>
+                          <span className="forecast-tag">EDC $0.18/kWh</span>
                         </div>
                         <div className="forecast-metrics-grid">
                           <div className="f-metric">
-                            <span className="f-label">Projected Electricity:</span>
+                            <span className="f-label">Projected Energy:</span>
                             <span className="f-val">{forecast.projected_kwh ?? 25.0} kWh</span>
                           </div>
                           <div className="f-metric">
-                            <span className="f-label">Budget Required:</span>
+                            <span className="f-label">Projected Cost:</span>
                             <span className="f-val highlight-usd">
-                              ${forecast.projected_cost_usd?.toFixed(2) ?? '4.50'} USD <span className="f-khr">({(forecast.projected_cost_khr || 0).toLocaleString()} ៛)</span>
+                              ${forecast.projected_cost_usd?.toFixed(2) ?? '4.50'} <span className="f-khr">({(forecast.projected_cost_khr || 0).toLocaleString()} ៛)</span>
                             </span>
                           </div>
                           <div className="f-metric">
@@ -1846,7 +1849,7 @@ export default function AdminDashboard() {
                             <span className="f-val">${forecast.direct_cost_per_hr?.toFixed(3) ?? '0.043'} / hr</span>
                           </div>
                           <div className="f-metric">
-                            <span className="f-label">Idle Waste (14d):</span>
+                            <span className="f-label">Standby Waste (14d):</span>
                             <span className="f-val" style={{ color: '#f87171' }}>
                               {forecast.idle_waste_kwh ?? 12.0} kWh (${forecast.idle_waste_usd?.toFixed(2) ?? '2.16'})
                             </span>
@@ -1885,11 +1888,7 @@ export default function AdminDashboard() {
                 <div className="excel-sheet-header">
                   <div className="excel-brand-title">
                     <span className="excel-icon-pill">XLSX</span>
-                    <span className="excel-filename">Sheet1: CloudKH_DMAIC_Experimental_Dataset.xlsx</span>
-                    <span className="excel-integrity-status">
-                      <ShieldCheckIcon size={12} />
-                      <span>SHA-256 Verified</span>
-                    </span>
+                    <span className="excel-filename">CloudKH_Dataset.xlsx</span>
                   </div>
                   
                   {/* Excel Sheet Tabs */}
@@ -1898,19 +1897,19 @@ export default function AdminDashboard() {
                       className={`excel-tab-btn ${dmaicPhaseFilter === 'all' ? 'active' : ''}`}
                       onClick={() => setDmaicPhaseFilter('all')}
                     >
-                      Sheet 1: All Observations ({dmaicRecords.length})
+                      All Data ({dmaicRecords.length})
                     </button>
                     <button
                       className={`excel-tab-btn ${dmaicPhaseFilter === 'V1_Baseline' ? 'active' : ''}`}
                       onClick={() => setDmaicPhaseFilter('V1_Baseline')}
                     >
-                      Sheet 2: V1 Baseline ({dmaicRecords.filter((r) => r.phase === 'V1_Baseline').length})
+                      V1 Baseline ({dmaicRecords.filter((r) => r.phase === 'V1_Baseline').length})
                     </button>
                     <button
                       className={`excel-tab-btn ${dmaicPhaseFilter === 'V2_Improved' ? 'active' : ''}`}
                       onClick={() => setDmaicPhaseFilter('V2_Improved')}
                     >
-                      Sheet 3: V2 Improved ({dmaicRecords.filter((r) => r.phase === 'V2_Improved').length})
+                      V2 Improved ({dmaicRecords.filter((r) => r.phase === 'V2_Improved').length})
                     </button>
                   </div>
                 </div>
@@ -1921,10 +1920,10 @@ export default function AdminDashboard() {
                     <span>A1:N{Math.max(1, filteredDmaicRecords.length + 1)}</span>
                   </div>
                   <div className="excel-fx-label">fx</div>
-                  <div className="excel-formula-input" title="Current Active Formula">
+                  <div className="excel-formula-input" title="Active Formula">
                     {filteredDmaicRecords.length > 0
-                      ? `=SUMMARY(N=${filteredDmaicRecords.length}, AVG_Latency=${avgLatency.toFixed(1)}ms, PASS_RATE=${passRate.toFixed(1)}%, SUM_kWh=${sumKwh.toFixed(3)}kWh, SUM_Cost=$${sumCost.toFixed(2)})`
-                      : '=READY(No active trial observations. Click "Seed 30 Trials" to populate data across both PCs)'}
+                      ? `=AVERAGE(G2:G${filteredDmaicRecords.length + 1})`
+                      : ''}
                   </div>
                 </div>
 
@@ -1971,38 +1970,16 @@ export default function AdminDashboard() {
                     </thead>
                     <tbody>
                       {filteredDmaicRecords.length === 0 ? (
-                        /* Empty Sheet State: Render clean Excel empty grid rows with message */
+                        /* Empty Sheet State: Clean Excel blank grid cells */
                         <>
                           {[1, 2, 3, 4, 5, 6].map((rowNum) => (
                             <tr key={rowNum} className="excel-empty-row">
                               <td className="excel-row-idx">{rowNum}</td>
-                              <td colSpan={14} className={rowNum === 3 ? 'excel-empty-notice-cell' : 'excel-blank-cell'}>
-                                {rowNum === 3 && (
-                                  <div className="excel-empty-message">
-                                    <div className="excel-empty-title">Spreadsheet Dataset Clean (0 Records)</div>
-                                    <div className="excel-empty-subtitle">
-                                      No active trial observations. Live gameplay records telemetry automatically, or click below to seed trials.
-                                    </div>
-                                    <div className="excel-empty-actions">
-                                      <button
-                                        className="btn-primary btn-compact"
-                                        onClick={handleSeedEvidence}
-                                        disabled={seedingTrials}
-                                        style={{ height: '30px', padding: '0 12px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '5px', borderRadius: '6px' }}
-                                      >
-                                        <ShieldCheckIcon size={12} />
-                                        <span>{seedingTrials ? 'Generating...' : 'Seed 30 Trials'}</span>
-                                      </button>
-                                      <button
-                                        className="btn-secondary btn-compact"
-                                        onClick={() => setShowAddTestModal(true)}
-                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                                      >
-                                        <PlusIcon size={13} />
-                                        <span>Log Manual Trial</span>
-                                      </button>
-                                    </div>
-                                  </div>
+                              <td colSpan={14} className="excel-blank-cell" style={{ textAlign: rowNum === 2 ? 'center' : 'inherit' }}>
+                                {rowNum === 2 && (
+                                  <span style={{ color: '#94a3b8', fontSize: '11px' }}>
+                                    No records &bull; Click &quot;Seed 30 Trials&quot; above to populate dataset
+                                  </span>
                                 )}
                               </td>
                             </tr>
@@ -2088,7 +2065,7 @@ export default function AdminDashboard() {
                         <tr className="excel-summary-row">
                           <td className="excel-row-idx">Σ</td>
                           <td className="excel-summary-label" colSpan={5}>
-                            =SUMMARY_TOTALS (N={filteredDmaicRecords.length} Observations Across 2 Campus PCs)
+                            Average / Total (N = {filteredDmaicRecords.length})
                           </td>
                           <td className="excel-cell-num excel-sum-val">
                             <span className="excel-fn-tag">AVG</span>{avgWait.toFixed(1)}m
@@ -2132,7 +2109,7 @@ export default function AdminDashboard() {
                       <>
                         <span className="excel-status-item">AVG LATENCY: <strong>{avgLatency.toFixed(1)} ms</strong></span>
                         <span className="excel-status-item">SUM POWER: <strong>{sumKwh.toFixed(3)} kWh</strong></span>
-                        <span className="excel-status-item">SUM COST: <strong>${sumCost.toFixed(2)} USD</strong></span>
+                        <span className="excel-status-item">SUM COST: <strong>${sumCost.toFixed(2)}</strong></span>
                       </>
                     )}
                   </div>
