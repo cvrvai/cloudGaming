@@ -3897,6 +3897,35 @@ body.dmaic-white-page-mode .cloudkh-main-content {
   color: #0369a1;
 }
 
+/* Real-Time Live Streaming Session Highlight */
+.live-session-row {
+  background: rgba(14, 165, 233, 0.08) !important;
+  border-left: 3px solid #0ea5e9;
+  animation: live-row-glow 2.5s infinite alternate ease-in-out;
+}
+
+.live-session-row:hover {
+  background: rgba(14, 165, 233, 0.14) !important;
+}
+
+@keyframes live-row-glow {
+  0% { background: rgba(14, 165, 233, 0.06); }
+  100% { background: rgba(14, 165, 233, 0.12); }
+}
+
+.time-window-pill.live {
+  background: rgba(34, 197, 94, 0.15) !important;
+  border-color: rgba(34, 197, 94, 0.4) !important;
+  color: #4ade80 !important;
+}
+
+.game-played-pill.live {
+  background: rgba(168, 85, 247, 0.2) !important;
+  border-color: rgba(168, 85, 247, 0.5) !important;
+  color: #d8b4fe !important;
+}
+
+
 
 
 

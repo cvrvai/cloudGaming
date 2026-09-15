@@ -319,8 +319,10 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     utilization_pct = round((gaming_hours / max(0.1, powered_hours)) * 100.0, 1)
 
     # Energy calculations
-    total_est_kwh = round(total_telemetry_kwh, 2) if total_telemetry_kwh > 0 else round(((260.0 * gaming_hours) + (48.0 * idle_hours)) / 1000.0, 2)
-    est_cost_usd = round(total_est_kwh * 0.18, 2) # ~$0.18 per kWh average
+    kwh_gaming = round((260.0 * gaming_hours) / 1000.0, 4)
+    kwh_idle = round((48.0 * idle_hours) / 1000.0, 4)
+    total_est_kwh = round(total_telemetry_kwh, 4) if total_telemetry_kwh > 0 else round(kwh_gaming + kwh_idle, 4)
+    est_cost_usd = round(total_est_kwh * 0.18, 4) # ~$0.18 per kWh average
 
 
     # 2-Week Pilot Projection (14 days = 336 operating hours)
@@ -678,7 +680,7 @@ def seed_dmaic_evidence_dataset(
         # Clean up existing seed records to ensure an exact 30-observation dataset (N=30)
         cursor.execute("DELETE FROM session_telemetry WHERE test_id LIKE 'RUN-%';")
 
-        # Fetch actual campus gaming machines from database
+        # Fetch actual gaming machines from database
         cursor.execute("SELECT id, name, gpu, active_watts FROM machines ORDER BY id ASC;")
         rig_list = [dict(r) for r in cursor.fetchall()]
 

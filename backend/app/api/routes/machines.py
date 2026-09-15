@@ -56,7 +56,7 @@ class NodeGameConfigUpdate(BaseModel):
 
 @router.get("")
 async def list_machines():
-    """List all campus gaming rigs with live availability, schedule blocks, and installed games.
+    """List all gaming rigs with live availability, schedule blocks, and installed games.
     
     Optimized with Redis / high-speed in-memory cache and batch queries to prevent N+1 database roundtrips.
     """
