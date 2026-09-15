@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE } from '../config';
-import { SparkleIcon, PlayIcon, GamepadIcon } from './Icons';
+import { SparkleIcon, PlayIcon, GamepadIcon, CalendarIcon } from './Icons';
 
 let cachedGames = null;
 try {
@@ -115,7 +115,9 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
                 className="luna-hero-play-btn"
                 onClick={() => onSelectGame(activeHero)}
               >
-                <span className="play-triangle">{activeHero.ready_nodes_count > 0 ? '▶' : '📅'}</span>
+                <span className="play-triangle">
+                  {activeHero.ready_nodes_count > 0 ? <PlayIcon size={12} /> : <CalendarIcon size={14} />}
+                </span>
                 {activeHero.ready_nodes_count > 0 ? ' Play Now' : ' Reserve Slot'}
               </button>
             </div>

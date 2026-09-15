@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../config';
 import {
@@ -29,11 +29,369 @@ import {
   SquareIcon,
 } from './Icons';
 
-// In-memory module cache for instant admin tab/page navigation
-let cachedAdminData = null;
+// Keep a short-lived per-tab cache so a browser reload can render the last known
+// admin view immediately while the backend refreshes in the background.
+const ADMIN_CACHE_KEY = 'cloudkh_admin_data_v1';
+const ADMIN_REQUEST_TIMEOUT_MS = 8000;
+
+const readAdminCache = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(ADMIN_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeAdminCache = (data) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(ADMIN_CACHE_KEY, JSON.stringify(data));
+  } catch {
+    // Storage can be unavailable in private browsing; in-memory data still works.
+  }
+};
+
+const updateAdminCache = (key, value) => {
+  cachedAdminData = { ...(cachedAdminData || {}), [key]: value };
+  writeAdminCache(cachedAdminData);
+};
+
+const fetchAdminJson = async (url, options = {}) => {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), ADMIN_REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    return {
+      ok: response.ok,
+      status: response.status,
+      data: response.ok ? await response.json() : null,
+    };
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+};
+
+let cachedAdminData = readAdminCache();
+const EDC_TARIFF_USD_PER_KWH = 0.18;
+
+const estimatePowerBreakdown = (totalWatts, mode) => {
+  const total = Math.max(0, Math.round(Number(totalWatts) || 0));
+  const [gpuShare, cpuShare] = mode === 'idle' ? [0.25, 0.40] : [0.65, 0.23];
+  const gpuWatts = Math.round(total * gpuShare);
+  const cpuWatts = Math.round(total * cpuShare);
+  return {
+    gpu_watts: gpuWatts,
+    cpu_watts: cpuWatts,
+    system_watts: Math.max(0, total - gpuWatts - cpuWatts),
+    estimated: true,
+  };
+};
+
+const getPowerBreakdown = (row, mode) => {
+  const totalWatts = Number(row?.[mode === 'idle' ? 'idle_watts' : 'active_watts']) || 0;
+  const provided = row?.[mode === 'idle' ? 'idle_power_breakdown' : 'active_power_breakdown'];
+  if (provided && (provided.gpu_watts != null || provided.cpu_watts != null || provided.system_watts != null)) {
+    return {
+      gpu_watts: Number(provided.gpu_watts) || 0,
+      cpu_watts: Number(provided.cpu_watts) || 0,
+      system_watts: Number(provided.system_watts) || 0,
+      estimated: Boolean(provided.estimated),
+    };
+  }
+  return estimatePowerBreakdown(totalWatts, mode);
+};
+
+const formatWattRate = (watts) => `${Math.round(Number(watts) || 0)} W`;
+
+const formatEnergyKwh = (kwh) => {
+  const value = Number(kwh) || 0;
+  return value > 0 && value < 0.01 ? value.toFixed(4) : value.toFixed(3);
+};
+
+const getCtqStatusClass = (status) => {
+  if (status === 'PASS') return 'pass';
+  if (status === 'NO DATA') return 'no-data';
+  return 'risk';
+};
+
+function PowerMeasurementGuide({ watts = 0, hours = 0 }) {
+  const rate = Math.max(0, Math.round(Number(watts) || 0));
+  const duration = Math.max(0, Number(hours) || 0);
+  const energy = (rate * duration) / 1000;
+
+  return (
+    <div className="power-measurement-guide" role="note">
+      <strong>How to read power:</strong>{' '}
+      <span><b>W (watts)</b> is the instantaneous power rate, not the amount consumed.</span>{' '}
+      <span><b>kWh</b> is accumulated energy: W × hours ÷ 1,000.</span>
+      {rate > 0 && duration > 0 && (
+        <span className="power-measurement-example">
+          Example: {formatWattRate(rate)} × {duration.toFixed(2)} h = {formatEnergyKwh(energy)} kWh.
+        </span>
+      )}
+    </div>
+  );
+}
+
+function PowerBreakdownDetails({
+  activeWatts,
+  idleWatts,
+  activeBreakdown,
+  idleBreakdown,
+  activeHours,
+  idleHours,
+  expanded,
+  onToggle,
+}) {
+  const active = getPowerBreakdown({ active_watts: activeWatts, active_power_breakdown: activeBreakdown }, 'active');
+  const idle = getPowerBreakdown({ idle_watts: idleWatts, idle_power_breakdown: idleBreakdown }, 'idle');
+  const hasDuration = activeHours != null || idleHours != null;
+  const componentKwh = (watts, hours) => ((Number(watts) || 0) * (Number(hours) || 0)) / 1000;
+  const componentEnergy = (activeWattsForComponent, idleWattsForComponent) => {
+    const loadKwh = componentKwh(activeWattsForComponent, activeHours);
+    const idleKwh = componentKwh(idleWattsForComponent, idleHours);
+    return `${(loadKwh + idleKwh).toFixed(3)} kWh (${loadKwh.toFixed(3)} active + ${idleKwh.toFixed(3)} standby)`;
+  };
+  const sourceLabel = active.estimated || idle.estimated ? 'Estimated from rig-level rate' : 'Component telemetry';
+
+  return (
+    <div className="power-details-control">
+      <button
+        type="button"
+        className="power-details-toggle"
+        onClick={(event) => {
+          event.stopPropagation();
+          onToggle();
+        }}
+        aria-expanded={expanded}
+      >
+        {expanded ? 'Hide details' : 'View component estimate'}
+      </button>
+      {expanded && (
+        <div className="power-breakdown-panel">
+          <div className="power-breakdown-heading">
+            <span>Component power rate</span>
+            <span>{sourceLabel}</span>
+          </div>
+          <div className="power-breakdown-grid">
+            <span className="power-breakdown-mode">Active</span>
+            <span>GPU <strong>{formatWattRate(active.gpu_watts)}</strong></span>
+            <span>CPU <strong>{formatWattRate(active.cpu_watts)}</strong></span>
+            <span>System <strong>{formatWattRate(active.system_watts)}</strong></span>
+            <span className="power-breakdown-mode">Standby</span>
+            <span>GPU <strong>{formatWattRate(idle.gpu_watts)}</strong></span>
+            <span>CPU <strong>{formatWattRate(idle.cpu_watts)}</strong></span>
+            <span>System <strong>{formatWattRate(idle.system_watts)}</strong></span>
+          </div>
+          {hasDuration && (
+            <div className="power-breakdown-energy">
+              {active.estimated || idle.estimated ? 'Estimated energy for displayed time' : 'Energy for displayed time'}: GPU {componentEnergy(active.gpu_watts, idle.gpu_watts)} · CPU {componentEnergy(active.cpu_watts, idle.cpu_watts)} · System {componentEnergy(active.system_watts, idle.system_watts)}
+            </div>
+          )}
+          <div className="power-breakdown-footnote">
+            Component sensor telemetry is not connected; the split is for analysis only and sums to the rig-level rate.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CtqDetailPanel({
+  ctqKey,
+  metrics,
+  records,
+  activeWatts,
+  idleWatts,
+  onClose,
+}) {
+  const metricMap = {
+    ctq1: metrics?.ctq1_latency || {},
+    ctq2: metrics?.ctq2_utilization || {},
+    ctq3: metrics?.ctq3_waiting_time || {},
+    ctq4: metrics?.ctq4_completion_rate || {},
+  };
+  const metric = metricMap[ctqKey] || {};
+  const sampleSize = Number(metric.sample_size ?? records?.length ?? 0);
+  const status = metric.status || 'NO DATA';
+  const statusClass = getCtqStatusClass(status);
+
+  const details = {
+    ctq1: {
+      eyebrow: 'CTQ 1 · Network & Streaming Quality',
+      title: 'Latency & FPS Stability',
+      owner: 'Sean Pheavyraksonya',
+      question: 'Can a player receive a responsive, stable game stream?',
+      target: 'Mean latency ≤ 100 ms and a 60 FPS service target.',
+      measurement: 'Session telemetry records latency, peak latency, FPS, packet loss, and latency defects.',
+      rule: 'PASS when mean latency is ≤ 100 ms. An observation above 100 ms is a latency defect; FPS is monitored as a supporting quality signal.',
+      formula: 'Defect rate = latency-defect observations ÷ total observations × 100. DPMO = defects ÷ total observations × 1,000,000.',
+      values: [
+        ['Mean latency', `${metric.mean_latency_ms ?? 0} ms`],
+        ['Peak latency', `${metric.peak_latency_ms ?? 0} ms`],
+        ['Average FPS', `${metric.mean_fps ?? 0} FPS`],
+        ['Packet loss', `${metric.packet_loss_pct ?? 0}%`],
+        ['Latency defects', `${metric.defect_count ?? 0} (${metric.defect_rate_pct ?? 0}%)`],
+        ['DPMO', `${metric.dpmo ?? 0}`],
+      ],
+      action: status === 'PASS'
+        ? 'Maintain the current streaming configuration and continue monitoring peak latency.'
+        : status === 'RISK'
+          ? 'Investigate network path, encoder load, and congestion for sessions above 100 ms.'
+          : 'Collect more completed session telemetry before making a quality decision.',
+    },
+    ctq2: {
+      eyebrow: 'CTQ 2 · Hardware Fleet & Energy Waste',
+      title: 'PC Utilization & Energy Waste',
+      owner: 'Choonvai',
+      question: 'Is powered PC time being used for gaming instead of wasted in standby?',
+      target: 'Active-time utilization ≥ 70% of powered time.',
+      measurement: 'Active gaming hours, powered hours, standby hours, power rate (W), energy (kWh), and electricity cost are tracked separately.',
+      rule: 'PASS when active gaming hours ÷ powered hours is at least 70%. Below 70% is RISK. Component GPU/CPU/system values are estimates from the rig-level rate.',
+      formula: 'Utilization = active gaming hours ÷ powered hours × 100. Energy = watts × hours ÷ 1,000. Cost = kWh × tariff.',
+      values: [
+        ['Active gaming time', `${metric.gaming_hours ?? 0} h`],
+        ['Powered time', `${metric.pc_powered_hours ?? 0} h`],
+        ['Standby time', `${metric.idle_hours ?? 0} h`],
+        ['Utilization', `${metric.utilization_pct ?? 0}%`],
+        ['Active power rate', `${Math.round(Number(metric.active_watts ?? activeWatts) || 0)} W`],
+        ['Standby power rate', `${Math.round(Number(metric.idle_watts ?? idleWatts) || 0)} W`],
+        ['Energy consumed', `${metric.total_kwh ?? 0} kWh`],
+        ['Standby waste', `${metric.idle_waste_kwh ?? 0} kWh (${metric.idle_waste_pct ?? 0}%)`],
+        ['Active electricity cost', `$${metric.active_cost_per_hour_usd ?? 0} / active hour`],
+      ],
+      action: status === 'PASS'
+        ? 'Keep scheduling and power policies stable; monitor standby waste as the fleet grows.'
+        : status === 'RISK'
+          ? 'Increase booked active time or power down unused rigs to reduce standby waste.'
+          : 'Collect active and powered-time observations before evaluating utilization.',
+    },
+    ctq3: {
+      eyebrow: 'CTQ 3 · Queue & Slot Capacity Management',
+      title: 'Queue Waiting & Capacity',
+      owner: 'Lim Hokann',
+      question: 'Can players obtain an available gaming slot without excessive waiting?',
+      target: 'Mean waiting time ≤ 30 minutes and zero capacity defects.',
+      measurement: 'Booking/session telemetry records waiting time, booked slots, cancellations, and capacity defects.',
+      rule: 'PASS when mean waiting time is ≤ 30 minutes and capacity defects equal zero. Observations above 30 minutes are counted separately as wait defects.',
+      formula: 'Mean wait = total waiting minutes ÷ observations. Wait-defect rate = waits above 30 minutes ÷ observations × 100.',
+      values: [
+        ['Mean waiting time', `${metric.mean_waiting_time_mins ?? 0} min`],
+        ['Maximum waiting time', `${metric.max_waiting_time_mins ?? 0} min`],
+        ['Booked slots', `${metric.total_booked_slots ?? 0}`],
+        ['Available slots/day', `${metric.available_slots_per_day ?? 0}`],
+        ['Wait defects', `${metric.waiting_defect_count ?? 0} (${metric.waiting_defect_rate_pct ?? 0}%)`],
+        ['Capacity defects', `${metric.capacity_defects_count ?? 0}`],
+        ['Capacity bottleneck', metric.capacity_bottleneck ? 'Yes' : 'No'],
+        ['Evidence sample', `${sampleSize} observations`],
+      ],
+      action: status === 'PASS'
+        ? 'Keep queue and slot allocation rules; continue checking for peak-period bottlenecks.'
+        : status === 'RISK'
+          ? 'Review slot capacity, booking conflicts, and peak demand periods.'
+          : 'Collect booking and waiting-time observations before evaluating queue performance.',
+    },
+    ctq4: {
+      eyebrow: 'CTQ 4 · Session Reliability & QoS',
+      title: 'Session Completion Rate',
+      owner: 'Hour',
+      question: 'Do started gaming sessions finish successfully without disconnects or crashes?',
+      target: 'Completion rate ≥ 95%.',
+      measurement: 'Each completed or failed session is one opportunity. Failures are categorized by reason for root-cause analysis.',
+      rule: 'PASS when completed sessions ÷ total sessions is at least 95%. Any incomplete session is a completion defect.',
+      formula: 'Completion rate = completed sessions ÷ total sessions × 100. DPMO = failed sessions ÷ total sessions × 1,000,000.',
+      values: [
+        ['Completed sessions', `${metric.completed_sessions ?? 0}`],
+        ['Total sessions', `${metric.total_sessions ?? 0}`],
+        ['Completion rate', `${metric.completion_rate_pct ?? 0}%`],
+        ['Failed sessions', `${metric.failed_sessions ?? 0}`],
+        ['Disconnects', `${metric.total_disconnects ?? 0}`],
+        ['DPMO', `${metric.dpmo ?? 0}`],
+        ['Evidence sample', `${sampleSize} observations`],
+        ['Failure breakdown', Object.entries(metric.failure_counts || {}).map(([reason, count]) => `${reason}: ${count}`).join(', ') || 'None recorded'],
+      ],
+      action: status === 'PASS'
+        ? 'Maintain the session workflow and monitor failure categories for early warning signals.'
+        : status === 'RISK'
+          ? 'Investigate disconnect and crash causes, then compare completion before and after improvement.'
+          : 'Collect completed and failed session observations before evaluating reliability.',
+    },
+  }[ctqKey];
+
+  if (!details) return null;
+
+  return (
+    <div className="ctq-detail-panel" role="region" aria-label={`${details.title} details`}>
+      <div className="ctq-detail-header">
+        <div>
+          <div className="ctq-detail-eyebrow">{details.eyebrow}</div>
+          <h3>{details.title}</h3>
+          <p>{details.question}</p>
+        </div>
+        <div className="ctq-detail-header-actions">
+          <span className={`ctq-status-badge compact ${statusClass}`}>{status}</span>
+          <button type="button" className="ctq-detail-close" onClick={onClose} aria-label="Close CTQ details">
+            Close
+          </button>
+        </div>
+      </div>
+
+      <div className="ctq-detail-summary-grid">
+        <div className="ctq-detail-summary-card">
+          <span>Owner</span>
+          <strong>{details.owner}</strong>
+        </div>
+        <div className="ctq-detail-summary-card">
+          <span>Target specification</span>
+          <strong>{details.target}</strong>
+        </div>
+        <div className="ctq-detail-summary-card">
+          <span>Evidence</span>
+          <strong>{sampleSize} observations</strong>
+        </div>
+      </div>
+
+      <div className="ctq-detail-copy-grid">
+        <div>
+          <span className="ctq-detail-label">How it is measured</span>
+          <p>{details.measurement}</p>
+        </div>
+        <div>
+          <span className="ctq-detail-label">Decision rule</span>
+          <p>{details.rule}</p>
+        </div>
+      </div>
+
+      <div className="ctq-detail-values">
+        <div className="ctq-detail-label">Observed evidence</div>
+        <div className="ctq-detail-value-grid">
+          {details.values.map(([label, value]) => (
+            <div key={label} className="ctq-detail-value-item">
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="ctq-detail-formula">
+        <span className="ctq-detail-label">Calculation</span>
+        <code>{details.formula}</code>
+      </div>
+
+      <div className={`ctq-detail-action ${statusClass}`}>
+        <span className="ctq-detail-label">Recommended action</span>
+        <p>{details.action}</p>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminDashboard() {
   const { token, user } = useAuth();
+  const adminRefreshInFlightRef = useRef(false);
   const [adminTab, setAdminTab] = useState('machines'); // 'machines' | 'games' | 'bookings' | 'users' | 'dmaic'
   
   const [machines, setMachines] = useState(() => cachedAdminData?.machines || []);
@@ -108,7 +466,7 @@ export default function AdminDashboard() {
   const [newTestCompleted, setNewTestCompleted] = useState(true);
   const [newTestFailureReason, setNewTestFailureReason] = useState('');
   const [newTestPcIdleTime, setNewTestPcIdleTime] = useState(25);
-  const [newTestPowerUsage, setNewTestPowerUsage] = useState(185);
+  const [newTestPowerUsage, setNewTestPowerUsage] = useState('');
   const [newTestPhase, setNewTestPhase] = useState('V1_Baseline');
   const [addTestError, setAddTestError] = useState(null);
   const [addTestSubmitting, setAddTestSubmitting] = useState(false);
@@ -118,64 +476,97 @@ export default function AdminDashboard() {
   const [seedSuccessMsg, setSeedSuccessMsg] = useState(null);
   const [dailyRigFilter, setDailyRigFilter] = useState('all');
   const [energyViewMode, setEnergyViewMode] = useState('sessions'); // 'sessions' | 'daily'
+  const [powerDetailsOpen, setPowerDetailsOpen] = useState({});
+  const [selectedCtq, setSelectedCtq] = useState(null);
   const [dmaicWhiteBg, setDmaicWhiteBg] = useState(true); // Default to clean white background for academic review / teacher presentation
   const [backendError, setBackendError] = useState(null);
   const [timeTick, setTimeTick] = useState(Date.now());
+
+  const togglePowerDetails = (key) => {
+    setPowerDetailsOpen((current) => ({ ...current, [key]: !current[key] }));
+  };
+
+  const toggleCtqDetails = (key) => {
+    setSelectedCtq((current) => (current === key ? null : key));
+  };
 
   const fetchAllAdminData = async () => {
     if (!token) {
       setLoading(false);
       return;
     }
-    try {
-      const [mRes, bRes, gRes, uRes, dMetricsRes, dRecordsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/machines`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_BASE}/api/bookings/admin/all`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_BASE}/api/games`),
-        fetch(`${API_BASE}/api/admin/users`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_BASE}/api/admin/dmaic/metrics`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_BASE}/api/admin/dmaic/records`, { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
 
-      if (!mRes.ok && mRes.status === 404) {
+    // A slow request must not allow the 4-second live refresh to pile up.
+    if (adminRefreshInFlightRef.current) return;
+    adminRefreshInFlightRef.current = true;
+
+    const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
+    const requests = [
+      ['machines', fetchAdminJson(`${API_BASE}/api/machines`, authHeaders), setMachines],
+      ['bookings', fetchAdminJson(`${API_BASE}/api/bookings/admin/all`, authHeaders), setBookings],
+      ['games', fetchAdminJson(`${API_BASE}/api/games`), setGames],
+      ['users', fetchAdminJson(`${API_BASE}/api/admin/users`, authHeaders), setUsers],
+      ['dmaicMetrics', fetchAdminJson(`${API_BASE}/api/admin/dmaic/metrics`, authHeaders), setDmaicMetrics],
+      ['dmaicRecords', fetchAdminJson(`${API_BASE}/api/admin/dmaic/records`, authHeaders), setDmaicRecords],
+    ];
+
+    try {
+      // Each section updates as soon as its own request completes. allSettled
+      // ensures one failed section does not discard the other five responses.
+      const results = await Promise.allSettled(
+        requests.map(([key, request, setter]) => request.then((result) => {
+          if (result.ok) {
+            setter(result.data);
+            updateAdminCache(key, result.data);
+            if (key === 'games') {
+              window.dispatchEvent(new Event('cloudkh-games-updated'));
+            }
+            if (key === 'machines') {
+              // The primary screen is usable as soon as machine data arrives,
+              // including a valid empty fleet response.
+              setLoading(false);
+            }
+          }
+          return result;
+        }))
+      );
+
+      const machineResult = results[0];
+      if (machineResult.status === 'fulfilled' && !machineResult.value.ok && machineResult.value.status === 404) {
         setBackendError('Port 8000 is occupied by another application or the CloudKH backend is offline. Please start CloudKH backend (python backend/run.py).');
-      } else if (!mRes.ok && (mRes.status === 401 || mRes.status === 403)) {
+      } else if (machineResult.status === 'fulfilled' && !machineResult.value.ok && (machineResult.value.status === 401 || machineResult.value.status === 403)) {
         setBackendError('Administrator privileges required. Please log in with an admin account.');
-      } else {
+      } else if (machineResult.status === 'fulfilled' && machineResult.value.ok) {
         setBackendError(null);
       }
-
-      const mData = mRes.ok ? await mRes.json() : (cachedAdminData?.machines || []);
-      const bData = bRes.ok ? await bRes.json() : (cachedAdminData?.bookings || []);
-      let gData = cachedAdminData?.games || [];
-      if (gRes.ok) {
-        gData = await gRes.json();
-        setGames(gData);
-        window.dispatchEvent(new Event('cloudkh-games-updated'));
-      }
-      const uData = uRes.ok ? await uRes.json() : (cachedAdminData?.users || []);
-      const dmData = dMetricsRes.ok ? await dMetricsRes.json() : (cachedAdminData?.dmaicMetrics || null);
-      const drData = dRecordsRes.ok ? await dRecordsRes.json() : (cachedAdminData?.dmaicRecords || []);
-
-      if (mRes.ok) setMachines(mData);
-      if (bRes.ok) setBookings(bData);
-      if (uRes.ok) setUsers(uData);
-      if (dMetricsRes.ok) setDmaicMetrics(dmData);
-      if (dRecordsRes.ok) setDmaicRecords(drData);
-
-      cachedAdminData = {
-        machines: mData,
-        bookings: bData,
-        games: gData,
-        users: uData,
-        dmaicMetrics: dmData,
-        dmaicRecords: drData,
-      };
     } catch (err) {
       console.error('Failed to load admin data:', err);
+      // Request-level failures are handled by allSettled. This catch is only
+      // for an unexpected orchestration error.
       setBackendError('Failed to connect to backend server at http://localhost:8000. Ensure the CloudKH backend is running.');
     } finally {
+      adminRefreshInFlightRef.current = false;
       setLoading(false);
+    }
+  };
+
+  const fetchMachinesOnly = async () => {
+    if (!token || adminRefreshInFlightRef.current) return;
+    adminRefreshInFlightRef.current = true;
+    try {
+      const result = await fetchAdminJson(`${API_BASE}/api/machines`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (result.ok) {
+        setMachines(result.data);
+        updateAdminCache('machines', result.data);
+        setBackendError(null);
+      }
+    } catch (err) {
+      // Keep the last known fleet visible during a transient poll failure.
+      console.warn('Live machine refresh failed:', err);
+    } finally {
+      adminRefreshInFlightRef.current = false;
     }
   };
 
@@ -333,17 +724,17 @@ export default function AdminDashboard() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          account_name: newTestAccount.trim() || 'Guest Student',
+          account: newTestAccount.trim() || 'Guest Student',
           requested_time: newTestRequestedTime.trim() || undefined,
           booking_slot: newTestBookingSlot.trim() || undefined,
-          waiting_time_mins: parseFloat(newTestWaitingTime) || 0,
-          latency_ms: parseFloat(newTestLatency) || 0,
-          fps: parseFloat(newTestFps) || 60,
+          waiting_time_minutes: parseFloat(newTestWaitingTime) || 0,
+          avg_latency_ms: parseFloat(newTestLatency) || 0,
+          avg_fps: parseFloat(newTestFps) || 60,
           disconnects_count: parseInt(newTestDisconnects) || 0,
           completed: newTestCompleted,
           failure_reason: !newTestCompleted ? (newTestFailureReason.trim() || 'aborted') : null,
-          pc_idle_time_mins: parseFloat(newTestPcIdleTime) || 0,
-          power_usage_watts: parseFloat(newTestPowerUsage) || 180,
+          pc_idle_minutes: parseFloat(newTestPcIdleTime) || 0,
+          power_watts: parseFloat(newTestPowerUsage) || undefined,
           phase: newTestPhase,
         }),
       });
@@ -356,6 +747,7 @@ export default function AdminDashboard() {
       setNewTestRequestedTime('');
       setNewTestBookingSlot('');
       setNewTestFailureReason('');
+      setNewTestPowerUsage('');
       fetchAllAdminData();
     } catch (err) {
       setAddTestError(err.message);
@@ -366,7 +758,9 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchAllAdminData();
-    const interval = setInterval(fetchAllAdminData, 4000);
+    // Machine state is live; heavier admin/DMAIC data refreshes less often.
+    const machineInterval = setInterval(fetchMachinesOnly, 4000);
+    const adminDataInterval = setInterval(fetchAllAdminData, 30000);
     const ticker = setInterval(() => setTimeTick(Date.now()), 1000);
 
     // 30-minute security inactivity timeout for administrator session
@@ -384,7 +778,8 @@ export default function AdminDashboard() {
     resetIdleTimer();
 
     return () => {
-      clearInterval(interval);
+      clearInterval(machineInterval);
+      clearInterval(adminDataInterval);
       clearInterval(ticker);
       clearTimeout(idleTimer);
       userEvents.forEach((evt) => window.removeEventListener(evt, resetIdleTimer));
@@ -425,11 +820,10 @@ export default function AdminDashboard() {
     }
   };
 
-  const formatLiveDuration = (startedAtStr) => {
+  const formatLiveDuration = (startedAtStr, nowMs = timeTick) => {
     if (!startedAtStr) return '0h 00m 00s';
     try {
       const startMs = new Date(startedAtStr).getTime();
-      const nowMs = Date.now();
       const diffSec = Math.max(0, Math.floor((nowMs - startMs) / 1000));
       const hours = Math.floor(diffSec / 3600);
       const mins = Math.floor((diffSec % 3600) / 60);
@@ -887,11 +1281,6 @@ export default function AdminDashboard() {
       </div>
     );
   }
-  const activeSessionsCount = bookings.filter((b) => {
-    const nowIso = new Date().toISOString();
-    return b.status === 'confirmed' && b.start_time <= nowIso && nowIso <= b.end_time;
-  }).length;
-
   const formatRam = (ram) => {
     if (!ram) return '16 GB';
     return ram.replace(/\s*\(.*?\)/g, '').trim();
@@ -930,209 +1319,63 @@ export default function AdminDashboard() {
     || 'Gaming Rig';
 
   const rawPerPcEnergy = dmaicMetrics?.per_machine_energy || dmaicMetrics?.ctq2_utilization?.per_machine_energy || [];
-  const perPcEnergy = rawPerPcEnergy.length > 0 ? rawPerPcEnergy : [
-    {
-      id: 2,
-      name: 'Gaming PC (Choonvai)',
-      gpu: 'NVIDIA GeForce RTX 2080 Super with Max-Q Design',
-      cpu: 'Intel Core i7-10875H CPU @ 2.30GHz',
-      ram: '32 GB',
-      active_watts: 260.0,
-      idle_watts: 48.0,
-      completed_sessions: 0,
-      gaming_hours: 0,
-      idle_hours: 16,
-      total_kwh: 0.768,
-      total_cost_usd: 0.14,
-      total_cost_khr: 567,
-      two_week_forecast: {
-        projected_gaming_hours: 56.0,
-        projected_idle_hours: 280.0,
-        projected_kwh: 28.0,
-        projected_cost_usd: 5.04,
-        projected_cost_khr: 20412,
-        direct_cost_per_hr: 0.047,
-        idle_waste_kwh: 13.44,
-        idle_waste_usd: 2.42,
-      },
-    },
-    {
-      id: 3,
-      name: 'Gaming PC (DESKTOP-BR6FNPB)',
-      gpu: 'NVIDIA GeForce GTX 1660 Ti',
-      cpu: 'Intel Core i3-10100F CPU @ 3.60GHz',
-      ram: '16 GB',
-      active_watts: 210.0,
-      idle_watts: 38.0,
-      completed_sessions: 0,
-      gaming_hours: 0,
-      idle_hours: 16,
-      total_kwh: 0.608,
-      total_cost_usd: 0.11,
-      total_cost_khr: 445,
-      two_week_forecast: {
-        projected_gaming_hours: 56.0,
-        projected_idle_hours: 280.0,
-        projected_kwh: 22.4,
-        projected_cost_usd: 4.03,
-        projected_cost_khr: 16321,
-        direct_cost_per_hr: 0.038,
-        idle_waste_kwh: 10.64,
-        idle_waste_usd: 1.92,
-      },
-    },
-  ];
+  const perPcEnergy = rawPerPcEnergy.length > 0
+    ? rawPerPcEnergy
+    : machines.map((m) => ({
+        id: m.id,
+        name: m.name,
+        gpu: m.gpu,
+        cpu: m.cpu,
+        ram: m.ram,
+        status: m.status,
+        active_watts: Number(m.active_watts) || 0,
+        idle_watts: Number(m.idle_watts) || 0,
+        completed_sessions: 0,
+        gaming_hours: 0,
+        idle_hours: 0,
+        total_kwh: 0,
+        total_cost_usd: 0,
+      }));
 
-  const totalPilotCostUsd = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.projected_cost_usd || 0), 0) || 9.07;
-  const totalPilotCostKhr = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.projected_cost_khr || 0), 0) || 36733;
-  const totalPilotKwh = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.projected_kwh || 0), 0) || 50.4;
-  const totalIdleWasteKwh = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.idle_waste_kwh || 0), 0) || 24.08;
-  const totalIdleWasteUsd = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.idle_waste_usd || 0), 0) || 4.34;
-  const totalActiveWatts = perPcEnergy.reduce((s, m) => s + (m.active_watts || 0), 0) || 470;
-  const totalIdleWatts = perPcEnergy.reduce((s, m) => s + (m.idle_watts || 0), 0) || 86;
+  const totalPilotCostUsd = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.projected_cost_usd || 0), 0);
+  const totalPilotCostKhr = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.projected_cost_khr || 0), 0);
+  const totalPilotKwh = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.projected_kwh || 0), 0);
+  const totalIdleWasteKwh = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.idle_waste_kwh || 0), 0);
+  const totalIdleWasteUsd = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.idle_waste_usd || 0), 0);
+  const totalActiveWatts = perPcEnergy.reduce((s, m) => s + (Number(m.active_watts) || 0), 0);
+  const totalIdleWatts = perPcEnergy.reduce((s, m) => s + (Number(m.idle_watts) || 0), 0);
   const totalGamingHours = perPcEnergy.reduce((s, m) => s + (m.gaming_hours || 0), 0);
   const totalIdleHours = perPcEnergy.reduce((s, m) => s + (m.idle_hours || 0), 0);
   const totalObservedKwh = perPcEnergy.reduce((s, m) => s + (m.total_kwh || 0), 0);
   const totalObservedUsd = perPcEnergy.reduce((s, m) => s + (m.total_cost_usd || 0), 0);
+  const ctq2Power = dmaicMetrics?.ctq2_utilization || {};
+  const ctq2ActiveWatts = Number(ctq2Power.active_watts ?? perPcEnergy[0]?.active_watts ?? totalActiveWatts) || 0;
+  const ctq2IdleWatts = Number(ctq2Power.idle_watts ?? perPcEnergy[0]?.idle_watts ?? totalIdleWatts) || 0;
 
   const rawDailyEnergy = dmaicMetrics?.daily_machine_energy || [];
-  const dailyMachineEnergy = rawDailyEnergy.length > 0 ? rawDailyEnergy : [
-    {
-      date: '2026-09-15',
-      machine_id: 2,
-      machine_name: 'Gaming PC (Choonvai)',
-      machine_gpu: 'NVIDIA GeForce RTX 2080 Super with Max-Q Design',
-      active_watts: 260.0,
-      idle_watts: 48.0,
-      gaming_hours: 4.0,
-      idle_hours: 12.0,
-      total_hours: 16.0,
-      active_kwh: 1.04,
-      idle_kwh: 0.576,
-      total_kwh: 1.616,
-      total_cost_usd: 0.29,
-      total_cost_khr: 1175,
-      sessions_count: 4,
-      completed_sessions: 4,
-      status: 'PASS',
-    },
-    {
-      date: '2026-09-15',
-      machine_id: 3,
-      machine_name: 'Gaming PC (DESKTOP-BR6FNPB)',
-      machine_gpu: 'NVIDIA GeForce GTX 1660 Ti',
-      active_watts: 210.0,
-      idle_watts: 38.0,
-      gaming_hours: 3.5,
-      idle_hours: 12.5,
-      total_hours: 16.0,
-      active_kwh: 0.735,
-      idle_kwh: 0.475,
-      total_kwh: 1.21,
-      total_cost_usd: 0.22,
-      total_cost_khr: 891,
-      sessions_count: 4,
-      completed_sessions: 4,
-      status: 'PASS',
-    },
-    {
-      date: '2026-09-14',
-      machine_id: 2,
-      machine_name: 'Gaming PC (Choonvai)',
-      machine_gpu: 'NVIDIA GeForce RTX 2080 Super with Max-Q Design',
-      active_watts: 260.0,
-      idle_watts: 48.0,
-      gaming_hours: 3.0,
-      idle_hours: 13.0,
-      total_hours: 16.0,
-      active_kwh: 0.78,
-      idle_kwh: 0.624,
-      total_kwh: 1.404,
-      total_cost_usd: 0.25,
-      total_cost_khr: 1013,
-      sessions_count: 3,
-      completed_sessions: 3,
-      status: 'PASS',
-    },
-    {
-      date: '2026-09-14',
-      machine_id: 3,
-      machine_name: 'Gaming PC (DESKTOP-BR6FNPB)',
-      machine_gpu: 'NVIDIA GeForce GTX 1660 Ti',
-      active_watts: 210.0,
-      idle_watts: 38.0,
-      gaming_hours: 4.0,
-      idle_hours: 12.0,
-      total_hours: 16.0,
-      active_kwh: 0.84,
-      idle_kwh: 0.456,
-      total_kwh: 1.296,
-      total_cost_usd: 0.23,
-      total_cost_khr: 932,
-      sessions_count: 4,
-      completed_sessions: 4,
-      status: 'PASS',
-    },
-    {
-      date: '2026-09-13',
-      machine_id: 2,
-      machine_name: 'Gaming PC (Choonvai)',
-      machine_gpu: 'NVIDIA GeForce RTX 2080 Super with Max-Q Design',
-      active_watts: 260.0,
-      idle_watts: 48.0,
-      gaming_hours: 5.0,
-      idle_hours: 11.0,
-      total_hours: 16.0,
-      active_kwh: 1.30,
-      idle_kwh: 0.528,
-      total_kwh: 1.828,
-      total_cost_usd: 0.33,
-      total_cost_khr: 1337,
-      sessions_count: 5,
-      completed_sessions: 5,
-      status: 'PASS',
-    },
-    {
-      date: '2026-09-13',
-      machine_id: 3,
-      machine_name: 'Gaming PC (DESKTOP-BR6FNPB)',
-      machine_gpu: 'NVIDIA GeForce GTX 1660 Ti',
-      active_watts: 210.0,
-      idle_watts: 38.0,
-      gaming_hours: 3.0,
-      idle_hours: 13.0,
-      total_hours: 16.0,
-      active_kwh: 0.63,
-      idle_kwh: 0.494,
-      total_kwh: 1.124,
-      total_cost_usd: 0.20,
-      total_cost_khr: 810,
-      sessions_count: 3,
-      completed_sessions: 3,
-      status: 'PASS',
-    },
-  ];
+  const dailyMachineEnergy = rawDailyEnergy.length > 0 ? rawDailyEnergy : [];
 
   // Real-time live active streaming detection
   const activeLiveStreams = machines
-    .filter((m) => ['in-use', 'streaming'].includes(m.live_status || m.status) && m.stream_started_at)
+    .filter((m) => ['in-use', 'streaming'].includes(m.live_status || m.status) && (m.runtime_started_at || m.stream_started_at))
     .map((m) => {
+      const runtimeStartedAt = m.runtime_started_at || m.stream_started_at;
       let elapsedSecs = 1;
       try {
-        const startMs = new Date(m.stream_started_at).getTime();
+        const startMs = new Date(runtimeStartedAt).getTime();
         elapsedSecs = Math.max(1, Math.floor((timeTick - startMs) / 1000));
       } catch (e) {
         elapsedSecs = 1;
       }
       const elapsedHrs = elapsedSecs / 3600.0;
-      const actWatts = Number(m.active_watts || 260.0);
+      const actWatts = Number(m.active_watts) || 0;
       const liveKwh = (actWatts * elapsedHrs) / 1000.0;
-      const liveCost = liveKwh * 0.18;
+      const liveCost = liveKwh * EDC_TARIFF_USD_PER_KWH;
       const liveGame = m.installed_games?.[0]?.title || 'METAL SLUG ATTACK RELOADED';
       
       let startLocalTime = 'Now';
       try {
-        startLocalTime = new Date(m.stream_started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        startLocalTime = new Date(runtimeStartedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       } catch (e) {
         startLocalTime = 'Now';
       }
@@ -1147,6 +1390,7 @@ export default function AdminDashboard() {
         machine_gpu: m.gpu,
         game_title: liveGame,
         time_period: `${startLocalTime} - Active Now`,
+        stream_started_at: runtimeStartedAt,
         duration_seconds: elapsedSecs,
         duration_formatted: formatDurationSeconds(elapsedSecs),
         duration_hours: Number(elapsedHrs.toFixed(3)),
@@ -1196,32 +1440,10 @@ export default function AdminDashboard() {
 
   // Combine live active streams with database recorded sessions
   const combinedSessions = [...activeLiveStreams, ...(dmaicRecords || [])];
-  const sessionTimelineRecords = (combinedSessions.length > 0)
-    ? combinedSessions.filter((r) => dailyRigFilter === 'all' || String(r.machine_id) === String(dailyRigFilter))
-    : [
-        {
-          id: 93,
-          test_id: 'RUN-001',
-          user_email: 'cheong.choonvai24@kit.edu.kh',
-          machine_id: 2,
-          machine_name: 'Gaming PC (Choonvai)',
-          machine_gpu: 'NVIDIA GeForce RTX 2080 Super with Max-Q Design',
-          game_title: 'METAL SLUG ATTACK RELOADED',
-          time_period: '10:54 AM - 10:55 AM',
-          duration_seconds: 36.0,
-          duration_formatted: '36s',
-          duration_hours: 0.01,
-          active_watts: 260.0,
-          power_kwh: 0.0008,
-          energy_cost_usd: 0.0001,
-          energy_cost_khr: 1,
-          latency_ms: 42.5,
-          fps: 60.0,
-          completed: true,
-          ctq_overall_pass: true,
-          date_str: '2026-09-15',
-        },
-      ].filter((r) => dailyRigFilter === 'all' || String(r.machine_id) === String(dailyRigFilter));
+  const sessionTimelineRecords = combinedSessions.filter(
+    (r) => dailyRigFilter === 'all' || String(r.machine_id) === String(dailyRigFilter)
+  );
+  const livePcCount = activeLiveStreams.length;
 
   const totalSessionSecs = sessionTimelineRecords.reduce((sum, r) => sum + (r.duration_seconds || 0), 0);
   const totalSessionKwh = sessionTimelineRecords.reduce((sum, r) => sum + (r.power_kwh || 0), 0);
@@ -1238,8 +1460,8 @@ export default function AdminDashboard() {
   const passRate = nDmaic > 0 ? (passCount / nDmaic) * 100 : 100;
   const defectCount = nDmaic - passCount;
   const avgIdle = nDmaic > 0 ? (filteredDmaicRecords.reduce((s, r) => s + (r.pc_idle_time_mins ?? r.pc_idle_minutes ?? 0), 0) / nDmaic) : 0;
-  const sumKwh = filteredDmaicRecords.reduce((s, r) => s + (r.power_kwh ?? (r.power_usage_watts ? r.power_usage_watts / 1000 : 0.28)), 0);
-  const sumCost = filteredDmaicRecords.reduce((s, r) => s + (r.energy_cost_usd ?? ((r.power_kwh ?? 0.28) * 0.18)), 0);
+  const sumKwh = filteredDmaicRecords.reduce((s, r) => s + (r.power_kwh ?? (r.power_usage_watts ? r.power_usage_watts / 1000 : 0)), 0);
+  const sumCost = filteredDmaicRecords.reduce((s, r) => s + (r.energy_cost_usd ?? ((r.power_kwh ?? 0) * EDC_TARIFF_USD_PER_KWH)), 0);
 
   return (
     <div className={`admin-dashboard-container ${adminTab === 'dmaic' && dmaicWhiteBg ? 'dmaic-white-container' : ''}`}>
@@ -1302,13 +1524,10 @@ export default function AdminDashboard() {
 
         <div className="admin-bento-card glass-panel">
           <div className="bento-top-row">
-            <span className="bento-tag">Live Streams</span>
+            <span className="bento-tag">PCs Streaming Now</span>
           </div>
-          <div className={`bento-value ${machines.some((m) => ['in-use', 'streaming'].includes(m.live_status || m.status) || Boolean(m.stream_started_at)) || activeSessionsCount > 0 ? 'highlight-green' : ''}`}>
-            {Math.max(
-              activeSessionsCount,
-              machines.filter((m) => ['in-use', 'streaming'].includes(m.live_status || m.status) || Boolean(m.stream_started_at)).length
-            )}
+          <div className={`bento-value ${livePcCount > 0 ? 'highlight-green' : ''}`}>
+            {livePcCount}
           </div>
         </div>
 
@@ -1490,7 +1709,7 @@ export default function AdminDashboard() {
                           </td>
                         </tr>
                       ) : (
-                        machines.map((m, idx) => {
+                        machines.map((m) => {
                           const isStreaming = (m.live_status || m.status) === 'in-use' || (m.live_status || m.status) === 'streaming' || Boolean(m.stream_started_at);
                           const isOnline = isStreaming || (m.live_status || m.status) === 'available';
                           const isMaint = (m.live_status || m.status) === 'maintenance';
@@ -1513,8 +1732,8 @@ export default function AdminDashboard() {
                             dotColor = 'green';
                           }
 
-                          const actWatts = m.active_watts || (idx === 0 ? 260 : 210);
-                          const idlWatts = m.idle_watts || (idx === 0 ? 48 : 38);
+                          const actWatts = Number(m.active_watts) || 0;
+                          const idlWatts = Number(m.idle_watts) || 0;
 
                           return (
                             <tr key={m.id}>
@@ -1540,11 +1759,11 @@ export default function AdminDashboard() {
                                   <div style={{ marginTop: '5px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                     <span className="running-timer-badge">
                                       <ClockIcon size={11} />
-                                      <span>Running: {formatLiveDuration(m.stream_started_at)}</span>
+                                      <span>Running: {formatLiveDuration(m.runtime_started_at || m.stream_started_at)}</span>
                                     </span>
                                     {m.steam_detected && (
                                       <span style={{ fontSize: '10px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '1px 6px', borderRadius: '4px', border: '1px solid rgba(56, 189, 248, 0.3)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                        🎮 Steam Running
+                                        Steam Running
                                       </span>
                                     )}
                                   </div>
@@ -1573,7 +1792,7 @@ export default function AdminDashboard() {
                                 {isStreaming ? (
                                   <div>
                                     <div style={{ color: '#06b6d4', fontWeight: 700, fontSize: '12.5px' }}>
-                                      ⚡ {actWatts}W Load
+                                      {formatWattRate(actWatts)} active rate
                                     </div>
                                     <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '10.5px' }}>
                                       {m.steam_detected ? 'Active Steam Session' : 'Active Gaming Stream'}
@@ -1581,9 +1800,9 @@ export default function AdminDashboard() {
                                   </div>
                                 ) : isOnline ? (
                                   <div>
-                                    <span style={{ color: '#38bdf8', fontWeight: 600 }}>{idlWatts}W Idle</span>
+                                    <span style={{ color: '#38bdf8', fontWeight: 600 }}>{formatWattRate(idlWatts)} standby rate</span>
                                     <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '10.5px' }}>
-                                      Peak: {actWatts}W
+                                      Reference active rate: {formatWattRate(actWatts)}
                                     </div>
                                   </div>
                                 ) : (
@@ -1591,6 +1810,14 @@ export default function AdminDashboard() {
                                     <span style={{ color: 'var(--text-muted, #94a3b8)' }}>0W (Standby)</span>
                                   </div>
                                 )}
+                                <PowerBreakdownDetails
+                                  activeWatts={actWatts}
+                                  idleWatts={idlWatts}
+                                  activeBreakdown={m.active_power_breakdown}
+                                  idleBreakdown={m.idle_power_breakdown}
+                                  expanded={Boolean(powerDetailsOpen[`machine-${m.id}`])}
+                                  onToggle={() => togglePowerDetails(`machine-${m.id}`)}
+                                />
                               </td>
                               <td>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
@@ -1704,13 +1931,17 @@ export default function AdminDashboard() {
               </div>
 
               {/* SECTION: GAMING TELEMETRY & WATT CONSUMPTION */}
+              <PowerMeasurementGuide
+                watts={ctq2ActiveWatts}
+                hours={ctq2Power.gaming_hours}
+              />
               <div className="tab-section-header compact" style={{ marginTop: '20px', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   <h2 className="section-heading-compact" style={{ fontSize: '1.2rem', margin: 0, fontWeight: 700 }}>
                     {energyViewMode === 'sessions' ? 'Gaming Sessions & CTQ Telemetry Log' : 'Daily Fleet Operating Hours & Watt Summary'}
                   </h2>
                   <span className="dmaic-stat-pill">
-                    ⚡ EDC Tariff: $0.18/kWh
+                    EDC Tariff: ${EDC_TARIFF_USD_PER_KWH.toFixed(2)}/kWh
                   </span>
                   <span className="dmaic-stat-pill">
                     CTQ-2: Power &amp; PC Utilization
@@ -1725,7 +1956,7 @@ export default function AdminDashboard() {
                       onClick={() => setEnergyViewMode('sessions')}
                       title="Show individual gaming sessions with time window, game, and watt draw"
                     >
-                      🎮 Gaming Sessions Timeline ({sessionTimelineRecords.length})
+                      Gaming Sessions Timeline ({sessionTimelineRecords.length})
                     </button>
                     <button
                       type="button"
@@ -1733,7 +1964,7 @@ export default function AdminDashboard() {
                       onClick={() => setEnergyViewMode('daily')}
                       title="Show aggregated daily fleet summary by date and machine"
                     >
-                      📅 Daily Fleet Rollup ({dailyFilteredRecords.length})
+                      Daily Fleet Rollup ({dailyFilteredRecords.length})
                     </button>
                   </div>
 
@@ -1766,15 +1997,12 @@ export default function AdminDashboard() {
               <div className="dmaic-electricity-table-container glass-panel">
                 <div className="electricity-table-scroll">
                   {energyViewMode === 'sessions' ? (
-                    <table className="dmaic-electricity-table">
+                    <table className="dmaic-electricity-table session-timeline-table">
                       <thead>
                         <tr>
-                          <th style={{ minWidth: '160px' }}>Time Period</th>
-                          <th style={{ minWidth: '180px' }}>Gaming Rig / Machine</th>
-                          <th style={{ minWidth: '170px' }}>Game Played</th>
-                          <th style={{ minWidth: '170px' }}>Player / Account</th>
-                          <th style={{ minWidth: '110px', textAlign: 'right' }}>Active Duration</th>
-                          <th style={{ minWidth: '110px', textAlign: 'right' }}>Power Draw</th>
+                          <th style={{ minWidth: '280px' }}>Session / Gaming Rig</th>
+                          <th style={{ minWidth: '125px', textAlign: 'right' }}>PC Runtime</th>
+                          <th style={{ minWidth: '125px', textAlign: 'right' }}>Power Rate (W)</th>
                           <th style={{ minWidth: '120px', textAlign: 'right' }}>Energy Consumed</th>
                           <th style={{ minWidth: '120px', textAlign: 'right' }}>EDC Cost</th>
                           <th style={{ minWidth: '130px', textAlign: 'center' }}>CTQ Quality</th>
@@ -1790,56 +2018,55 @@ export default function AdminDashboard() {
                         ) : (
                           sessionTimelineRecords.map((row, idx) => {
                             const isPass = row.ctq_overall_pass ?? row.completed;
-                            const durStr = row.duration_formatted || (row.duration_seconds ? `${Math.round(row.duration_seconds)}s` : '1.0h');
+                            const durStr = row.is_live && row.stream_started_at
+                              ? formatLiveDuration(row.stream_started_at)
+                              : (row.duration_formatted || (row.duration_seconds ? `${Math.round(row.duration_seconds)}s` : '0s'));
                             const durSecs = row.duration_seconds || (row.duration_hours ? row.duration_hours * 3600 : 3600);
+                            const sessionMachine = perPcEnergy.find((pc) => String(pc.id) === String(row.machine_id));
+                            const sessionIdleWatts = Number(row.idle_watts ?? sessionMachine?.idle_watts) || 0;
                             const kwh = row.power_kwh || 0;
                             const cost = row.energy_cost_usd || 0;
                             const khr = row.energy_cost_khr || Math.round(cost * 4050);
                             return (
                               <tr key={`session-${row.id || idx}`} className={row.is_live ? 'live-session-row' : ''}>
-                                <td>
+                                <td className="session-summary-cell">
                                   <span className={`time-window-pill ${row.is_live ? 'live' : ''}`}>
                                     {row.is_live ? (
                                       <span className="live-dot-pulse green" style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', background: '#4ade80', marginRight: '5px' }} />
-                                    ) : '🕒 '}
+                                    ) : null}
                                     {row.time_period || row.booking_slot || '10:54 AM - 10:55 AM'}
                                   </span>
                                   <span style={{ fontSize: '10.5px', color: row.is_live ? '#38bdf8' : 'var(--text-muted, #94a3b8)', display: 'block', marginTop: '2px', fontWeight: row.is_live ? 700 : 400 }}>
                                     {row.is_live ? '● STREAMING LIVE NOW' : (row.date_str || (row.created_at ? String(row.created_at).substring(0, 10) : 'Today'))}
                                   </span>
-                                </td>
-                                <td>
-                                  <strong style={{ fontSize: '12.5px' }}>{row.machine_name || row.rig_display || 'Gaming PC'}</strong>
-                                  <div style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>
-                                    {formatRigGpu(row.machine_gpu)}
-                                  </div>
-                                </td>
-                                <td>
-                                  <span className="game-played-pill">
-                                    🎮 {row.game_title || 'METAL SLUG ATTACK RELOADED'}
+                                  <strong className="session-rig-name">{row.machine_name || row.rig_display || 'Gaming PC'}</strong>
+                                  <span className="session-rig-meta">
+                                    {formatRigGpu(row.machine_gpu)} · {row.game_title || 'CloudKH Game'}
                                   </span>
-                                </td>
-                                <td>
-                                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#e2e8f0' }}>
-                                    {row.user_email || row.account_name || 'cheong.choonvai24@kit.edu.kh'}
-                                  </span>
-                                  <span style={{ fontSize: '10px', color: 'var(--text-muted, #94a3b8)', display: 'block' }}>
-                                    {row.test_id || `RUN-${String(row.id || idx + 1).padStart(3, '0')}`}
+                                  <span className="session-rig-account">
+                                    {row.user_email || row.account_name || 'Guest'} · {row.test_id || `RUN-${String(row.id || idx + 1).padStart(3, '0')}`}
                                   </span>
                                 </td>
                                 <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                                   <strong style={{ color: '#4ade80', fontSize: '12.5px' }}>{durStr}</strong>
                                   <span style={{ fontSize: '10.5px', color: row.is_live ? '#38bdf8' : 'var(--text-muted, #94a3b8)', display: 'block' }}>
-                                    {row.is_live ? 'Live Ticking' : `(${(durSecs / 3600).toFixed(2)}h active)`}
+                                    {row.is_live ? 'Live ticking' : `(${(durSecs / 3600).toFixed(2)}h active)`}
                                   </span>
                                 </td>
                                 <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                                  <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: '12.5px' }}>
-                                    {Math.round(row.active_watts || 260)}W
-                                  </span>
-                                  <span style={{ fontSize: '10px', color: 'var(--text-muted, #94a3b8)', display: 'block' }}>
-                                    Gaming Load
-                                  </span>
+                                  <div className="power-total-summary">
+                                    <strong>{formatWattRate(row.active_watts)} active rate</strong>
+                                  </div>
+                                  <PowerBreakdownDetails
+                                    activeWatts={row.active_watts}
+                                    idleWatts={sessionIdleWatts}
+                                    activeBreakdown={row.active_power_breakdown || sessionMachine?.active_power_breakdown}
+                                    idleBreakdown={row.idle_power_breakdown || sessionMachine?.idle_power_breakdown}
+                                    activeHours={durSecs / 3600}
+                                    idleHours={0}
+                                    expanded={Boolean(powerDetailsOpen[`session-${row.id || idx}`])}
+                                    onToggle={() => togglePowerDetails(`session-${row.id || idx}`)}
+                                  />
                                 </td>
                                 <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                                   <strong style={{ fontSize: '12.5px', color: '#38bdf8' }}>
@@ -1848,6 +2075,9 @@ export default function AdminDashboard() {
                                   {row.is_live && (
                                     <span style={{ fontSize: '10px', color: '#38bdf8', display: 'block' }}>Live Metering</span>
                                   )}
+                                  <span style={{ fontSize: '10px', color: 'var(--text-muted, #94a3b8)', display: 'block' }}>
+                                    {formatWattRate(row.active_watts)} × {(durSecs / 3600).toFixed(2)} h
+                                  </span>
                                 </td>
                                 <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                                   <strong style={{ color: '#4ade80', fontSize: '12.5px' }}>
@@ -1883,14 +2113,14 @@ export default function AdminDashboard() {
                       {sessionTimelineRecords.length > 0 && (
                         <tfoot>
                           <tr className="electricity-fleet-summary-row">
-                            <td colSpan={4}>
+                            <td>
                               <strong>Active Sessions Total ({sessionTimelineRecords.length} Sessions Observed)</strong>
                             </td>
                             <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                               <strong style={{ color: '#4ade80' }}>{formatDurationSeconds(totalSessionSecs)}</strong>
                             </td>
                             <td style={{ textAlign: 'right' }}>
-                              <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '11px' }}>Active Load</span>
+                              <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '11px' }}>Energy is time-based</span>
                             </td>
                             <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                               <strong style={{ color: '#38bdf8', fontSize: '13px' }}>
@@ -1921,7 +2151,7 @@ export default function AdminDashboard() {
                           <th style={{ minWidth: '120px' }}>Date</th>
                           <th style={{ minWidth: '180px' }}>Gaming Rig / Machine</th>
                           <th style={{ minWidth: '170px', textAlign: 'right' }}>Running Hours (Active / Idle)</th>
-                          <th style={{ minWidth: '140px', textAlign: 'right' }}>Power Draw (Load / Idle)</th>
+                          <th style={{ minWidth: '150px', textAlign: 'right' }}>Power Rate (W)</th>
                           <th style={{ minWidth: '140px', textAlign: 'right' }}>Energy Consumed</th>
                           <th style={{ minWidth: '140px', textAlign: 'right' }}>Daily Electricity Cost</th>
                           <th style={{ minWidth: '120px', textAlign: 'center' }}>Sessions Logged</th>
@@ -1958,16 +2188,27 @@ export default function AdminDashboard() {
                                 </span>
                               </td>
                               <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                                <span style={{ color: '#f59e0b', fontWeight: 600 }}>{row.active_watts}W</span>
-                                {' / '}
-                                <span style={{ color: '#38bdf8' }}>{row.idle_watts}W</span>
+                                <div className="power-total-summary">
+                                  <strong>{formatWattRate(row.active_watts)} active rate</strong>
+                                  <span>{formatWattRate(row.idle_watts)} standby rate</span>
+                                </div>
+                                <PowerBreakdownDetails
+                                  activeWatts={row.active_watts}
+                                  idleWatts={row.idle_watts}
+                                  activeBreakdown={row.active_power_breakdown}
+                                  idleBreakdown={row.idle_power_breakdown}
+                                  activeHours={row.gaming_hours}
+                                  idleHours={row.idle_hours}
+                                  expanded={Boolean(powerDetailsOpen[`daily-${row.date}-${row.machine_id}`])}
+                                  onToggle={() => togglePowerDetails(`daily-${row.date}-${row.machine_id}`)}
+                                />
                               </td>
                               <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                                 <strong style={{ fontSize: '13px' }}>
                                   {row.total_kwh < 0.01 && row.total_kwh > 0 ? Number(row.total_kwh).toFixed(4) : Number(row.total_kwh || 0).toFixed(2)} kWh
                                 </strong>
                                 <span style={{ fontSize: '10.5px', color: 'var(--text-muted, #94a3b8)', display: 'block' }}>
-                                  ({row.active_kwh < 0.01 && row.active_kwh > 0 ? Number(row.active_kwh).toFixed(4) : Number(row.active_kwh || 0).toFixed(2)} kWh act + {row.idle_kwh < 0.01 && row.idle_kwh > 0 ? Number(row.idle_kwh).toFixed(4) : Number(row.idle_kwh || 0).toFixed(2)} kWh idl)
+                                  (playing: {row.active_kwh < 0.01 && row.active_kwh > 0 ? Number(row.active_kwh).toFixed(4) : Number(row.active_kwh || 0).toFixed(2)} kWh + standby: {row.idle_kwh < 0.01 && row.idle_kwh > 0 ? Number(row.idle_kwh).toFixed(4) : Number(row.idle_kwh || 0).toFixed(2)} kWh)
                                 </span>
                               </td>
                               <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
@@ -2002,7 +2243,7 @@ export default function AdminDashboard() {
                               <strong>{formatLoggedHours(totalDailyGamingHours)} play / {formatLoggedHours(totalDailyIdleHours)} idle</strong>
                             </td>
                             <td style={{ textAlign: 'right' }}>
-                              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Combined Draw</span>
+                              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Rates, not energy</span>
                             </td>
                             <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                               <strong style={{ color: '#38bdf8', fontSize: '13px' }}>
@@ -2374,6 +2615,21 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
+              <div className="dmaic-analysis-method-strip" role="note">
+                <div>
+                  <strong>Measurement definition</strong>
+                  <span>Power rate is measured in watts (W); energy is measured in kilowatt-hours (kWh).</span>
+                </div>
+                <div>
+                  <strong>CTQ decision rule</strong>
+                  <span>Compare each observed value with its target, count defects, then report PASS, RISK, or NO DATA.</span>
+                </div>
+                <div>
+                  <strong>Evidence basis</strong>
+                  <span>n = {dmaicMetrics?.ctq4_completion_rate?.sample_size || dmaicRecords.length || 0} observations; component power is estimated from the rig-level profile.</span>
+                </div>
+              </div>
+
               {seedSuccessMsg && (
                 <div style={{
                   margin: '0 0 16px 0',
@@ -2398,6 +2654,7 @@ export default function AdminDashboard() {
                   <h2 className="section-heading-compact" style={{ fontSize: '1.1rem', margin: 0, fontWeight: 700 }}>
                     Six Sigma Critical to Quality (CTQ) Performance Matrix
                   </h2>
+                  <span className="ctq-click-hint">Select any CTQ row to view its measurement, calculation, evidence, and action.</span>
                 </div>
               </div>
 
@@ -2416,7 +2673,19 @@ export default function AdminDashboard() {
                     </thead>
                     <tbody>
                       {/* CTQ 1: Latency & Frame Stability (Sean Pheavyraksonya) */}
-                      <tr>
+                      <tr
+                        className={`ctq-matrix-row ${selectedCtq === 'ctq1' ? 'selected' : ''}`}
+                        onClick={() => toggleCtqDetails('ctq1')}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            toggleCtqDetails('ctq1');
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        aria-expanded={selectedCtq === 'ctq1'}
+                      >
                         <td>
                           <div className="ctq-owner-tag sean" style={{ marginBottom: '2px' }}>
                             CTQ 1 &bull; Sean Pheavyraksonya
@@ -2430,7 +2699,7 @@ export default function AdminDashboard() {
                         </td>
                         <td style={{ fontVariantNumeric: 'tabular-nums' }}>
                           <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Target: </span>
-                          <strong>&le; 100 ms</strong> &bull; <strong>60 FPS</strong>
+                          <strong>&le; 100 ms mean</strong> &bull; <strong>60 FPS</strong>
                         </td>
                         <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                           <span style={{ fontSize: '15px', fontWeight: 800 }}>
@@ -2440,22 +2709,50 @@ export default function AdminDashboard() {
                         </td>
                         <td>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '11.5px' }}>
+                            <span>n={dmaicMetrics?.ctq1_latency?.sample_size || 0}</span>
+                            &bull;
                             <span>Peak: <strong>{dmaicMetrics?.ctq1_latency?.peak_latency_ms || 0} ms</strong></span>
                             &bull;
                             <span>Framerate: <strong>{dmaicMetrics?.ctq1_latency?.mean_fps || 0} FPS</strong></span>
                             &bull;
                             <span>Defects (&gt;100ms): <strong className={(dmaicMetrics?.ctq1_latency?.defect_rate_pct || 0) > 0 ? 'text-defect' : ''}>{dmaicMetrics?.ctq1_latency?.defect_rate_pct || 0}%</strong></span>
+                            &bull;
+                            <span>DPMO: <strong>{dmaicMetrics?.ctq1_latency?.dpmo || 0}</strong></span>
                           </div>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq1_latency?.status === 'PASS' ? 'pass' : 'risk'}`}>
-                            {dmaicMetrics?.ctq1_latency?.status || 'PASS'}
+                          <span className={`ctq-status-badge compact ${getCtqStatusClass(dmaicMetrics?.ctq1_latency?.status)}`}>
+                            {dmaicMetrics?.ctq1_latency?.status || 'NO DATA'}
                           </span>
                         </td>
                       </tr>
+                      {selectedCtq === 'ctq1' && (
+                        <tr className="ctq-detail-row">
+                          <td colSpan={6}>
+                            <CtqDetailPanel
+                              ctqKey="ctq1"
+                              metrics={dmaicMetrics}
+                              records={dmaicRecords}
+                              onClose={() => setSelectedCtq(null)}
+                            />
+                          </td>
+                        </tr>
+                      )}
 
                       {/* CTQ 2: PC Utilization & Energy Waste (Choonvai) */}
-                      <tr>
+                      <tr
+                        className={`ctq-matrix-row ${selectedCtq === 'ctq2' ? 'selected' : ''}`}
+                        onClick={() => toggleCtqDetails('ctq2')}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            toggleCtqDetails('ctq2');
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        aria-expanded={selectedCtq === 'ctq2'}
+                      >
                         <td>
                           <div className="ctq-owner-tag choonvai" style={{ marginBottom: '2px' }}>
                             CTQ 2 &bull; Choonvai
@@ -2469,37 +2766,75 @@ export default function AdminDashboard() {
                         </td>
                         <td style={{ fontVariantNumeric: 'tabular-nums' }}>
                           <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Target: </span>
-                          <strong>&ge; 70%</strong> Rig Utilization
+                          <strong>&ge; 70%</strong> active-time utilization
                         </td>
                         <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                           <span style={{ fontSize: '15px', fontWeight: 800 }}>
-                            {dmaicMetrics?.ctq2_utilization?.utilization_pct || 0}
+                            {dmaicMetrics?.ctq2_utilization?.status === 'NO DATA' ? '—' : (dmaicMetrics?.ctq2_utilization?.utilization_pct || 0)}
                           </span>{' '}
                           <span style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>%</span>
                         </td>
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11.5px' }}>
                             <div>
-                              <span><strong>{dmaicMetrics?.ctq2_utilization?.gaming_hours || 0}h</strong> play &bull; <strong>{dmaicMetrics?.ctq2_utilization?.idle_hours || 0}h</strong> idle</span>
+                              <span><strong>{dmaicMetrics?.ctq2_utilization?.gaming_hours || 0}h</strong> active time &bull; <strong>{dmaicMetrics?.ctq2_utilization?.idle_hours || 0}h</strong> standby time</span>
                               {' '}&bull;{' '}
-                              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>280W load &bull; 55W idle</span>
+                              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Active rate: {formatWattRate(ctq2ActiveWatts)} &bull; standby rate: {formatWattRate(ctq2IdleWatts)}</span>
                             </div>
+                            <PowerBreakdownDetails
+                              activeWatts={ctq2ActiveWatts}
+                              idleWatts={ctq2IdleWatts}
+                              activeBreakdown={ctq2Power.active_power_breakdown}
+                              idleBreakdown={ctq2Power.idle_power_breakdown}
+                              activeHours={ctq2Power.gaming_hours}
+                              idleHours={ctq2Power.idle_hours}
+                              expanded={Boolean(powerDetailsOpen.ctq2)}
+                              onToggle={() => togglePowerDetails('ctq2')}
+                            />
                             <div style={{ fontSize: '11px' }}>
-                              <span style={{ color: '#38bdf8' }}>Forecast: ${dmaicMetrics?.ctq2_utilization?.two_week_forecast?.proj_cost_usd ?? 7.86} ({dmaicMetrics?.ctq2_utilization?.two_week_forecast?.proj_kwh ?? 43.7} kWh)</span>
+                              <span style={{ color: '#38bdf8' }}>
+                                Energy intensity: {ctq2Power.energy_intensity_kwh_per_active_hour ?? 0} kWh per active hour
+                              </span>
                               {' '}&bull;{' '}
-                              <span style={{ color: '#f87171' }}>Standby: {dmaicMetrics?.ctq2_utilization?.idle_waste_kwh ?? 0} kWh (${dmaicMetrics?.ctq2_utilization?.idle_waste_usd ?? 0})</span>
+                              <span style={{ color: '#f87171' }}>Standby waste: {dmaicMetrics?.ctq2_utilization?.idle_waste_kwh ?? 0} kWh ({dmaicMetrics?.ctq2_utilization?.idle_waste_pct ?? 0}%)</span>
                             </div>
                           </div>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq2_utilization?.status === 'PASS' ? 'pass' : 'risk'}`}>
-                            {dmaicMetrics?.ctq2_utilization?.status || 'OPTIMAL'}
+                          <span className={`ctq-status-badge compact ${getCtqStatusClass(dmaicMetrics?.ctq2_utilization?.status)}`}>
+                            {dmaicMetrics?.ctq2_utilization?.status || 'NO DATA'}
                           </span>
                         </td>
                       </tr>
+                      {selectedCtq === 'ctq2' && (
+                        <tr className="ctq-detail-row">
+                          <td colSpan={6}>
+                            <CtqDetailPanel
+                              ctqKey="ctq2"
+                              metrics={dmaicMetrics}
+                              records={dmaicRecords}
+                              activeWatts={ctq2ActiveWatts}
+                              idleWatts={ctq2IdleWatts}
+                              onClose={() => setSelectedCtq(null)}
+                            />
+                          </td>
+                        </tr>
+                      )}
 
                       {/* CTQ 3: Booking Waiting Time & Capacity (Lim Hokann) */}
-                      <tr>
+                      <tr
+                        className={`ctq-matrix-row ${selectedCtq === 'ctq3' ? 'selected' : ''}`}
+                        onClick={() => toggleCtqDetails('ctq3')}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            toggleCtqDetails('ctq3');
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        aria-expanded={selectedCtq === 'ctq3'}
+                      >
                         <td>
                           <div className="ctq-owner-tag hokann" style={{ marginBottom: '2px' }}>
                             CTQ 3 &bull; Lim Hokann
@@ -2513,7 +2848,7 @@ export default function AdminDashboard() {
                         </td>
                         <td style={{ fontVariantNumeric: 'tabular-nums' }}>
                           <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Target: </span>
-                          <strong>&le; 30 min</strong> queue wait
+                          <strong>&le; 30 min</strong> mean wait; zero capacity defects
                         </td>
                         <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                           <span style={{ fontSize: '15px', fontWeight: 800 }}>
@@ -2523,22 +2858,50 @@ export default function AdminDashboard() {
                         </td>
                         <td>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '11.5px' }}>
+                            <span>n={dmaicMetrics?.ctq3_waiting_time?.sample_size || 0}</span>
+                            &bull;
                             <span>Max Wait: <strong>{dmaicMetrics?.ctq3_waiting_time?.max_waiting_time_mins || 0} min</strong></span>
                             &bull;
                             <span>Booked Slots: <strong>{dmaicMetrics?.ctq3_waiting_time?.total_booked_slots || 0}</strong></span>
                             &bull;
-                            <span>Rejections: <strong className={(dmaicMetrics?.ctq3_waiting_time?.capacity_defects_count || 0) > 0 ? 'text-defect' : ''}>{dmaicMetrics?.ctq3_waiting_time?.capacity_defects_count || 0}</strong></span>
+                            <span>Wait defects (&gt;30m): <strong className={(dmaicMetrics?.ctq3_waiting_time?.waiting_defect_count || 0) > 0 ? 'text-defect' : ''}>{dmaicMetrics?.ctq3_waiting_time?.waiting_defect_count || 0}</strong></span>
+                            &bull;
+                            <span>Capacity defects: <strong className={(dmaicMetrics?.ctq3_waiting_time?.capacity_defects_count || 0) > 0 ? 'text-defect' : ''}>{dmaicMetrics?.ctq3_waiting_time?.capacity_defects_count || 0}</strong></span>
                           </div>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq3_waiting_time?.status === 'PASS' ? 'pass' : 'risk'}`}>
-                            {dmaicMetrics?.ctq3_waiting_time?.status || 'PASS'}
+                          <span className={`ctq-status-badge compact ${getCtqStatusClass(dmaicMetrics?.ctq3_waiting_time?.status)}`}>
+                            {dmaicMetrics?.ctq3_waiting_time?.status || 'NO DATA'}
                           </span>
                         </td>
                       </tr>
+                      {selectedCtq === 'ctq3' && (
+                        <tr className="ctq-detail-row">
+                          <td colSpan={6}>
+                            <CtqDetailPanel
+                              ctqKey="ctq3"
+                              metrics={dmaicMetrics}
+                              records={dmaicRecords}
+                              onClose={() => setSelectedCtq(null)}
+                            />
+                          </td>
+                        </tr>
+                      )}
 
                       {/* CTQ 4: Session Completion Rate (Hour) */}
-                      <tr>
+                      <tr
+                        className={`ctq-matrix-row ${selectedCtq === 'ctq4' ? 'selected' : ''}`}
+                        onClick={() => toggleCtqDetails('ctq4')}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            toggleCtqDetails('ctq4');
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        aria-expanded={selectedCtq === 'ctq4'}
+                      >
                         <td>
                           <div className="ctq-owner-tag hour" style={{ marginBottom: '2px' }}>
                             CTQ 4 &bull; Hour
@@ -2562,19 +2925,35 @@ export default function AdminDashboard() {
                         </td>
                         <td>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '11.5px' }}>
+                            <span>n={dmaicMetrics?.ctq4_completion_rate?.sample_size || 0}</span>
+                            &bull;
                             <span>Sessions: <strong>{dmaicMetrics?.ctq4_completion_rate?.completed_sessions || 0} / {dmaicMetrics?.ctq4_completion_rate?.total_sessions || 0}</strong></span>
                             &bull;
                             <span>Defect Rate: <strong className={(dmaicMetrics?.ctq4_completion_rate?.defect_rate_pct || 0) > 0 ? 'text-defect' : ''}>{dmaicMetrics?.ctq4_completion_rate?.defect_rate_pct || 0}%</strong></span>
                             &bull;
-                            <span>Failures: <strong>{dmaicMetrics?.ctq4_completion_rate?.failure_breakdown?.disconnect || 0} disc, {dmaicMetrics?.ctq4_completion_rate?.failure_breakdown?.crash || 0} crash</strong></span>
+                            <span>Failures: <strong>{dmaicMetrics?.ctq4_completion_rate?.failure_counts?.disconnect || 0} disc, {dmaicMetrics?.ctq4_completion_rate?.failure_counts?.crash || 0} crash</strong></span>
+                            &bull;
+                            <span>DPMO: <strong>{dmaicMetrics?.ctq4_completion_rate?.dpmo || 0}</strong></span>
                           </div>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq4_completion_rate?.status === 'PASS' ? 'pass' : 'risk'}`}>
-                            {dmaicMetrics?.ctq4_completion_rate?.status || 'PASS'}
+                          <span className={`ctq-status-badge compact ${getCtqStatusClass(dmaicMetrics?.ctq4_completion_rate?.status)}`}>
+                            {dmaicMetrics?.ctq4_completion_rate?.status || 'NO DATA'}
                           </span>
                         </td>
                       </tr>
+                      {selectedCtq === 'ctq4' && (
+                        <tr className="ctq-detail-row">
+                          <td colSpan={6}>
+                            <CtqDetailPanel
+                              ctqKey="ctq4"
+                              metrics={dmaicMetrics}
+                              records={dmaicRecords}
+                              onClose={() => setSelectedCtq(null)}
+                            />
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2597,7 +2976,7 @@ export default function AdminDashboard() {
                       <tr>
                         <th style={{ minWidth: '180px' }}>Gaming Rig / Hardware</th>
                         <th style={{ width: '90px', textAlign: 'center' }}>Status</th>
-                        <th style={{ minWidth: '130px', textAlign: 'right' }}>Power (Load / Idle)</th>
+                        <th style={{ minWidth: '150px', textAlign: 'right' }}>Power Rate (W)</th>
                         <th style={{ minWidth: '120px', textAlign: 'right' }}>Observed Time</th>
                         <th style={{ minWidth: '120px', textAlign: 'right' }}>Energy Consumed</th>
                         <th style={{ minWidth: '130px', textAlign: 'right' }}>Cost / Active Hr</th>
@@ -2608,17 +2987,16 @@ export default function AdminDashboard() {
                     <tbody>
                       {perPcEnergy.map((pc, idx) => {
                         const gpuFormatted = formatRigGpu(pc.gpu);
-                        const cpuFormatted = pc.cpu ? formatCpu(pc.cpu) : (idx === 0 ? 'Core i7-10875H' : 'Core i3-10100F');
-                        const ramFormatted = pc.ram ? formatRam(pc.ram) : (idx === 0 ? '32 GB' : '16 GB');
+                        const cpuFormatted = pc.cpu ? formatCpu(pc.cpu) : 'CPU unavailable';
+                        const ramFormatted = pc.ram ? formatRam(pc.ram) : 'RAM unavailable';
                         const forecast = pc.two_week_forecast || {};
-                        const isLaptop = idx === 0;
                         const isOnline = pc.status === 'available' || pc.status === 'in-use';
 
                         return (
                           <tr key={pc.id || idx}>
                             <td>
                               <div style={{ fontWeight: 700, fontSize: '12.5px', marginBottom: '2px' }}>
-                                {isLaptop ? 'Rig #1 (Laptop)' : 'Rig #2 (Desktop)'} &bull; {pc.name}
+                                Rig #{idx + 1} &bull; {pc.name}
                               </div>
                               <div style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>
                                 <span>{gpuFormatted}</span> &bull; <span>{cpuFormatted}</span> &bull; <span>{ramFormatted}</span>
@@ -2631,9 +3009,20 @@ export default function AdminDashboard() {
                               </span>
                             </td>
                             <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                              <span style={{ color: '#f59e0b', fontWeight: 600 }}>{pc.active_watts}W</span>
-                              {' / '}
-                              <span style={{ color: '#38bdf8' }}>{pc.idle_watts}W</span>
+                              <div className="power-total-summary">
+                                <strong>{formatWattRate(pc.active_watts)} active rate</strong>
+                                <span>{formatWattRate(pc.idle_watts)} standby rate</span>
+                              </div>
+                              <PowerBreakdownDetails
+                                activeWatts={pc.active_watts}
+                                idleWatts={pc.idle_watts}
+                                activeBreakdown={pc.active_power_breakdown}
+                                idleBreakdown={pc.idle_power_breakdown}
+                                activeHours={pc.gaming_hours}
+                                idleHours={pc.idle_hours}
+                                expanded={Boolean(powerDetailsOpen[`pc-${pc.id || idx}`])}
+                                onToggle={() => togglePowerDetails(`pc-${pc.id || idx}`)}
+                              />
                             </td>
                             <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                               <span style={{ color: '#4ade80', fontWeight: 600 }}>{formatLoggedHours(pc.gaming_hours)} play</span>
@@ -2645,26 +3034,35 @@ export default function AdminDashboard() {
                             <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                               <strong>{pc.total_kwh < 0.01 && pc.total_kwh > 0 ? Number(pc.total_kwh).toFixed(4) : Number(pc.total_kwh || 0).toFixed(2)} kWh</strong>{' '}
                               <span style={{ color: '#4ade80' }}>({pc.total_cost_usd < 0.01 && pc.total_cost_usd > 0 ? '< $0.01' : `$${Number(pc.total_cost_usd || 0).toFixed(2)}`})</span>
-                            </td>
-                            <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                              ${forecast.direct_cost_per_hr?.toFixed(3) ?? '0.043'} / hr
-                              <span style={{ fontSize: '10.5px', color: 'var(--text-muted, #94a3b8)', display: 'block' }}>
-                                ({Math.round((forecast.direct_cost_per_hr || 0.043) * 4050)} ៛)
+                              <span style={{ display: 'block', fontSize: '10.5px', color: 'var(--text-muted, #94a3b8)' }}>
+                                for {formatLoggedHours(pc.gaming_hours)} active time
                               </span>
                             </td>
                             <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                              <span style={{ fontWeight: 600 }}>{forecast.projected_kwh ?? 25.0} kWh</span>
-                              <span style={{ color: '#38bdf8', display: 'block' }}>
-                                ${forecast.projected_cost_usd?.toFixed(2) ?? '4.50'} ({(forecast.projected_cost_khr || 0).toLocaleString()} ៛)
-                              </span>
+                              {forecast.direct_cost_per_hr != null ? `$${forecast.direct_cost_per_hr.toFixed(3)} / hr` : '—'}
+                              {forecast.direct_cost_per_hr != null && (
+                                <span style={{ fontSize: '10.5px', color: 'var(--text-muted, #94a3b8)', display: 'block' }}>
+                                  ({Math.round(forecast.direct_cost_per_hr * 4050)} ៛)
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                              <span style={{ fontWeight: 600 }}>{forecast.projected_kwh != null ? `${forecast.projected_kwh} kWh` : '—'}</span>
+                              {forecast.projected_cost_usd != null && (
+                                <span style={{ color: '#38bdf8', display: 'block' }}>
+                                  ${forecast.projected_cost_usd.toFixed(2)} ({(forecast.projected_cost_khr || 0).toLocaleString()} ៛)
+                                </span>
+                              )}
                             </td>
                             <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                               <span style={{ color: '#f87171', fontWeight: 600 }}>
-                                {forecast.idle_waste_kwh ?? 12.0} kWh
+                                {forecast.idle_waste_kwh != null ? `${forecast.idle_waste_kwh} kWh` : '—'}
                               </span>
-                              <span style={{ color: '#f87171', display: 'block', fontSize: '11px' }}>
-                                (${forecast.idle_waste_usd?.toFixed(2) ?? '2.16'})
-                              </span>
+                              {forecast.idle_waste_usd != null && (
+                                <span style={{ color: '#f87171', display: 'block', fontSize: '11px' }}>
+                                  (${forecast.idle_waste_usd.toFixed(2)})
+                                </span>
+                              )}
                             </td>
                           </tr>
                         );
@@ -2680,9 +3078,9 @@ export default function AdminDashboard() {
                           <span style={{ fontSize: '11px', fontWeight: 700 }}>{perPcEnergy.length} Rigs</span>
                         </td>
                         <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                          <span style={{ color: '#f59e0b', fontWeight: 700 }}>{totalActiveWatts}W</span>
+                          <span style={{ color: '#f59e0b', fontWeight: 700 }}>{formatWattRate(totalActiveWatts)}</span>
                           {' / '}
-                          <span style={{ color: '#38bdf8', fontWeight: 700 }}>{totalIdleWatts}W</span>
+                          <span style={{ color: '#38bdf8', fontWeight: 700 }}>{formatWattRate(totalIdleWatts)}</span>
                         </td>
                         <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                           <strong style={{ color: '#4ade80' }}>{formatLoggedHours(totalGamingHours)} play</strong>
@@ -2849,10 +3247,10 @@ export default function AdminDashboard() {
                           const latency = r.latency_ms ?? r.avg_latency_ms ?? 0;
                           const fps = r.fps ?? r.avg_fps ?? 60;
                           const idleMins = r.pc_idle_time_mins ?? r.pc_idle_minutes ?? 0;
-                          const kwh = r.power_kwh ?? (r.power_usage_watts ? r.power_usage_watts / 1000 : 0.28);
-                          const cost = r.energy_cost_usd ?? (kwh * 0.18);
-                          const rigName = r.machine_name || r.rig_display || (r.machine_id === 3 ? 'Gaming PC #2' : 'Gaming PC #1');
-                          const rigGpu = formatRigGpu(r.machine_gpu || (r.machine_id === 3 ? 'GTX 1660 Ti' : 'RTX 2080 Super Max-Q'));
+                          const kwh = r.power_kwh ?? (r.power_usage_watts ? r.power_usage_watts / 1000 : 0);
+                          const cost = r.energy_cost_usd ?? (kwh * EDC_TARIFF_USD_PER_KWH);
+                          const rigName = r.machine_name || r.rig_display || (r.machine_id ? `Machine #${r.machine_id}` : 'Machine unavailable');
+                          const rigGpu = formatRigGpu(r.machine_gpu || 'GPU unavailable');
 
                           return (
                             <tr key={r.id || idx} className={`excel-data-row ${idx % 2 === 1 ? 'excel-row-alt' : ''}`}>

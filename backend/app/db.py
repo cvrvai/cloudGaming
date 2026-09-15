@@ -213,7 +213,10 @@ def init_db() -> None:
             paired_at TEXT
         );
         """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_machine_pairings_code ON machine_pairings(code);")
+        # `code TEXT UNIQUE` already creates a unique index for pairing-code lookups.
+        # Keep indexes on the foreign keys used to resolve ownership and machines.
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_machine_pairings_admin_user ON machine_pairings(admin_user_id);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_machine_pairings_machine ON machine_pairings(machine_id);")
 
         # 7. Session Telemetry table (Operations Research - Lean Six Sigma DMAIC CTQ tracking)
         cursor.execute("""
@@ -247,6 +250,9 @@ def init_db() -> None:
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_test_id ON session_telemetry(test_id);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_phase ON session_telemetry(phase);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_booking ON session_telemetry(booking_id);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_user ON session_telemetry(user_id);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_telemetry_machine ON session_telemetry(machine_id);")
         cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS integrity_hash TEXT;")
         cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'automated_stream';")
         cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS duration_seconds DOUBLE PRECISION DEFAULT 0.0;")

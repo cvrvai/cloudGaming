@@ -13,6 +13,7 @@ from app.services.streaming.node_relay import node_relay
 from app.services.agent import get_host_steam_and_game_status
 
 router = APIRouter(prefix="/machines", tags=["machines"])
+EDC_TARIFF_USD_PER_KWH = 0.18
 
 
 class MachineStatusUpdate(BaseModel):
@@ -79,8 +80,8 @@ async def list_machines():
             cursor.execute(
                 """
                 SELECT id, name, gpu, cpu, ram, os, status, is_host, notes, last_seen,
-                       COALESCE(active_watts, 280.0) as active_watts,
-                       COALESCE(idle_watts, 55.0) as idle_watts,
+                       COALESCE(active_watts, 0.0) as active_watts,
+                       COALESCE(idle_watts, 0.0) as idle_watts,
                        stream_started_at
                 FROM machines
                 ORDER BY id ASC;
@@ -181,9 +182,9 @@ async def list_machines():
                         duration_seconds = 1800.0
 
                     run_hours = round(duration_seconds / 3600.0, 3)
-                    act_watts = float(m.get("active_watts") or 260.0)
+                    act_watts = float(m.get("active_watts") or 0.0)
                     power_kwh = round((act_watts * run_hours) / 1000.0, 4)
-                    cost_usd = round(power_kwh * 0.18, 4)
+                    cost_usd = round(power_kwh * EDC_TARIFF_USD_PER_KWH, 4)
 
                     try:
                         tz_offset = timedelta(hours=7)
@@ -256,6 +257,22 @@ async def list_machines():
 
     if cache_needs_invalidation:
         await cache_delete("machines:raw")
+
+    # Expose one canonical runtime value for the admin UI. The browser can
+    # continue ticking this value between polls, while the start timestamp
+    # remains the source of truth for persisted session duration.
+    runtime_now = datetime.now(timezone.utc)
+    for m in machines:
+        started_at = m.get("stream_started_at")
+        runtime_seconds = 0
+        if started_at and m.get("live_status") == "streaming":
+            try:
+                started_dt = datetime.fromisoformat(str(started_at).replace("Z", "+00:00"))
+                runtime_seconds = max(0, int((runtime_now - started_dt).total_seconds()))
+            except (TypeError, ValueError):
+                runtime_seconds = 0
+        m["runtime_seconds"] = runtime_seconds
+        m["runtime_started_at"] = started_at if runtime_seconds > 0 else None
 
     return machines
 
@@ -431,9 +448,9 @@ async def stop_machine_stream(
                 duration_seconds = 1800.0
 
         run_hours = round(duration_seconds / 3600.0, 3)
-        act_watts = float(m_dict.get("active_watts") or 260.0)
+        act_watts = float(m_dict.get("active_watts") or 0.0)
         power_kwh = round((act_watts * run_hours) / 1000.0, 4)
-        cost_usd = round(power_kwh * 0.18, 4)
+        cost_usd = round(power_kwh * EDC_TARIFF_USD_PER_KWH, 4)
 
         # Reset machine status
         cursor.execute(

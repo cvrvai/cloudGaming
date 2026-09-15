@@ -10,6 +10,7 @@ from app.services.agent import host_agent
 from app.services.auth import create_access_token, get_current_user, require_admin
 
 router = APIRouter(prefix="/session", tags=["session"])
+EDC_TARIFF_USD_PER_KWH = 0.18
 
 
 class VerifySessionRequest(BaseModel):
@@ -230,16 +231,16 @@ async def record_live_session_telemetry(
                 machine_id = m_default["id"]
 
         # Dynamic power calculation from the exact hardware profile of this machine
-        active_watts = 280.0
+        active_watts = 0.0
         if machine_id:
-            cursor.execute("SELECT COALESCE(active_watts, 280.0) as active_watts FROM machines WHERE id = %s;", (machine_id,))
+            cursor.execute("SELECT COALESCE(active_watts, 0.0) as active_watts FROM machines WHERE id = %s;", (machine_id,))
             m_w = cursor.fetchone()
             if m_w and m_w["active_watts"]:
                 active_watts = float(m_w["active_watts"])
 
         duration_hrs = max(0.01, req.duration_seconds / 3600.0)
         power_kwh = round((active_watts * duration_hrs) / 1000.0, 3)
-        cost_usd = round(power_kwh * 0.18, 3)
+        cost_usd = round(power_kwh * EDC_TARIFF_USD_PER_KWH, 3)
 
         # Generate Cryptographic Integrity Hash (SHA-256 for academic/audit verification)
         integrity_payload = f"{test_id}:{user_id or 'guest'}:{valid_booking_id}:{req.avg_latency_ms}:{req.avg_fps}:{now_iso}"

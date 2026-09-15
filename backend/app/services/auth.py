@@ -135,6 +135,21 @@ async def get_current_user(
             detail="Invalid user ID in token.",
         )
 
+    # 1. High-speed Redis session cache (sub-millisecond auth check, NFR-01)
+    import json
+    from app.core.redis import cache_get, cache_set
+
+    cache_key = f"auth:user:{user_id}"
+    try:
+        cached_user_json = await cache_get(cache_key)
+        if cached_user_json:
+            user_dict = json.loads(cached_user_json)
+            user_dict["mfa_verified"] = payload.get("mfa_verified", False)
+            return user_dict
+    except Exception:
+        pass
+
+    # 2. Cache miss: Fetch from database
     from app.db import get_db
 
     with get_db() as conn:
@@ -147,6 +162,13 @@ async def get_current_user(
                 detail="User account no longer exists.",
             )
         user_dict = dict(user)
+
+        # Store in Redis with 15-minute TTL (900 seconds)
+        try:
+            await cache_set(cache_key, json.dumps(user_dict, default=str), ttl_seconds=900)
+        except Exception:
+            pass
+
         user_dict["mfa_verified"] = payload.get("mfa_verified", False)
         return user_dict
 

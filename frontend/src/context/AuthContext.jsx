@@ -2,15 +2,91 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { API_BASE } from '../config';
 
 const AuthContext = createContext(null);
+const AUTH_TOKEN_KEY = 'cloudkh_token';
+const AUTH_USER_KEY = 'cloudkh_user';
+const AUTH_VERIFY_TIMEOUT_MS = 5000;
+
+function readStoredUser() {
+  try {
+    const storedUser = localStorage.getItem(AUTH_USER_KEY);
+    return storedUser ? JSON.parse(storedUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+function readTokenUser(token) {
+  // This is only an optimistic display fallback. API authorization always
+  // uses the signed bearer token and server-side verification.
+  try {
+    const payloadPart = token?.split('.')[1];
+    if (!payloadPart) return null;
+
+    const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+    const claims = JSON.parse(atob(padded));
+    if (!claims.sub || !claims.email) return null;
+
+    return {
+      id: claims.sub,
+      name: claims.email.split('@')[0],
+      email: claims.email,
+      role: claims.role || 'user',
+      mfa_verified: claims.mfa_verified === true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function persistStoredUser(nextUser) {
+  try {
+    if (nextUser) {
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextUser));
+    } else {
+      localStorage.removeItem(AUTH_USER_KEY);
+    }
+  } catch {
+    // Storage can be unavailable in private browsing or restrictive environments.
+  }
+}
+
+function clearStoredAuth() {
+  try {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+  } catch {
+    // The in-memory state is still cleared below.
+  }
+  persistStoredUser(null);
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = AUTH_VERIFY_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(() => localStorage.getItem('cloudkh_token'));
-  const [loading, setLoading] = useState(true);
+  const [initialAuth] = useState(() => {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    const storedUser = token ? readStoredUser() : null;
+    return {
+      token,
+      user: storedUser || readTokenUser(token),
+    };
+  });
+  const [user, setUser] = useState(initialAuth.user);
+  const [token, setToken] = useState(initialAuth.token);
+  const [loading, setLoading] = useState(Boolean(initialAuth.token && !initialAuth.user));
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
 
-  // Fetch current user whenever token changes
+  // Show the cached identity immediately, then verify it in the background.
   useEffect(() => {
     let cancelled = false;
 
@@ -20,23 +96,36 @@ export function AuthProvider({ children }) {
         setLoading(false);
         return;
       }
+
+      const cachedUser = readStoredUser();
+      setLoading(!cachedUser);
+
       try {
-        const res = await fetch(`${API_BASE}/api/auth/me`, {
+        const res = await fetchWithTimeout(`${API_BASE}/api/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
           const data = await res.json();
-          if (!cancelled) setUser(data);
-        } else {
-          // Token invalid or expired
           if (!cancelled) {
-            localStorage.removeItem('cloudkh_token');
+            setUser(data);
+            persistStoredUser(data);
+          }
+        } else if (res.status === 401 || res.status === 403) {
+          // Only clear auth for an explicit authorization failure. Keep the
+          // cached identity during temporary backend/network failures.
+          if (!cancelled) {
+            clearStoredAuth();
             setToken(null);
             setUser(null);
           }
+        } else if (!cachedUser && !cancelled) {
+          setUser(null);
         }
       } catch (err) {
-        console.error('Failed to fetch authenticated user:', err);
+        if (!cancelled && !cachedUser) setUser(null);
+        if (err.name !== 'AbortError') {
+          console.warn('Background session verification failed:', err);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -62,7 +151,8 @@ export function AuthProvider({ children }) {
     if (data.status === 'mfa_required') {
       return data;
     }
-    localStorage.setItem('cloudkh_token', data.access_token);
+    localStorage.setItem(AUTH_TOKEN_KEY, data.access_token);
+    persistStoredUser(data.user);
     setToken(data.access_token);
     setUser(data.user);
     setAuthModalOpen(false);
@@ -79,7 +169,8 @@ export function AuthProvider({ children }) {
     if (!res.ok) {
       throw new Error(data.detail || 'MFA verification failed');
     }
-    localStorage.setItem('cloudkh_token', data.access_token);
+    localStorage.setItem(AUTH_TOKEN_KEY, data.access_token);
+    persistStoredUser(data.user);
     setToken(data.access_token);
     setUser(data.user);
     setAuthModalOpen(false);
@@ -96,7 +187,8 @@ export function AuthProvider({ children }) {
     if (!res.ok) {
       throw new Error(data.detail || 'Registration failed');
     }
-    localStorage.setItem('cloudkh_token', data.access_token);
+    localStorage.setItem(AUTH_TOKEN_KEY, data.access_token);
+    persistStoredUser(data.user);
     setToken(data.access_token);
     setUser(data.user);
     setAuthModalOpen(false);
@@ -116,7 +208,11 @@ export function AuthProvider({ children }) {
     if (!res.ok) {
       throw new Error(data.detail || 'Failed to update profile');
     }
-    setUser((prev) => ({ ...prev, ...data.user }));
+    setUser((prev) => {
+      const nextUser = { ...prev, ...data.user };
+      persistStoredUser(nextUser);
+      return nextUser;
+    });
     return data.user;
   };
 
@@ -152,7 +248,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('cloudkh_token');
+    clearStoredAuth();
     setToken(null);
     setUser(null);
   };

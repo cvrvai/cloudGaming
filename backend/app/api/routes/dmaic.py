@@ -1,7 +1,8 @@
 """Operations Research - Lean Six Sigma DMAIC CTQ Analytics & Telemetry Engine."""
+import logging
 import csv
 import io
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -11,6 +12,38 @@ from app.db import get_db
 from app.services.auth import require_admin
 
 router = APIRouter(prefix="/admin/dmaic", tags=["dmaic-analytics"])
+
+logger = logging.getLogger(__name__)
+
+EDC_TARIFF_USD_PER_KWH = 0.18
+CTQ1_LATENCY_LIMIT_MS = 100.0
+CTQ2_UTILIZATION_TARGET_PCT = 70.0
+CTQ3_WAIT_TARGET_MINUTES = 30.0
+CTQ4_COMPLETION_TARGET_PCT = 95.0
+
+
+def _estimate_power_breakdown(total_watts: float, mode: str) -> Dict[str, Any]:
+    """Allocate a rig's measured/configured total to its main consumers.
+
+    The application currently receives a rig-level watt value, not component
+    sensor readings. Keep that limitation explicit in the response so the UI
+    can present the split as an estimate instead of a live CPU/GPU reading.
+    """
+    total = max(0, int(round(float(total_watts or 0))))
+    shares = {
+        "active": (0.65, 0.23),
+        "idle": (0.25, 0.40),
+    }
+    gpu_share, cpu_share = shares.get(mode, shares["active"])
+    gpu_watts = int(round(total * gpu_share))
+    cpu_watts = int(round(total * cpu_share))
+    system_watts = max(0, total - gpu_watts - cpu_watts)
+    return {
+        "gpu_watts": gpu_watts,
+        "cpu_watts": cpu_watts,
+        "system_watts": system_watts,
+        "estimated": True,
+    }
 
 
 class LogTestRecordRequest(BaseModel):
@@ -27,6 +60,7 @@ class LogTestRecordRequest(BaseModel):
     completed: bool = Field(True, description="Whether full 1-hour session completed successfully")
     failure_reason: Optional[str] = Field(None, description="Game crash, Stream disconnect, Network, Launch failure, etc.")
     pc_idle_minutes: float = Field(0.0, description="Host PC idle minutes before session")
+    power_watts: Optional[float] = Field(None, description="Measured total rig draw for the one-hour observation")
     power_kwh: Optional[float] = Field(None, description="Estimated electricity in kWh")
     energy_cost_usd: Optional[float] = Field(None, description="Estimated electricity cost")
     phase: Optional[str] = Field("V1_Baseline", description="V1_Baseline or V2_Improved")
@@ -45,8 +79,9 @@ def _calculate_daily_energy(cursor) -> List[Dict[str, Any]]:
             COALESCE(st.machine_id, m.id) as machine_id,
             COALESCE(m.name, 'Gaming PC') as machine_name,
             COALESCE(m.gpu, 'GPU') as machine_gpu,
-            COALESCE(m.active_watts, 260.0) as active_watts,
-            COALESCE(m.idle_watts, 48.0) as idle_watts,
+            COALESCE(m.cpu, 'CPU') as machine_cpu,
+            COALESCE(m.active_watts, 0.0) as active_watts,
+            COALESCE(m.idle_watts, 0.0) as idle_watts,
             COUNT(st.id) as total_sessions,
             COUNT(CASE WHEN st.completed = TRUE THEN 1 END) as completed_sessions,
             COALESCE(SUM(st.power_kwh), 0.0) as active_kwh,
@@ -56,7 +91,7 @@ def _calculate_daily_energy(cursor) -> List[Dict[str, Any]]:
         FROM session_telemetry st
         LEFT JOIN machines m ON m.id = st.machine_id
         WHERE st.created_at IS NOT NULL
-        GROUP BY SUBSTRING(st.created_at FROM 1 FOR 10), COALESCE(st.machine_id, m.id), m.name, m.gpu, m.active_watts, m.idle_watts
+        GROUP BY SUBSTRING(st.created_at FROM 1 FOR 10), COALESCE(st.machine_id, m.id), m.name, m.gpu, m.cpu, m.active_watts, m.idle_watts
         ORDER BY day_date DESC, machine_id ASC;
     """)
     daily_rows = cursor.fetchall()
@@ -79,6 +114,12 @@ def _calculate_daily_energy(cursor) -> List[Dict[str, Any]]:
         if game_hrs == 0.0 and rd["completed_sessions"] > 0:
             game_hrs = 0.01
 
+        # Manual observations may have no machine link. Recover their total
+        # load from the recorded energy and duration instead of inserting a
+        # made-up wattage.
+        if act_w <= 0.0 and act_kwh_raw > 0.0 and game_hrs > 0.0:
+            act_w = round((act_kwh_raw * 1000.0) / game_hrs, 2)
+
         # 2. Idle Hours: ONLY count actual recorded idle minutes while PC was open!
         # When PC is closed (standby), it draws 0W and does NOT count as idle or add future hours!
         idle_hrs = round(float(rd.get("idle_mins") or 0.0) / 60.0, 2)
@@ -92,7 +133,7 @@ def _calculate_daily_energy(cursor) -> List[Dict[str, Any]]:
         act_kwh = round(act_kwh_raw if act_kwh_raw > 0.0 else (act_w * game_hrs) / 1000.0, 4)
         idl_kwh = round((idl_w * idle_hrs) / 1000.0, 4)
         tot_kwh = round(act_kwh + idl_kwh, 4)
-        tot_cost_usd = round(float(rd.get("active_cost_usd") or 0.0) if float(rd.get("active_cost_usd") or 0.0) > 0.0 else tot_kwh * 0.18, 4)
+        tot_cost_usd = round(float(rd.get("active_cost_usd") or 0.0) if float(rd.get("active_cost_usd") or 0.0) > 0.0 else tot_kwh * EDC_TARIFF_USD_PER_KWH, 4)
         tot_cost_khr = int(tot_cost_usd * 4050)
 
         daily_energy.append({
@@ -100,8 +141,11 @@ def _calculate_daily_energy(cursor) -> List[Dict[str, Any]]:
             "machine_id": rd["machine_id"],
             "machine_name": rd["machine_name"],
             "machine_gpu": rd["machine_gpu"],
+            "machine_cpu": rd["machine_cpu"],
             "active_watts": act_w,
             "idle_watts": idl_w,
+            "active_power_breakdown": _estimate_power_breakdown(act_w, "active"),
+            "idle_power_breakdown": _estimate_power_breakdown(idl_w, "idle"),
             "gaming_hours": game_hrs,
             "idle_hours": idle_hrs,
             "total_hours": total_hrs,
@@ -115,41 +159,6 @@ def _calculate_daily_energy(cursor) -> List[Dict[str, Any]]:
             "status": "PASS",
         })
 
-    if not daily_energy:
-        now_dt = datetime.now(timezone.utc)
-        base_rigs = [
-            {"id": 2, "name": "Gaming PC (Choonvai)", "gpu": "RTX 2080 Super Max-Q", "active_watts": 260.0, "idle_watts": 48.0},
-            {"id": 3, "name": "Gaming PC (DESKTOP-BR6FNPB)", "gpu": "GTX 1660 Ti", "active_watts": 210.0, "idle_watts": 38.0},
-        ]
-        for d in range(7):
-            d_str = (now_dt - timedelta(days=d)).strftime("%Y-%m-%d")
-            for rig in base_rigs:
-                g_hrs = 4.0 if (d + rig["id"]) % 2 == 0 else 2.5
-                i_hrs = 1.0 if (d + rig["id"]) % 2 == 0 else 0.5
-                tot_hrs = round(g_hrs + i_hrs, 1)
-                a_kwh = round((rig["active_watts"] * g_hrs) / 1000.0, 3)
-                i_kwh = round((rig["idle_watts"] * i_hrs) / 1000.0, 3)
-                t_kwh = round(a_kwh + i_kwh, 3)
-                c_usd = round(t_kwh * 0.18, 2)
-                daily_energy.append({
-                    "date": d_str,
-                    "machine_id": rig["id"],
-                    "machine_name": rig["name"],
-                    "machine_gpu": rig["gpu"],
-                    "active_watts": rig["active_watts"],
-                    "idle_watts": rig["idle_watts"],
-                    "gaming_hours": g_hrs,
-                    "idle_hours": i_hrs,
-                    "total_hours": tot_hrs,
-                    "active_kwh": a_kwh,
-                    "idle_kwh": i_kwh,
-                    "total_kwh": t_kwh,
-                    "total_cost_usd": c_usd,
-                    "total_cost_khr": int(c_usd * 4050),
-                    "sessions_count": int(g_hrs),
-                    "completed_sessions": int(g_hrs),
-                    "status": "PASS",
-                })
     return daily_energy
 
 
@@ -180,6 +189,8 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
                    COUNT(CASE WHEN completed = FALSE THEN 1 END) as failed_sessions,
                    COUNT(CASE WHEN avg_latency_ms > 100.0 THEN 1 END) as latency_defects,
                    COALESCE(AVG(waiting_time_minutes), 0.0) as mean_waiting_time,
+                   COALESCE(MAX(waiting_time_minutes), 0.0) as max_waiting_time,
+                   COUNT(CASE WHEN waiting_time_minutes > 30.0 THEN 1 END) as waiting_defects,
                    COALESCE(SUM(power_kwh), 0.0) as total_kwh,
                    COALESCE(SUM(energy_cost_usd), 0.0) as total_energy_cost
             FROM session_telemetry;
@@ -200,7 +211,8 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
         cursor.execute("""
             SELECT COUNT(*) as total_bookings,
                    COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as confirmed_bookings,
-                   COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_bookings
+                   COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_bookings,
+                   COUNT(CASE WHEN status IN ('rejected', 'capacity_defect') THEN 1 END) as capacity_defects
             FROM bookings;
         """)
         b_stats = dict(cursor.fetchone())
@@ -223,8 +235,8 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
         # Per-machine electricity calculation (Multi-PC tracking with different specs)
         cursor.execute("""
             SELECT m.id, m.name, m.gpu, m.cpu, m.ram, m.status,
-                   COALESCE(m.active_watts, 260.0) as active_watts,
-                   COALESCE(m.idle_watts, 48.0) as idle_watts,
+                   COALESCE(m.active_watts, 0.0) as active_watts,
+                   COALESCE(m.idle_watts, 0.0) as idle_watts,
                    COUNT(st.id) as sessions_count,
                    COALESCE(SUM(CASE WHEN st.completed IS TRUE THEN 1 ELSE 0 END), 0) as completed_sessions,
                    COALESCE(SUM(st.power_kwh), 0.0) as active_kwh,
@@ -261,9 +273,9 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
             two_wk_game_hrs = round(m_game_hrs * 14.0, 1)
             two_wk_idle_hrs = round(m_idle_hrs * 14.0, 1)
             two_wk_kwh = round(((act_w * two_wk_game_hrs) + (idl_w * two_wk_idle_hrs)) / 1000.0, 2)
-            two_wk_cost_usd = round(two_wk_kwh * 0.18, 2)
+            two_wk_cost_usd = round(two_wk_kwh * EDC_TARIFF_USD_PER_KWH, 2)
             two_wk_cost_khr = int(two_wk_cost_usd * 4050)
-            direct_cost_hr = round((act_w / 1000.0) * 0.18, 3)
+            direct_cost_hr = round((act_w / 1000.0) * EDC_TARIFF_USD_PER_KWH, 3)
 
             machines_energy.append({
                 "id": m_dict["id"],
@@ -274,6 +286,8 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
                 "status": m_dict.get("status", "offline"),
                 "active_watts": act_w,
                 "idle_watts": idl_w,
+                "active_power_breakdown": _estimate_power_breakdown(act_w, "active"),
+                "idle_power_breakdown": _estimate_power_breakdown(idl_w, "idle"),
                 "completed_sessions": c_sess,
                 "gaming_hours": m_game_hrs,
                 "idle_hours": m_idle_hrs,
@@ -290,7 +304,7 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
                     "projected_cost_khr": two_wk_cost_khr,
                     "direct_cost_per_hr": direct_cost_hr,
                     "idle_waste_kwh": round((idl_w * two_wk_idle_hrs) / 1000.0, 2),
-                    "idle_waste_usd": round(((idl_w * two_wk_idle_hrs) / 1000.0) * 0.18, 2),
+                    "idle_waste_usd": round(((idl_w * two_wk_idle_hrs) / 1000.0) * EDC_TARIFF_USD_PER_KWH, 2),
                 },
             })
 
@@ -300,7 +314,7 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     failed = t_stats["failed_sessions"]
 
     # CTQ 4: Completion Rate
-    completion_rate = (completed / total_sessions * 100.0) if total_sessions > 0 else 100.0
+    completion_rate = (completed / total_sessions * 100.0) if total_sessions > 0 else 0.0
 
     # CTQ 1: Latency defect rate (Six Sigma DPMO calculation)
     latency_defects = t_stats["latency_defects"]
@@ -318,11 +332,55 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     idle_hours = round(total_idle_hrs, 2)
     utilization_pct = round((gaming_hours / max(0.1, powered_hours)) * 100.0, 1)
 
-    # Energy calculations
-    kwh_gaming = round((260.0 * gaming_hours) / 1000.0, 4)
-    kwh_idle = round((48.0 * idle_hours) / 1000.0, 4)
+    # Energy calculations use the primary rig profile returned above. The
+    # per-machine table remains the source for fleet-wide totals.
+    primary_energy = machines_energy[0] if machines_energy else {}
+    primary_active_watts = float(primary_energy.get("active_watts") or 0.0)
+    primary_idle_watts = float(primary_energy.get("idle_watts") or 0.0)
+    primary_active_breakdown = primary_energy.get("active_power_breakdown") or _estimate_power_breakdown(primary_active_watts, "active")
+    primary_idle_breakdown = primary_energy.get("idle_power_breakdown") or _estimate_power_breakdown(primary_idle_watts, "idle")
+    kwh_gaming = round((primary_active_watts * gaming_hours) / 1000.0, 4)
+    kwh_idle = round((primary_idle_watts * idle_hours) / 1000.0, 4)
     total_est_kwh = round(total_telemetry_kwh, 4) if total_telemetry_kwh > 0 else round(kwh_gaming + kwh_idle, 4)
-    est_cost_usd = round(total_est_kwh * 0.18, 4) # ~$0.18 per kWh average
+    est_cost_usd = round(total_est_kwh * EDC_TARIFF_USD_PER_KWH, 4)
+
+    # CTQ 2 analysis: separate instantaneous power rate (W) from accumulated
+    # energy (kWh), then quantify intensity and standby waste.
+    active_energy_intensity_kwh_per_hr = round(primary_active_watts / 1000.0, 3)
+    idle_waste_pct = round((kwh_idle / total_est_kwh) * 100.0, 1) if total_est_kwh > 0 else 0.0
+    ctq2_status = (
+        "NO DATA"
+        if total_sessions <= 0
+        else "PASS"
+        if utilization_pct >= CTQ2_UTILIZATION_TARGET_PCT
+        else "RISK"
+    )
+    ctq1_status = (
+        "NO DATA"
+        if total_sessions <= 0
+        else "PASS"
+        if t_stats["mean_latency"] <= CTQ1_LATENCY_LIMIT_MS
+        else "RISK"
+    )
+    waiting_defect_rate = round((t_stats["waiting_defects"] / total_sessions) * 100.0, 1) if total_sessions > 0 else 0.0
+    ctq3_status = (
+        "NO DATA"
+        if total_sessions <= 0
+        else "PASS"
+        if t_stats["mean_waiting_time"] <= CTQ3_WAIT_TARGET_MINUTES and b_stats["capacity_defects"] == 0
+        else "RISK"
+    )
+    ctq4_status = (
+        "NO DATA"
+        if total_sessions <= 0
+        else "PASS"
+        if completion_rate >= CTQ4_COMPLETION_TARGET_PCT
+        else "RISK"
+    )
+    failure_counts = {
+        str(item["reason"]).lower().replace(" ", "_"): int(item["count"])
+        for item in failure_breakdown
+    }
 
 
     # 2-Week Pilot Projection (14 days = 336 operating hours)
@@ -330,12 +388,12 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     daily_gaming_ratio = (gaming_hours / max(1.0, powered_hours))
     proj_gaming_hours_14d = round(daily_gaming_ratio * two_week_total_hours, 1)
     proj_idle_hours_14d = round(two_week_total_hours - proj_gaming_hours_14d, 1)
-    proj_kwh_14d = round(((280.0 * proj_gaming_hours_14d) + (55.0 * proj_idle_hours_14d)) / 1000.0, 2)
-    proj_cost_usd_14d = round(proj_kwh_14d * 0.18, 2)
+    proj_kwh_14d = round(((primary_active_watts * proj_gaming_hours_14d) + (primary_idle_watts * proj_idle_hours_14d)) / 1000.0, 2)
+    proj_cost_usd_14d = round(proj_kwh_14d * EDC_TARIFF_USD_PER_KWH, 2)
     proj_cost_khr_14d = int(proj_cost_usd_14d * 4050)
 
     # Direct electricity cost per hour
-    direct_elec_cost_per_hr = round((280.0 / 1000.0) * 0.18, 3) # $0.050/hr
+    direct_elec_cost_per_hr = round((primary_active_watts / 1000.0) * EDC_TARIFF_USD_PER_KWH, 3)
     full_amortized_cost_per_hr = round((proj_cost_usd_14d / max(1.0, proj_gaming_hours_14d)), 2) if proj_gaming_hours_14d > 0 else 0.08
 
     # Realtime Redis Telemetry with graceful fallback
@@ -353,30 +411,42 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     return {
         "ctq1_latency": {
             "owner": "Sean Pheavyraksonya",
-            "target": "<= 100 ms",
+            "target": "<= 100 ms mean latency",
             "mean_latency_ms": round(t_stats["mean_latency"], 1),
             "peak_latency_ms": round(t_stats["peak_latency"], 1),
             "mean_fps": round(t_stats["mean_fps"], 1),
             "packet_loss_pct": round(t_stats["mean_packet_loss"], 2),
             "defect_count": latency_defects,
             "defect_rate_pct": round(latency_defect_rate, 1),
-            "pass_status": t_stats["mean_latency"] <= 100.0 or total_sessions == 0,
+            "dpmo": round((latency_defects / total_sessions) * 1_000_000) if total_sessions > 0 else 0,
+            "sample_size": int(total_sessions),
+            "status": ctq1_status,
+            "pass_status": ctq1_status == "PASS",
         },
         "ctq2_utilization": {
             "owner": "Choonvai",
-            "target": "PC Utilization & Energy Waste (>= 70% Rig Utilization)",
+            "target": ">= 70% active utilization",
             "pc_powered_hours": powered_hours,
             "gaming_hours": gaming_hours,
             "idle_hours": idle_hours,
             "utilization_pct": utilization_pct,
-            "active_watts": 280,
-            "active_power_breakdown": {"gpu_watts": 180, "cpu_watts": 65, "system_watts": 35},
-            "idle_watts": 55,
-            "idle_power_breakdown": {"gpu_watts": 15, "cpu_watts": 20, "system_watts": 20},
+            "status": ctq2_status,
+            "pass_status": ctq2_status == "PASS",
+            "sample_size": int(total_sessions),
+            "defect_rule": "RISK when active utilization is below 70% of powered time",
+            "measurement_basis": "Rig-level power profile; component values are estimated until sensor telemetry is connected",
+            "active_watts": primary_active_watts,
+            "active_power_breakdown": primary_active_breakdown,
+            "idle_watts": primary_idle_watts,
+            "idle_power_breakdown": primary_idle_breakdown,
             "total_kwh": total_est_kwh,
             "active_kwh": round(kwh_gaming, 3),
             "idle_waste_kwh": round(kwh_idle, 3),
-            "idle_waste_usd": round(kwh_idle * 0.18, 2),
+            "idle_waste_pct": idle_waste_pct,
+            "idle_waste_usd": round(kwh_idle * EDC_TARIFF_USD_PER_KWH, 2),
+            "energy_intensity_kwh_per_active_hour": active_energy_intensity_kwh_per_hr,
+            "active_cost_per_hour_usd": direct_elec_cost_per_hr,
+            "tariff_usd_per_kwh": EDC_TARIFF_USD_PER_KWH,
             "est_cost_usd": est_cost_usd,
             "cost_per_session_usd": round(est_cost_usd / max(1, completed), 2),
             "two_week_forecast": {
@@ -388,30 +458,43 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
                 "proj_cost_usd": proj_cost_usd_14d,
                 "proj_cost_khr": proj_cost_khr_14d,
                 "direct_cost_per_game_hr_usd": direct_elec_cost_per_hr,
-                "proj_idle_waste_kwh": round((55.0 * proj_idle_hours_14d) / 1000.0, 2),
-                "proj_idle_waste_usd": round(((55.0 * proj_idle_hours_14d) / 1000.0) * 0.18, 2),
+                "proj_idle_waste_kwh": round((primary_idle_watts * proj_idle_hours_14d) / 1000.0, 2),
+                "proj_idle_waste_usd": round(((primary_idle_watts * proj_idle_hours_14d) / 1000.0) * EDC_TARIFF_USD_PER_KWH, 2),
+                "method": "Current observed active/standby ratio projected across 14 days",
             },
             "per_machine_energy": machines_energy,
         },
         "ctq3_waiting_time": {
             "owner": "Lim Hokann",
-            "target": "Minimize Queue Wait (< 60 mins)",
+            "target": "<= 30 min mean wait and zero capacity defects",
             "mean_waiting_time_mins": round(t_stats["mean_waiting_time"], 1),
+            "max_waiting_time_mins": round(t_stats["max_waiting_time"], 1),
+            "waiting_defect_count": int(t_stats["waiting_defects"]),
+            "waiting_defect_rate_pct": waiting_defect_rate,
             "total_booked_slots": b_stats["confirmed_bookings"],
             "cancelled_bookings": b_stats["cancelled_bookings"],
+            "capacity_defects_count": int(b_stats["capacity_defects"]),
             "available_slots_per_day": max(0, 16 - b_stats["confirmed_bookings"]),
             "capacity_bottleneck": b_stats["confirmed_bookings"] >= 12,
+            "sample_size": int(total_sessions),
+            "status": ctq3_status,
+            "pass_status": ctq3_status == "PASS",
         },
         "ctq4_completion_rate": {
             "owner": "Hour",
-            "target": ">= 95% Completion Rate",
+            "target": ">= 95% completion rate",
             "total_sessions": total_sessions,
             "completed_sessions": completed,
             "failed_sessions": failed,
             "completion_rate_pct": round(completion_rate, 1),
             "total_disconnects": t_stats["total_disconnects"],
-            "pass_status": completion_rate >= 95.0,
+            "sample_size": int(total_sessions),
+            "defect_count": int(failed),
+            "dpmo": round((failed / total_sessions) * 1_000_000) if total_sessions > 0 else 0,
+            "status": ctq4_status,
+            "pass_status": ctq4_status == "PASS",
             "failure_breakdown": failure_breakdown,
+            "failure_counts": failure_counts,
         },
         "per_machine_energy": machines_energy,
         "daily_machine_energy": daily_energy,
@@ -443,8 +526,8 @@ def list_dmaic_records(
                    COALESCE(m.name, 'Gaming Rig') as machine_name,
                    COALESCE(m.gpu, 'GPU') as machine_gpu,
                    COALESCE(m.cpu, 'CPU') as machine_cpu,
-                   COALESCE(m.active_watts, 280.0) as machine_active_watts,
-                   COALESCE(m.idle_watts, 55.0) as machine_idle_watts
+                   COALESCE(m.active_watts, 0.0) as machine_active_watts,
+                   COALESCE(m.idle_watts, 0.0) as machine_idle_watts
             FROM session_telemetry st
             LEFT JOIN machines m ON m.id = st.machine_id
         """
@@ -461,8 +544,8 @@ def list_dmaic_records(
             r["latency_ms"] = float(r.get("avg_latency_ms") or 0.0)
             r["fps"] = float(r.get("avg_fps") or 60.0)
             r["pc_idle_time_mins"] = float(r.get("pc_idle_minutes") or 0.0)
-            r["active_watts"] = float(r.get("machine_active_watts") or 260.0)
-            r["power_usage_watts"] = r["active_watts"]
+            machine_active_watts = float(r.get("machine_active_watts") or 0.0)
+            r["idle_watts"] = float(r.get("machine_idle_watts") or 0.0)
             r["rig_display"] = r.get("machine_name") or ("Host PC" if r.get("machine_id") else "Default Rig")
             r["game_title"] = r.get("game_title") or "METAL SLUG ATTACK RELOADED"
             r["time_period"] = r.get("booking_slot") or "10:54 AM - 10:55 AM"
@@ -476,6 +559,11 @@ def list_dmaic_records(
             else:
                 r["duration_formatted"] = f"{int(dur_sec)}s"
             r["power_kwh"] = float(r.get("power_kwh") or 0.0)
+            inferred_watts = (r["power_kwh"] * 3600.0 / dur_sec) if dur_sec > 0 else 0.0
+            r["active_watts"] = machine_active_watts if machine_active_watts > 0 else inferred_watts
+            r["active_power_breakdown"] = _estimate_power_breakdown(r["active_watts"], "active")
+            r["idle_power_breakdown"] = _estimate_power_breakdown(r["idle_watts"], "idle")
+            r["power_usage_watts"] = r["active_watts"]
             r["energy_cost_usd"] = float(r.get("energy_cost_usd") or 0.0)
             r["energy_cost_khr"] = int(r["energy_cost_usd"] * 4050)
             r["date_str"] = str(r.get("created_at") or "")[:10]
@@ -515,13 +603,14 @@ def log_dmaic_test_run(
     """Log an experimental observation run into the DMAIC dataset."""
     now_iso = datetime.now(timezone.utc).isoformat()
 
-    # Calculate power & cost if not provided (280W gaming load)
+    # Calculate power from the measured total when the caller did not provide
+    # an already-calculated kWh value. Never invent a rig wattage here.
     power_kwh = req.power_kwh
     if power_kwh is None:
-        power_kwh = round((280.0 * 1.0) / 1000.0, 3) # 0.28 kWh per 1h session
+        power_kwh = round((max(0.0, float(req.power_watts or 0.0)) * 1.0) / 1000.0, 3)
     cost_usd = req.energy_cost_usd
     if cost_usd is None:
-        cost_usd = round(power_kwh * 0.18, 3)
+        cost_usd = round(power_kwh * EDC_TARIFF_USD_PER_KWH, 3)
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -694,7 +783,7 @@ def seed_dmaic_evidence_dataset(
             # Distribute across available PCs
             target_rig = rig_list[(i - 1) % len(rig_list)] if rig_list else None
             m_id = target_rig["id"] if target_rig else None
-            m_watts = float(target_rig["active_watts"]) if target_rig and target_rig.get("active_watts") else 260.0
+            m_watts = float(target_rig["active_watts"]) if target_rig and target_rig.get("active_watts") else 0.0
 
             wait_m = round(random.uniform(25.0, 52.0), 1)
             lat = round(random.gauss(118.0, 14.0), 1)
@@ -709,7 +798,7 @@ def seed_dmaic_evidence_dataset(
                 failure_reason = random.choice(["disconnect", "crash", "launch_failure"])
 
             power = round((m_watts * 1.0) / 1000.0, 3)
-            cost = round(power * 0.18, 3)
+            cost = round(power * EDC_TARIFF_USD_PER_KWH, 3)
 
             payload = f"{t_id}:{acc}:{m_id}:{lat}:{fps}:{t_stamp}"
             h = hashlib.sha256(payload.encode()).hexdigest()
@@ -751,7 +840,7 @@ def seed_dmaic_evidence_dataset(
 
             target_rig = rig_list[(j - 16) % len(rig_list)] if rig_list else None
             m_id = target_rig["id"] if target_rig else None
-            m_watts = float(target_rig["active_watts"]) if target_rig and target_rig.get("active_watts") else 260.0
+            m_watts = float(target_rig["active_watts"]) if target_rig and target_rig.get("active_watts") else 0.0
 
             wait_m = round(random.uniform(2.0, 10.0), 1)
             lat = round(random.gauss(52.0, 6.5), 1)
@@ -764,7 +853,7 @@ def seed_dmaic_evidence_dataset(
             failure_reason = None
 
             power = round((m_watts * 1.0) / 1000.0, 3)
-            cost = round(power * 0.18, 3)
+            cost = round(power * EDC_TARIFF_USD_PER_KWH, 3)
 
             payload = f"{t_id}:{acc}:{m_id}:{lat}:{fps}:{t_stamp}"
             h = hashlib.sha256(payload.encode()).hexdigest()
