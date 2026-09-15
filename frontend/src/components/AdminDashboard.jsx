@@ -1573,10 +1573,10 @@ export default function AdminDashboard() {
 
               {/* 4 Team Member CTQ Cards - Compact & Balanced */}
               <div className="dmaic-ctq-grid compact">
-                {/* CTQ 1: Latency & Frame Stability (Choonvai) */}
+                {/* CTQ 1: Latency & Frame Stability (Sean Pheavyraksonya) */}
                 <div className="dmaic-ctq-card glass-panel compact">
                   <div className="ctq-card-header compact">
-                    <div className="ctq-owner-tag choonvai">CTQ 1 &bull; Choonvai</div>
+                    <div className="ctq-owner-tag sean">CTQ 1 &bull; Sean Pheavyraksonya</div>
                     <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq1_latency?.status === 'PASS' ? 'pass' : 'risk'}`}>
                       {dmaicMetrics?.ctq1_latency?.status || 'PASS'}
                     </span>
@@ -1607,10 +1607,10 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* CTQ 2: PC Utilization & Energy Waste (Sean Pheavyraksonya) */}
+                {/* CTQ 2: PC Utilization & Energy Waste (Choonvai) */}
                 <div className="dmaic-ctq-card glass-panel compact">
                   <div className="ctq-card-header compact">
-                    <div className="ctq-owner-tag sean">CTQ 2 &bull; Sean Pheavyraksonya</div>
+                    <div className="ctq-owner-tag choonvai">CTQ 2 &bull; Choonvai</div>
                     <span className={`ctq-status-badge compact ${dmaicMetrics?.ctq2_utilization?.status === 'PASS' ? 'pass' : 'risk'}`}>
                       {dmaicMetrics?.ctq2_utilization?.status || 'OPTIMAL'}
                     </span>

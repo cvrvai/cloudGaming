@@ -37,8 +37,8 @@ class LogTestRecordRequest(BaseModel):
 async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     """Calculate real-time Lean Six Sigma DMAIC Critical to Quality (CTQ) metrics.
     
-    1. Choonvai: CTQ 1 - Cloud Gaming Latency & Stream Quality (target <= 100ms)
-    2. Sean Pheavyraksonya: CTQ 2 - PC Utilization & Energy Waste
+    1. Sean Pheavyraksonya: CTQ 1 - Cloud Gaming Latency & Stream Quality (target <= 100ms)
+    2. Choonvai: CTQ 2 - PC Utilization & Energy Waste
     3. Lim Hokann: CTQ 3 - Booking Waiting Time & Rig Capacity
     4. Hour: CTQ 4 - Successful Session Completion Rate (target >= 95%)
     """
@@ -215,7 +215,7 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
 
     return {
         "ctq1_latency": {
-            "owner": "Choonvai",
+            "owner": "Sean Pheavyraksonya",
             "target": "<= 100 ms",
             "mean_latency_ms": round(t_stats["mean_latency"], 1),
             "peak_latency_ms": round(t_stats["peak_latency"], 1),
@@ -226,7 +226,7 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
             "pass_status": t_stats["mean_latency"] <= 100.0 or total_sessions == 0,
         },
         "ctq2_utilization": {
-            "owner": "Sean Pheavyraksonya",
+            "owner": "Choonvai",
             "target": "PC Utilization & Energy Waste (>= 70% Rig Utilization)",
             "pc_powered_hours": powered_hours,
             "gaming_hours": gaming_hours,
