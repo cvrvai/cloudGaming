@@ -1407,17 +1407,27 @@ export default function AdminDashboard() {
                   </div>
                   <div className="ctq-stats-breakdown compact">
                     <div className="ctq-substat">
-                      <span className="substat-label">Gaming Time</span>
-                      <span className="substat-val">{dmaicMetrics?.ctq2_utilization?.gaming_hours || 0} hrs</span>
-                    </div>
-                    <div className="ctq-substat">
-                      <span className="substat-label">Idle Time</span>
-                      <span className="substat-val">{dmaicMetrics?.ctq2_utilization?.idle_hours || 0} hrs</span>
-                    </div>
-                    <div className="ctq-substat">
-                      <span className="substat-label">Energy Waste</span>
+                      <span className="substat-label">Active / Idle</span>
                       <span className="substat-val">
-                        {dmaicMetrics?.ctq2_utilization?.est_kwh || 0} kWh (~${dmaicMetrics?.ctq2_utilization?.est_cost_usd || 0})
+                        {dmaicMetrics?.ctq2_utilization?.gaming_hours || 0}h play &bull; {dmaicMetrics?.ctq2_utilization?.idle_hours || 0}h idle
+                      </span>
+                    </div>
+                    <div className="ctq-substat">
+                      <span className="substat-label">Power (CPU+GPU)</span>
+                      <span className="substat-val" title="Active: GPU 180W + CPU 65W + Sys 35W = 280W | Idle: GPU 15W + CPU 20W + Sys 20W = 55W">
+                        280W load &bull; 55W idle
+                      </span>
+                    </div>
+                    <div className="ctq-substat">
+                      <span className="substat-label">2-Wk Forecast</span>
+                      <span className="substat-val" style={{ color: '#38bdf8' }} title="14-day 336-hour operating pilot at $0.18/kWh (EDC standard)">
+                        ~${dmaicMetrics?.ctq2_utilization?.two_week_forecast?.proj_cost_usd ?? 7.86} ({dmaicMetrics?.ctq2_utilization?.two_week_forecast?.proj_kwh ?? 43.7} kWh)
+                      </span>
+                    </div>
+                    <div className="ctq-substat">
+                      <span className="substat-label">Rec. Price</span>
+                      <span className="substat-val" style={{ color: '#4ade80' }} title="Electricity expense: ~$0.08/hr (break-even). Charging $0.50/hr gives ~84% profit margin.">
+                        $0.50 &ndash; $1.00 / hr
                       </span>
                     </div>
                   </div>

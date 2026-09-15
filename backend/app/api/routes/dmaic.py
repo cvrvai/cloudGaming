@@ -117,10 +117,26 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
     utilization_pct = round((gaming_hours / powered_hours) * 100.0, 1) if powered_hours > 0 else 0.0
 
     # Energy calculations
+    # Active Gaming Power: ~280W (GPU ~180W, CPU ~65W, Motherboard/RAM/SSD/Fans ~35W)
+    # Idle Standby Power: ~55W (GPU ~15W, CPU ~20W, Motherboard/RAM/Fans ~20W)
     kwh_gaming = (280.0 * gaming_hours) / 1000.0
-    kwh_idle = (45.0 * idle_hours) / 1000.0
+    kwh_idle = (55.0 * idle_hours) / 1000.0
     total_est_kwh = round(kwh_gaming + kwh_idle, 2)
     est_cost_usd = round(total_est_kwh * 0.18, 2) # ~$0.18 per kWh average
+
+    # 2-Week Pilot Projection (14 days = 336 operating hours)
+    two_week_total_hours = 336.0
+    daily_gaming_ratio = (gaming_hours / max(1.0, powered_hours))
+    proj_gaming_hours_14d = round(daily_gaming_ratio * two_week_total_hours, 1)
+    proj_idle_hours_14d = round(two_week_total_hours - proj_gaming_hours_14d, 1)
+    proj_kwh_14d = round(((280.0 * proj_gaming_hours_14d) + (55.0 * proj_idle_hours_14d)) / 1000.0, 2)
+    proj_cost_usd_14d = round(proj_kwh_14d * 0.18, 2)
+    proj_cost_khr_14d = int(proj_cost_usd_14d * 4050)
+
+    # Cost per hour & Recommended commercial charge
+    direct_elec_cost_per_hr = round((280.0 / 1000.0) * 0.18, 3) # $0.050/hr
+    full_amortized_cost_per_hr = round((proj_cost_usd_14d / max(1.0, proj_gaming_hours_14d)), 2) if proj_gaming_hours_14d > 0 else 0.08
+    recommended_price_usd = 0.50 # $0.50/hr gives ~84% gross profit margin
 
     return {
         "ctq1_latency": {
@@ -141,9 +157,26 @@ async def get_dmaic_ctq_metrics(admin_user: Dict = Depends(require_admin)):
             "gaming_hours": gaming_hours,
             "idle_hours": idle_hours,
             "utilization_pct": utilization_pct,
+            "active_watts": 280,
+            "active_power_breakdown": {"gpu_watts": 180, "cpu_watts": 65, "system_watts": 35},
+            "idle_watts": 55,
+            "idle_power_breakdown": {"gpu_watts": 15, "cpu_watts": 20, "system_watts": 20},
             "total_kwh": total_est_kwh,
             "est_cost_usd": est_cost_usd,
             "cost_per_session_usd": round(est_cost_usd / max(1, completed), 2),
+            "two_week_forecast": {
+                "period_days": 14,
+                "period_hours": 336,
+                "proj_gaming_hours": proj_gaming_hours_14d,
+                "proj_idle_hours": proj_idle_hours_14d,
+                "proj_kwh": proj_kwh_14d,
+                "proj_cost_usd": proj_cost_usd_14d,
+                "proj_cost_khr": proj_cost_khr_14d,
+                "direct_cost_per_game_hr_usd": direct_elec_cost_per_hr,
+                "full_breakeven_cost_per_hr_usd": full_amortized_cost_per_hr,
+                "recommended_hourly_charge_usd": recommended_price_usd,
+                "estimated_profit_margin_pct": 84,
+            },
         },
         "ctq3_waiting_time": {
             "owner": "Lim Hokann",
