@@ -866,6 +866,12 @@ export default function AdminDashboard() {
   const totalPilotKwh = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.projected_kwh || 0), 0) || 50.4;
   const totalIdleWasteKwh = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.idle_waste_kwh || 0), 0) || 24.08;
   const totalIdleWasteUsd = perPcEnergy.reduce((s, m) => s + (m.two_week_forecast?.idle_waste_usd || 0), 0) || 4.34;
+  const totalActiveWatts = perPcEnergy.reduce((s, m) => s + (m.active_watts || 0), 0) || 470;
+  const totalIdleWatts = perPcEnergy.reduce((s, m) => s + (m.idle_watts || 0), 0) || 86;
+  const totalGamingHours = perPcEnergy.reduce((s, m) => s + (m.gaming_hours || 0), 0);
+  const totalIdleHours = perPcEnergy.reduce((s, m) => s + (m.idle_hours || 0), 0);
+  const totalObservedKwh = perPcEnergy.reduce((s, m) => s + (m.total_kwh || 0), 0);
+  const totalObservedUsd = perPcEnergy.reduce((s, m) => s + (m.total_cost_usd || 0), 0);
 
   const filteredDmaicRecords = dmaicRecords.filter((r) => dmaicPhaseFilter === 'all' || r.phase === dmaicPhaseFilter);
   const nDmaic = filteredDmaicRecords.length;
@@ -1733,132 +1739,124 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Fleet-Wide 2-Week Electricity Budget Summary Banner */}
-              <div className="electricity-fleet-budget-banner glass-panel">
-                <div className="fleet-budget-metric-box">
-                  <div className="budget-metric-label">2-WEEK PILOT BUDGET (2 PCs)</div>
-                  <div className="budget-metric-val highlight-usd">
-                    ${totalPilotCostUsd.toFixed(2)} <span className="budget-currency-tag">USD</span>
-                  </div>
-                  <div className="budget-metric-sub">
-                    {totalPilotKwh.toFixed(1)} kWh &bull; {totalPilotCostKhr.toLocaleString()} ៛
-                  </div>
-                </div>
+              {/* SECTION: MULTI-PC ELECTRICITY & OPERATING EXPENSE TABLE */}
+              <div className="dmaic-electricity-table-container glass-panel">
+                <div className="electricity-table-scroll">
+                  <table className="dmaic-electricity-table">
+                    <thead>
+                      <tr>
+                        <th style={{ minWidth: '180px' }}>Gaming Rig / Hardware</th>
+                        <th style={{ width: '90px', textAlign: 'center' }}>Status</th>
+                        <th style={{ minWidth: '130px', textAlign: 'right' }}>Power (Load / Idle)</th>
+                        <th style={{ minWidth: '120px', textAlign: 'right' }}>Observed Time</th>
+                        <th style={{ minWidth: '120px', textAlign: 'right' }}>Energy Consumed</th>
+                        <th style={{ minWidth: '130px', textAlign: 'right' }}>Cost / Active Hr</th>
+                        <th style={{ minWidth: '140px', textAlign: 'right' }}>14-Day Forecast</th>
+                        <th style={{ minWidth: '140px', textAlign: 'right' }}>14-Day Standby Waste</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {perPcEnergy.map((pc, idx) => {
+                        const gpuFormatted = formatRigGpu(pc.gpu);
+                        const cpuFormatted = pc.cpu ? formatCpu(pc.cpu) : (idx === 0 ? 'Core i7-10875H' : 'Core i3-10100F');
+                        const ramFormatted = pc.ram ? formatRam(pc.ram) : (idx === 0 ? '32 GB' : '16 GB');
+                        const forecast = pc.two_week_forecast || {};
+                        const isLaptop = idx === 0;
+                        const isOnline = pc.status === 'available' || pc.status === 'in-use';
 
-                <div className="fleet-budget-metric-box">
-                  <div className="budget-metric-label">ELECTRICITY COST / GAMING HR</div>
-                  <div className="budget-metric-val highlight-rate">
-                    $0.038 &ndash; $0.047 <span className="budget-currency-tag">/ hr</span>
-                  </div>
-                  <div className="budget-metric-sub">
-                    154 &ndash; 190 ៛ / hr
-                  </div>
-                </div>
-
-                <div className="fleet-budget-metric-box">
-                  <div className="budget-metric-label">2-WEEK STANDBY WASTE (2 PCs)</div>
-                  <div className="budget-metric-val" style={{ color: '#f87171' }}>
-                    ${totalIdleWasteUsd.toFixed(2)} <span className="budget-currency-tag">USD</span>
-                  </div>
-                  <div className="budget-metric-sub">
-                    {totalIdleWasteKwh.toFixed(1)} kWh standby loss
-                  </div>
-                </div>
-              </div>
-
-              {/* Individual PC Hardware Power Profiles Grid */}
-              <div className="multi-pc-power-grid">
-                {perPcEnergy.map((pc, idx) => {
-                  const gpuFormatted = formatRigGpu(pc.gpu);
-                  const cpuFormatted = pc.cpu ? formatCpu(pc.cpu) : (idx === 0 ? 'Core i7-10875H' : 'Core i3-10100F');
-                  const ramFormatted = pc.ram ? formatRam(pc.ram) : (idx === 0 ? '32 GB' : '16 GB');
-                  const forecast = pc.two_week_forecast || {};
-                  const isLaptop = idx === 0;
-
-                  return (
-                    <div key={pc.id || idx} className="pc-power-card glass-panel">
-                      <div className="pc-power-card-header">
-                        <div className="pc-power-title-wrap">
-                          <div className="pc-power-badge">
-                            {isLaptop ? 'RIG #1 (LAPTOP) • RTX 2080 SUPER' : 'RIG #2 (DESKTOP) • GTX 1660 TI'}
-                          </div>
-                          <h3 className="pc-power-name">{pc.name}</h3>
-                          <div className="pc-specs-subtext">
-                            <span>{gpuFormatted}</span> &bull; <span>{cpuFormatted}</span> &bull; <span>{ramFormatted}</span>
-                          </div>
-                        </div>
-                        <div className="pc-power-status-pill">
-                          <span className={`live-dot ${pc.status === 'available' || pc.status === 'in-use' ? 'green' : 'gray'}`} />
-                          <span>{pc.status === 'available' || pc.status === 'in-use' ? 'Online' : 'Standby'}</span>
-                        </div>
-                      </div>
-
-                      {/* Power Profile (Watts) */}
-                      <div className="power-draw-specs-strip">
-                        <div className="power-draw-item">
-                          <span className="draw-label">Active Load:</span>
-                          <span className="draw-val highlight-watt">{pc.active_watts}W</span>
-                        </div>
-                        <div className="power-draw-item">
-                          <span className="draw-label">Idle Standby:</span>
-                          <span className="draw-val highlight-idle">{pc.idle_watts}W</span>
-                        </div>
-                      </div>
-
-                      {/* Real-time Observed Hours & kWh */}
-                      <div className="pc-energy-stats-row">
-                        <div className="energy-stat-cell">
-                          <span className="cell-label">Gaming Hours</span>
-                          <span className="cell-value">{pc.gaming_hours}h</span>
-                        </div>
-                        <div className="energy-stat-cell">
-                          <span className="cell-label">Idle Hours</span>
-                          <span className="cell-value">{pc.idle_hours}h</span>
-                        </div>
-                        <div className="energy-stat-cell">
-                          <span className="cell-label">Energy Consumed</span>
-                          <span className="cell-value">{pc.total_kwh} kWh</span>
-                        </div>
-                        <div className="energy-stat-cell">
-                          <span className="cell-label">Current Cost</span>
-                          <span className="cell-value" style={{ color: '#4ade80' }}>
-                            ${pc.total_cost_usd} <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>({(pc.total_cost_khr || 0).toLocaleString()} ៛)</span>
+                        return (
+                          <tr key={pc.id || idx}>
+                            <td>
+                              <div style={{ fontWeight: 700, fontSize: '12.5px', marginBottom: '2px' }}>
+                                {isLaptop ? 'Rig #1 (Laptop)' : 'Rig #2 (Desktop)'} &bull; {pc.name}
+                              </div>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>
+                                <span>{gpuFormatted}</span> &bull; <span>{cpuFormatted}</span> &bull; <span>{ramFormatted}</span>
+                              </div>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span className={`pc-status-pill-table ${isOnline ? 'online' : 'standby'}`}>
+                                <span className={`live-dot ${isOnline ? 'green' : 'gray'}`} />
+                                {isOnline ? 'Online' : 'Standby'}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                              <span style={{ color: '#f59e0b', fontWeight: 600 }}>{pc.active_watts}W</span>
+                              {' / '}
+                              <span style={{ color: '#38bdf8' }}>{pc.idle_watts}W</span>
+                            </td>
+                            <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                              {pc.gaming_hours}h play / {pc.idle_hours}h idle
+                            </td>
+                            <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                              {pc.total_kwh} kWh <span style={{ color: '#4ade80' }}>(${pc.total_cost_usd})</span>
+                            </td>
+                            <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                              ${forecast.direct_cost_per_hr?.toFixed(3) ?? '0.043'} / hr
+                              <span style={{ fontSize: '10.5px', color: 'var(--text-muted, #94a3b8)', display: 'block' }}>
+                                ({Math.round((forecast.direct_cost_per_hr || 0.043) * 4050)} ៛)
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                              <span style={{ fontWeight: 600 }}>{forecast.projected_kwh ?? 25.0} kWh</span>
+                              <span style={{ color: '#38bdf8', display: 'block' }}>
+                                ${forecast.projected_cost_usd?.toFixed(2) ?? '4.50'} ({(forecast.projected_cost_khr || 0).toLocaleString()} ៛)
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                              <span style={{ color: '#f87171', fontWeight: 600 }}>
+                                {forecast.idle_waste_kwh ?? 12.0} kWh
+                              </span>
+                              <span style={{ color: '#f87171', display: 'block', fontSize: '11px' }}>
+                                (${forecast.idle_waste_usd?.toFixed(2) ?? '2.16'})
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="electricity-fleet-summary-row">
+                        <td>
+                          <div style={{ fontWeight: 700, fontSize: '12.5px' }}>Fleet Combined (2 Campus PCs)</div>
+                          <div style={{ fontSize: '10.5px', color: 'var(--text-muted, #94a3b8)' }}>Phnom Penh EDC Standard ($0.18/kWh)</div>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 700 }}>2 Rigs</span>
+                        </td>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          <span style={{ color: '#f59e0b', fontWeight: 700 }}>{totalActiveWatts}W</span>
+                          {' / '}
+                          <span style={{ color: '#38bdf8', fontWeight: 700 }}>{totalIdleWatts}W</span>
+                        </td>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          {totalGamingHours}h play / {totalIdleHours}h idle
+                        </td>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          {totalObservedKwh.toFixed(3)} kWh <span style={{ color: '#4ade80' }}>(${totalObservedUsd.toFixed(2)})</span>
+                        </td>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          <span style={{ fontWeight: 600 }}>$0.038 &ndash; $0.047 / hr</span>
+                          <span style={{ fontSize: '10.5px', color: 'var(--text-muted, #94a3b8)', display: 'block' }}>(154 &ndash; 190 ៛)</span>
+                        </td>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          <span style={{ fontWeight: 700 }}>{totalPilotKwh.toFixed(1)} kWh</span>
+                          <span style={{ color: '#38bdf8', display: 'block', fontWeight: 700 }}>
+                            ${totalPilotCostUsd.toFixed(2)} USD ({totalPilotCostKhr.toLocaleString()} ៛)
                           </span>
-                        </div>
-                      </div>
-
-                      {/* 2-Week Pilot Projection Box */}
-                      <div className="pc-two-week-forecast-box">
-                        <div className="forecast-box-header">
-                          <span className="forecast-title">2-Week Forecast</span>
-                          <span className="forecast-tag">EDC $0.18/kWh</span>
-                        </div>
-                        <div className="forecast-metrics-grid">
-                          <div className="f-metric">
-                            <span className="f-label">Projected Energy:</span>
-                            <span className="f-val">{forecast.projected_kwh ?? 25.0} kWh</span>
-                          </div>
-                          <div className="f-metric">
-                            <span className="f-label">Projected Cost:</span>
-                            <span className="f-val highlight-usd">
-                              ${forecast.projected_cost_usd?.toFixed(2) ?? '4.50'} <span className="f-khr">({(forecast.projected_cost_khr || 0).toLocaleString()} ៛)</span>
-                            </span>
-                          </div>
-                          <div className="f-metric">
-                            <span className="f-label">Cost / Gaming Hr:</span>
-                            <span className="f-val">${forecast.direct_cost_per_hr?.toFixed(3) ?? '0.043'} / hr</span>
-                          </div>
-                          <div className="f-metric">
-                            <span className="f-label">Standby Waste (14d):</span>
-                            <span className="f-val" style={{ color: '#f87171' }}>
-                              {forecast.idle_waste_kwh ?? 12.0} kWh (${forecast.idle_waste_usd?.toFixed(2) ?? '2.16'})
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                        </td>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          <span style={{ color: '#f87171', fontWeight: 700 }}>
+                            {totalIdleWasteKwh.toFixed(1)} kWh
+                          </span>
+                          <span style={{ color: '#f87171', display: 'block', fontWeight: 700, fontSize: '11px' }}>
+                            (${totalIdleWasteUsd.toFixed(2)} USD)
+                          </span>
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
 
               {/* SECTION: CLEAN EXCEL-STYLE DATASET SPREADSHEET */}

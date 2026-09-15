@@ -3370,4 +3370,123 @@ body.dmaic-white-page-mode .cloudkh-main-content {
   color: #475569 !important;
 }
 
+/* ==========================================================================
+   MULTI-PC ELECTRICITY & OPERATING EXPENSE TABLE
+   ========================================================================== */
+.dmaic-electricity-table-container {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.6);
+  margin-bottom: 22px;
+}
+
+.electricity-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dmaic-electricity-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.dmaic-electricity-table th {
+  padding: 11px 14px;
+  background: rgba(30, 41, 59, 0.85);
+  color: #94a3b8;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+}
+
+.dmaic-electricity-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.dmaic-electricity-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.dmaic-electricity-table tfoot td {
+  padding: 13px 14px;
+  background: rgba(30, 41, 59, 0.65);
+  border-top: 2px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.pc-status-pill-table {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.pc-status-pill-table.online {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.pc-status-pill-table.standby {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+/* White Academic Theme Overrides for Electricity Table */
+.dmaic-academic-white-theme .dmaic-electricity-table-container {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05) !important;
+}
+
+.dmaic-academic-white-theme .dmaic-electricity-table th {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+
+.dmaic-academic-white-theme .dmaic-electricity-table td {
+  border-bottom: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .dmaic-electricity-table tbody tr:hover {
+  background: #f8fafc !important;
+}
+
+.dmaic-academic-white-theme .dmaic-electricity-table tfoot td {
+  background: #f8fafc !important;
+  border-top: 2px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.dmaic-academic-white-theme .pc-status-pill-table.online {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+  border-color: #86efac !important;
+}
+
+.dmaic-academic-white-theme .pc-status-pill-table.standby {
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+  border-color: #cbd5e1 !important;
+}
+
+
 
