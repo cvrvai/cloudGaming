@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../config';
-import { GamepadIcon, RocketIcon, CalendarIcon, LockIcon, HistoryIcon } from './Icons';
+import { GamepadIcon, RocketIcon, CalendarIcon, LockIcon, HistoryIcon, PlayIcon } from './Icons';
 
 let cachedBookingsData = null;
 let cachedDailyQuota = null;
@@ -178,7 +178,7 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
 
                 <div className="active-card-body">
                   <div className="active-card-top">
-                    <span className="live-status-badge">READY TO STREAM</span>
+                    <span className="live-status-badge">READY TO PLAY</span>
                     <h3 className="active-game-name">{b.game_title || 'Cloud Game'}</h3>
                   </div>
 
@@ -192,7 +192,7 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
                       className="btn-launch-stream"
                       onClick={() => onLaunchSession(b)}
                     >
-                      <RocketIcon size={16} /> Launch Stream
+                      <PlayIcon size={16} /> Play Now
                     </button>
                     <button
                       className="btn-cancel-active-session"

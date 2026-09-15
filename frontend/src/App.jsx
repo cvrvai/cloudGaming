@@ -145,8 +145,10 @@ function CloudKHPlatform() {
             <BookingModal
               game={selectedGameForBooking}
               onClose={() => setSelectedGameForBooking(null)}
-              onBookingSuccess={(booking) => {
-                setActiveTab('bookings');
+              onBookingSuccess={(booking, bookingMode) => {
+                if (bookingMode === 'schedule') {
+                  setActiveTab('bookings');
+                }
               }}
               onLaunchNow={(booking) => {
                 handleLaunchSession(booking);

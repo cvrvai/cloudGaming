@@ -295,8 +295,16 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
         throw new Error(data.detail || 'Failed to complete game reservation.');
       }
 
+      // If user selected instant "Play Now", launch the game immediately without extra screens
+      if (mode === 'instant' && onLaunchNow) {
+        if (onBookingSuccess) onBookingSuccess(data, 'instant');
+        if (onClose) onClose();
+        onLaunchNow(data);
+        return;
+      }
+
       setConfirmedBooking(data);
-      if (onBookingSuccess) onBookingSuccess(data);
+      if (onBookingSuccess) onBookingSuccess(data, mode);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -325,14 +333,22 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
         {confirmedBooking ? (
           <div className="modal-success-screen">
             <div className="success-icon-badge">
-              <CheckCircleIcon size={38} />
+              {mode === 'instant' ? <PlayIcon size={38} /> : <CheckCircleIcon size={38} />}
             </div>
-            <h3>Reservation Confirmed</h3>
+            <h3>{mode === 'instant' ? 'Ready to Play!' : 'Reservation Confirmed'}</h3>
             <p className="success-slot-text">
-              Reserved <strong>{title}</strong>
+              {mode === 'instant' ? (
+                <>Rig ready for <strong>{title}</strong></>
+              ) : (
+                <>Reserved <strong>{title}</strong></>
+              )}
             </p>
             <p className="success-time-text">
-              {new Date(confirmedBooking.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – {new Date(confirmedBooking.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {mode === 'instant' ? (
+                `Session Duration: ${durationMinutes} mins`
+              ) : (
+                `${new Date(confirmedBooking.start_time).toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${new Date(confirmedBooking.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – ${new Date(confirmedBooking.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+              )}
             </p>
 
             <div className="success-modal-actions">
@@ -344,14 +360,21 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                     onLaunchNow(confirmedBooking);
                   }}
                 >
-                  <RocketIcon size={16} /> Launch Stream
+                  <PlayIcon size={16} /> Play Now
                 </button>
-              ) : null}
+              ) : (
+                <button
+                  className="btn-primary"
+                  onClick={onClose}
+                >
+                  View Bookings
+                </button>
+              )}
               <button
                 className="btn-secondary"
                 onClick={onClose}
               >
-                View Bookings
+                Close
               </button>
             </div>
           </div>
@@ -630,14 +653,14 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                   disabled={submitting}
                 >
                   {submitting ? (
-                    'Allocating Rig...'
+                    mode === 'instant' ? 'Connecting to Rig...' : 'Reserving Slot...'
                   ) : !user ? (
                     <>
                       <UserIcon size={14} /> {mode === 'instant' ? 'Sign In to Play' : 'Sign In to Reserve'}
                     </>
                   ) : mode === 'instant' ? (
                     <>
-                      <PlayIcon size={14} /> Start Play
+                      <PlayIcon size={14} /> Play Now
                     </>
                   ) : (
                     <>
