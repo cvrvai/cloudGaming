@@ -325,7 +325,7 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                             wait_sec += 0.5
 
                         if not game_hwnd and not host_agent.is_game_running():
-                            err_msg = "Streaming blocked: No authorized game is actively running on this PC. Windows desktop interface streaming is disabled."
+                            err_msg = "Streaming blocked: No authorized game is actively running on this PC."
                             print(f"[{ts}] [!] {err_msg}")
                             await ws.send(json.dumps({
                                 "type": "stream_error",
@@ -334,21 +334,8 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                             }))
                             continue
 
-                        if not game_hwnd:
-                            # If game is running but window handle couldn't be detected yet, try one more time
-                            game_hwnd = host_agent.get_active_game_window_handle()
-                            if game_hwnd:
-                                host_agent.bring_game_to_foreground(game_hwnd)
-
-                        if not game_hwnd:
-                            err_msg = "Streaming blocked: Game window not found or minimized. Windows desktop interface streaming is restricted."
-                            print(f"[{ts}] [!] {err_msg}")
-                            await ws.send(json.dumps({
-                                "type": "stream_error",
-                                "correlation_id": corr_id,
-                                "error": err_msg,
-                            }))
-                            continue
+                        if game_hwnd:
+                            host_agent.bring_game_to_foreground(game_hwnd)
 
                         # Ensure watchdog is actively monitoring process lifecycle
                         if host_agent.is_game_running() and not host_agent._watchdog_active:
