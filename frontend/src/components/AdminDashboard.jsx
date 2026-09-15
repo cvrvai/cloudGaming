@@ -805,7 +805,6 @@ export default function AdminDashboard() {
         <button
           className={`admin-subnav-btn ${adminTab === 'machines' ? 'active' : ''}`}
           onClick={() => setAdminTab('machines')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
           <MonitorIcon size={16} />
           <span>Gaming PCs ({machines.length})</span>
@@ -813,7 +812,6 @@ export default function AdminDashboard() {
         <button
           className={`admin-subnav-btn ${adminTab === 'games' ? 'active' : ''}`}
           onClick={() => setAdminTab('games')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
           <GamepadIcon size={16} />
           <span>Game Catalog ({games.length})</span>
@@ -821,7 +819,6 @@ export default function AdminDashboard() {
         <button
           className={`admin-subnav-btn ${adminTab === 'bookings' ? 'active' : ''}`}
           onClick={() => setAdminTab('bookings')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
           <ClipboardListIcon size={16} />
           <span>Reservations ({bookings.length})</span>
@@ -829,7 +826,6 @@ export default function AdminDashboard() {
         <button
           className={`admin-subnav-btn ${adminTab === 'users' ? 'active' : ''}`}
           onClick={() => setAdminTab('users')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
           <UsersIcon size={16} />
           <span>User Accounts ({users.length})</span>
@@ -837,7 +833,6 @@ export default function AdminDashboard() {
         <button
           className={`admin-subnav-btn ${adminTab === 'dmaic' ? 'active' : ''}`}
           onClick={() => setAdminTab('dmaic')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
         >
           <ChartIcon size={16} />
           <span>Lean Six Sigma DMAIC</span>
@@ -1119,13 +1114,13 @@ export default function AdminDashboard() {
           {adminTab === 'users' && (
             <div className="admin-tab-content">
               <div className="tab-section-header compact">
-                <div>
+                <div className="tab-header-titles">
                   <h2 className="section-heading-compact">User Roster &amp; Player Tracking</h2>
                   <p className="section-sub-compact">
                     Track registered accounts, roles, reservations, and individual gaming hours for Sean&apos;s CTQ 2.
                   </p>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div className="admin-header-controls">
                   <div className="admin-search-box compact">
                     <input
                       type="text"
