@@ -114,13 +114,13 @@ const formatEnergyKwh = (kwh) => {
 
 const formatFeedbackStars = (rating) => {
   const value = Math.max(0, Math.min(5, Number(rating) || 0));
-  return value ? `${'★'.repeat(value)}${'☆'.repeat(5 - value)}` : 'No rating';
+  return value ? `${'★'.repeat(value)}${'☆'.repeat(5 - value)} (${value}/5)` : 'No rating';
 };
 
 const formatExperienceTag = (tag) => {
-  if (tag === 'smooth') return 'Smooth';
-  if (tag === 'mixed') return 'Mostly okay';
-  if (tag === 'laggy') return 'Laggy';
+  if (tag === 'smooth') return '🟢 Smooth';
+  if (tag === 'mixed') return '🟡 Mostly okay';
+  if (tag === 'laggy') return '🔴 Laggy';
   return '';
 };
 
@@ -149,23 +149,173 @@ function PowerMeasurementGuide({ watts = 0, hours = 0 }) {
   );
 }
 
-function VoiceOfCustomerSummary({ stats }) {
-  const feedbackCount = Number(stats?.feedback_count) || 0;
-  if (!stats) return null;
+function VoiceOfCustomerSummary({ stats, records = [], activeFilter = 'all', onFilterChange }) {
+  const feedbackRecords = (records || []).filter(
+    (r) => r.user_rating || r.experience_tag || (r.user_comment && r.user_comment.trim())
+  );
+  const feedbackCount = feedbackRecords.length > 0
+    ? feedbackRecords.length
+    : (Number(stats?.feedback_count) || 0);
+
+  const rated = feedbackRecords.filter((r) => r.user_rating != null && Number(r.user_rating) > 0);
+  const meanRating = rated.length > 0
+    ? (rated.reduce((s, r) => s + Number(r.user_rating), 0) / rated.length)
+    : (Number(stats?.mean_rating) || 0);
+
+  const smoothCount = feedbackRecords.length > 0
+    ? feedbackRecords.filter((r) => r.experience_tag === 'smooth').length
+    : (Number(stats?.smooth_count) || 0);
+
+  const mixedCount = feedbackRecords.length > 0
+    ? feedbackRecords.filter((r) => r.experience_tag === 'mixed').length
+    : (Number(stats?.mixed_count) || 0);
+
+  const laggyCount = feedbackRecords.length > 0
+    ? feedbackRecords.filter((r) => r.experience_tag === 'laggy').length
+    : (Number(stats?.laggy_count) || 0);
+
+  const commentCount = feedbackRecords.length > 0
+    ? feedbackRecords.filter((r) => r.user_comment && r.user_comment.trim()).length
+    : (Number(stats?.comment_count) || 0);
+
+  const smoothRate = feedbackCount > 0 ? Math.round((smoothCount / feedbackCount) * 100) : 0;
+  const mixedRate = feedbackCount > 0 ? Math.round((mixedCount / feedbackCount) * 100) : 0;
+  const laggyRate = feedbackCount > 0 ? Math.round((laggyCount / feedbackCount) * 100) : 0;
 
   return (
-    <div className="voc-summary-strip" role="note">
-      <strong>Voice of Customer</strong>
+    <div className="my-3.5 p-4 rounded-2xl bg-slate-900/80 border border-cyan-400/25 backdrop-blur-xl shadow-lg flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2.5">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-black uppercase tracking-wider text-cyan-400">Voice of Customer Experience &amp; Ratings</span>
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-cyan-400/10 text-cyan-300 border border-cyan-400/30">
+            {feedbackCount} Feedback Review{feedbackCount === 1 ? '' : 's'}
+          </span>
+        </div>
+        {feedbackCount > 0 && (
+          <div className="flex items-center gap-2 text-xs text-slate-300">
+            <span>Average Player Rating:</span>
+            <span className="text-amber-400 font-extrabold text-sm">★ {meanRating.toFixed(1)}</span>
+            <span className="text-slate-400 text-[11px]">/ 5.0</span>
+          </div>
+        )}
+      </div>
+
       {feedbackCount > 0 ? (
         <>
-          <span>{feedbackCount} response{feedbackCount === 1 ? '' : 's'}</span>
-          <span>Average rating: <b>{Number(stats.mean_rating || 0).toFixed(1)}/5</b></span>
-          <span>Smooth: <b>{stats.smooth_count || 0}</b></span>
-          <span>Laggy: <b>{stats.laggy_count || 0}</b></span>
-          <span>Written comments: <b>{stats.comment_count || 0}</b></span>
+          {/* Metric Cards Row & Clickable Filters */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {/* Smooth Card */}
+            <button
+              type="button"
+              onClick={() => onFilterChange && onFilterChange(activeFilter === 'smooth' ? 'all' : 'smooth')}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                activeFilter === 'smooth'
+                  ? 'bg-emerald-500/20 border-emerald-400 shadow-[0_0_14px_rgba(74,222,128,0.35)]'
+                  : 'bg-white/[0.03] hover:bg-emerald-500/10 border-white/10 hover:border-emerald-500/30'
+              }`}
+              title="Click to filter sessions by Smooth experience"
+            >
+              <div className="flex items-center justify-between text-[11px] text-emerald-400 font-bold mb-1">
+                <span>🟢 Smooth Rate</span>
+                <span className="text-xs font-extrabold">{smoothRate}%</span>
+              </div>
+              <div className="text-xl font-black text-white">{smoothCount} <span className="text-xs font-semibold text-slate-400">sessions</span></div>
+              <div className="text-[10px] text-emerald-300/80 mt-1">Responsive &amp; steady 60 FPS</div>
+            </button>
+
+            {/* Mostly Okay Card */}
+            <button
+              type="button"
+              onClick={() => onFilterChange && onFilterChange(activeFilter === 'mixed' ? 'all' : 'mixed')}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                activeFilter === 'mixed'
+                  ? 'bg-amber-500/20 border-amber-400 shadow-[0_0_14px_rgba(251,191,36,0.35)]'
+                  : 'bg-white/[0.03] hover:bg-amber-500/10 border-white/10 hover:border-amber-500/30'
+              }`}
+              title="Click to filter sessions by Mostly Okay experience"
+            >
+              <div className="flex items-center justify-between text-[11px] text-amber-400 font-bold mb-1">
+                <span>🟡 Mostly Okay</span>
+                <span className="text-xs font-extrabold">{mixedRate}%</span>
+              </div>
+              <div className="text-xl font-black text-white">{mixedCount} <span className="text-xs font-semibold text-slate-400">sessions</span></div>
+              <div className="text-[10px] text-amber-300/80 mt-1">Minor transient stutter</div>
+            </button>
+
+            {/* Laggy Card */}
+            <button
+              type="button"
+              onClick={() => onFilterChange && onFilterChange(activeFilter === 'laggy' ? 'all' : 'laggy')}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                activeFilter === 'laggy'
+                  ? 'bg-red-500/20 border-red-400 shadow-[0_0_14px_rgba(248,113,113,0.35)]'
+                  : 'bg-white/[0.03] hover:bg-red-500/10 border-white/10 hover:border-red-500/30'
+              }`}
+              title="Click to filter sessions by Laggy experience"
+            >
+              <div className="flex items-center justify-between text-[11px] text-red-400 font-bold mb-1">
+                <span>🔴 Laggy Rate</span>
+                <span className="text-xs font-extrabold">{laggyRate}%</span>
+              </div>
+              <div className="text-xl font-black text-white">{laggyCount} <span className="text-xs font-semibold text-slate-400">sessions</span></div>
+              <div className="text-[10px] text-red-300/80 mt-1">High latency or packet drops</div>
+            </button>
+
+            {/* Written Comments Card */}
+            <button
+              type="button"
+              onClick={() => onFilterChange && onFilterChange(activeFilter === 'comments' ? 'all' : 'comments')}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                activeFilter === 'comments'
+                  ? 'bg-blue-500/20 border-blue-400 shadow-[0_0_14px_rgba(96,165,250,0.35)]'
+                  : 'bg-white/[0.03] hover:bg-blue-500/10 border-white/10 hover:border-blue-500/30'
+              }`}
+              title="Click to filter sessions with written comments"
+            >
+              <div className="flex items-center justify-between text-[11px] text-blue-400 font-bold mb-1">
+                <span>💬 Written Feedback</span>
+                <span className="text-xs font-extrabold">{feedbackCount > 0 ? Math.round((commentCount / feedbackCount) * 100) : 0}%</span>
+              </div>
+              <div className="text-xl font-black text-white">{commentCount} <span className="text-xs font-semibold text-slate-400">comments</span></div>
+              <div className="text-[10px] text-blue-300/80 mt-1">Player verbatim notes</div>
+            </button>
+          </div>
+
+          {/* Visual Experience Distribution Proportion Bar */}
+          <div className="flex flex-col gap-1.5 pt-1">
+            <div className="h-2.5 w-full rounded-full bg-slate-800/90 overflow-hidden flex shadow-inner">
+              {smoothCount > 0 && (
+                <div
+                  style={{ width: `${smoothRate}%` }}
+                  className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all"
+                  title={`Smooth: ${smoothCount} (${smoothRate}%)`}
+                />
+              )}
+              {mixedCount > 0 && (
+                <div
+                  style={{ width: `${mixedRate}%` }}
+                  className="h-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all"
+                  title={`Mostly Okay: ${mixedCount} (${mixedRate}%)`}
+                />
+              )}
+              {laggyCount > 0 && (
+                <div
+                  style={{ width: `${laggyRate}%` }}
+                  className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all"
+                  title={`Laggy: ${laggyCount} (${laggyRate}%)`}
+                />
+              )}
+            </div>
+            <div className="flex items-center justify-between text-[10.5px] text-slate-400 flex-wrap gap-2">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block shadow-[0_0_6px_#10b981]" /> <b>Smooth:</b> {smoothCount} ({smoothRate}%)</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block shadow-[0_0_6px_#fbbf24]" /> <b>Mostly Okay:</b> {mixedCount} ({mixedRate}%)</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block shadow-[0_0_6px_#ef4444]" /> <b>Laggy:</b> {laggyCount} ({laggyRate}%)</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-400 inline-block" /> <b>Comments:</b> {commentCount}</span>
+            </div>
+          </div>
         </>
       ) : (
-        <span>No participant feedback collected yet.</span>
+        <div className="text-xs text-slate-400 py-1">No user feedback reviews collected yet. As players finish sessions, their ratings (Smooth, Laggy, stars, comments) will appear here in real time.</div>
       )}
     </div>
   );
@@ -511,6 +661,7 @@ export default function AdminDashboard() {
   const [clearingEvidence, setClearingEvidence] = useState(false);
   const [seedSuccessMsg, setSeedSuccessMsg] = useState(null);
   const [dailyRigFilter, setDailyRigFilter] = useState('all');
+  const [vocExperienceFilter, setVocExperienceFilter] = useState('all'); // 'all' | 'smooth' | 'mixed' | 'laggy' | 'comments'
   const [energyViewMode, setEnergyViewMode] = useState('sessions'); // 'sessions' | 'daily'
   const [powerDetailsOpen, setPowerDetailsOpen] = useState({});
   const [selectedCtq, setSelectedCtq] = useState(null);
@@ -1482,9 +1633,28 @@ export default function AdminDashboard() {
 
   // Combine live active streams with database recorded sessions
   const combinedSessions = [...activeLiveStreams, ...(dmaicRecords || [])];
-  const sessionTimelineRecords = combinedSessions.filter(
+  const allRigSessions = combinedSessions.filter(
     (r) => dailyRigFilter === 'all' || String(r.machine_id) === String(dailyRigFilter)
   );
+  const vocFeedbacks = allRigSessions.filter(
+    (r) => r.user_rating || r.experience_tag || (r.user_comment && r.user_comment.trim())
+  );
+  const vocSmoothCount = vocFeedbacks.filter((r) => r.experience_tag === 'smooth').length;
+  const vocMixedCount = vocFeedbacks.filter((r) => r.experience_tag === 'mixed').length;
+  const vocLaggyCount = vocFeedbacks.filter((r) => r.experience_tag === 'laggy').length;
+  const vocCommentCount = vocFeedbacks.filter((r) => r.user_comment && r.user_comment.trim()).length;
+  const vocRated = vocFeedbacks.filter((r) => r.user_rating != null && Number(r.user_rating) > 0);
+  const vocMeanRating = vocRated.length > 0
+    ? (vocRated.reduce((s, r) => s + Number(r.user_rating), 0) / vocRated.length)
+    : 0;
+
+  const sessionTimelineRecords = allRigSessions.filter((r) => {
+    if (vocExperienceFilter === 'smooth') return r.experience_tag === 'smooth';
+    if (vocExperienceFilter === 'mixed') return r.experience_tag === 'mixed';
+    if (vocExperienceFilter === 'laggy') return r.experience_tag === 'laggy';
+    if (vocExperienceFilter === 'comments') return r.user_comment && r.user_comment.trim();
+    return true;
+  });
   const livePcCount = activeLiveStreams.length;
 
   const totalSessionSecs = sessionTimelineRecords.reduce((sum, r) => sum + (r.duration_seconds || 0), 0);
@@ -1492,7 +1662,7 @@ export default function AdminDashboard() {
   const totalSessionUsd = sessionTimelineRecords.reduce((sum, r) => sum + (r.energy_cost_usd || 0), 0);
   const totalSessionPass = sessionTimelineRecords.filter((r) => r.ctq_overall_pass ?? r.completed).length;
   const sessionsWithFeedback = sessionTimelineRecords.filter(
-    (r) => r.user_rating || r.experience_tag || r.user_comment
+    (r) => r.user_rating || r.experience_tag || (r.user_comment && r.user_comment.trim())
   ).length;
 
   const filteredDmaicRecords = dmaicRecords.filter((r) => dmaicPhaseFilter === 'all' || r.phase === dmaicPhaseFilter);
@@ -2008,7 +2178,12 @@ export default function AdminDashboard() {
                 watts={ctq2ActiveWatts}
                 hours={ctq2Power.gaming_hours}
               />
-              <VoiceOfCustomerSummary stats={dmaicMetrics?.voice_of_customer} />
+              <VoiceOfCustomerSummary
+                stats={dmaicMetrics?.voice_of_customer}
+                records={allRigSessions}
+                activeFilter={vocExperienceFilter}
+                onFilterChange={setVocExperienceFilter}
+              />
               <div className="tab-section-header compact" style={{ marginTop: '20px', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   <h2 className="section-heading-compact" style={{ fontSize: '1.2rem', margin: 0, fontWeight: 700 }}>
@@ -2026,11 +2201,50 @@ export default function AdminDashboard() {
                   <div className="segmented-view-switcher">
                     <button
                       type="button"
-                      className={`view-switch-btn ${energyViewMode === 'sessions' ? 'active' : ''}`}
-                      onClick={() => setEnergyViewMode('sessions')}
-                      title="Show individual gaming sessions with time window, game, and watt draw"
+                      className={`view-switch-btn ${energyViewMode === 'sessions' && vocExperienceFilter === 'all' ? 'active' : ''}`}
+                      onClick={() => {
+                        setEnergyViewMode('sessions');
+                        setVocExperienceFilter('all');
+                      }}
+                      title="Show all individual gaming sessions"
                     >
-                      Gaming Sessions Timeline ({sessionTimelineRecords.length})
+                      All Sessions ({allRigSessions.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`view-switch-btn ${energyViewMode === 'sessions' && vocExperienceFilter === 'smooth' ? 'active' : ''}`}
+                      onClick={() => {
+                        setEnergyViewMode('sessions');
+                        setVocExperienceFilter((curr) => (curr === 'smooth' ? 'all' : 'smooth'));
+                      }}
+                      title="Filter only Smooth sessions"
+                      style={{ color: vocExperienceFilter === 'smooth' ? '#fff' : '#4ade80' }}
+                    >
+                      🟢 Smooth ({vocSmoothCount})
+                    </button>
+                    <button
+                      type="button"
+                      className={`view-switch-btn ${energyViewMode === 'sessions' && vocExperienceFilter === 'mixed' ? 'active' : ''}`}
+                      onClick={() => {
+                        setEnergyViewMode('sessions');
+                        setVocExperienceFilter((curr) => (curr === 'mixed' ? 'all' : 'mixed'));
+                      }}
+                      title="Filter only Mostly Okay sessions"
+                      style={{ color: vocExperienceFilter === 'mixed' ? '#fff' : '#fbbf24' }}
+                    >
+                      🟡 Okay ({vocMixedCount})
+                    </button>
+                    <button
+                      type="button"
+                      className={`view-switch-btn ${energyViewMode === 'sessions' && vocExperienceFilter === 'laggy' ? 'active' : ''}`}
+                      onClick={() => {
+                        setEnergyViewMode('sessions');
+                        setVocExperienceFilter((curr) => (curr === 'laggy' ? 'all' : 'laggy'));
+                      }}
+                      title="Filter only Laggy sessions"
+                      style={{ color: vocExperienceFilter === 'laggy' ? '#fff' : '#f87171' }}
+                    >
+                      🔴 Laggy ({vocLaggyCount})
                     </button>
                     <button
                       type="button"
@@ -2239,8 +2453,23 @@ export default function AdminDashboard() {
                                 {Math.round((totalSessionPass / sessionTimelineRecords.length) * 100)}% PASS
                               </span>
                             </td>
-                            <td className="voc-feedback-summary-cell">
-                              {sessionsWithFeedback} / {sessionTimelineRecords.length} feedback responses
+                            <td className="voc-feedback-summary-cell" style={{ textAlign: 'left' }}>
+                              {sessionsWithFeedback > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                  <span style={{ fontWeight: 600, color: '#38bdf8', fontSize: '11px' }}>
+                                    {sessionsWithFeedback} / {sessionTimelineRecords.length} feedback responses
+                                    {vocMeanRating > 0 ? ` (★ ${vocMeanRating.toFixed(1)}/5)` : ''}
+                                  </span>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', fontSize: '10px' }}>
+                                    {vocSmoothCount > 0 && <span style={{ color: '#4ade80' }}>🟢 {vocSmoothCount} Smooth</span>}
+                                    {vocMixedCount > 0 && <span style={{ color: '#fbbf24' }}>🟡 {vocMixedCount} Okay</span>}
+                                    {vocLaggyCount > 0 && <span style={{ color: '#f87171' }}>🔴 {vocLaggyCount} Laggy</span>}
+                                    {vocCommentCount > 0 && <span style={{ color: '#60a5fa' }}>💬 {vocCommentCount} Notes</span>}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span>{sessionsWithFeedback} / {sessionTimelineRecords.length} feedback responses</span>
+                              )}
                             </td>
                           </tr>
                         </tfoot>
@@ -2719,7 +2948,10 @@ export default function AdminDashboard() {
 
               {/* Voice of Customer (VOC) Summary Strip */}
               <div style={{ marginTop: '12px', marginBottom: '12px' }}>
-                <VoiceOfCustomerSummary stats={dmaicMetrics?.voice_of_customer} />
+                <VoiceOfCustomerSummary
+                  stats={dmaicMetrics?.voice_of_customer}
+                  records={dmaicRecords}
+                />
               </div>
 
               <div className="dmaic-analysis-method-strip" role="note">
