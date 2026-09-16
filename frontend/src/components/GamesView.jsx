@@ -311,7 +311,7 @@ export default function GamesView({ onSelectGame, searchQuery = '', onSearchChan
                         </span>
                         <button
                           className="bg-white/10 text-slate-400 text-[11px] font-bold px-3 py-1 rounded-md border-0 cursor-not-allowed"
-                          title="Gaming rig is offline. Start stream_node.py on your host PC."
+                          title="This game is currently offline. Please check back later."
                           onClick={(e) => {
                             e.stopPropagation();
                             onSelectGame(game);

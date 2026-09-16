@@ -448,19 +448,19 @@ export default function WebRTCPlayer({
                             {errorDetail.toLowerCase().includes('blocked') || errorDetail.toLowerCase().includes('wait') || errorDetail.toLowerCase().includes('launch') || errorDetail.toLowerCase().includes('longer') ? (
                                 <>
                                     <div style={{ fontSize: 13, fontWeight: 600 }}>
-                                        Starting game on host PC…
+                                        Starting your game…
                                     </div>
                                     <div style={{ opacity: 0.75, fontSize: 11, fontWeight: 400, maxWidth: 320 }}>
-                                        Please wait a moment while the game window initializes.
+                                        Please wait a moment while the game initializes.
                                     </div>
                                 </>
                             ) : errorDetail.toLowerCase().includes('not connected') || errorDetail.toLowerCase().includes('offline') || errorDetail.toLowerCase().includes('reconnect') || errorDetail.toLowerCase().includes('negotiation') || errorDetail.toLowerCase().includes('503') ? (
                                 <>
                                     <div style={{ fontSize: 13, fontWeight: 600 }}>
-                                        Connecting to Gaming Rig…
+                                        Connecting to game session…
                                     </div>
                                     <div style={{ opacity: 0.75, fontSize: 11, fontWeight: 400, maxWidth: 300 }}>
-                                        Host computer is synchronizing. Retrying automatically…
+                                        Initializing video stream. Retrying automatically…
                                     </div>
                                     <button
                                         onClick={() => connect()}

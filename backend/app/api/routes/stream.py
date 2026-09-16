@@ -50,7 +50,7 @@ async def create_stream(offer: SdpOffer) -> dict:
         if not host_agent.is_game_running():
             raise HTTPException(
                 status_code=403,
-                detail="Streaming blocked: No authorized game is actively running. Windows desktop interface streaming is disabled.",
+                detail="Game is starting up. Please wait a moment...",
             )
         game_hwnd = host_agent.get_active_game_window_handle()
         if game_hwnd:
@@ -68,7 +68,7 @@ async def create_stream(offer: SdpOffer) -> dict:
             )
         except Exception as exc:
             logger.exception("Failed to negotiate local stream")
-            raise HTTPException(status_code=500, detail=str(exc))
+            raise HTTPException(status_code=500, detail="Unable to start game stream. Please try again.")
 
     # 2. Cloud Relay Mode: Backend is running on Cloud (Render) - forward offer to connected gaming PC node
     target_node_id = offer.node_id or offer.machine_id
@@ -116,7 +116,7 @@ async def create_stream(offer: SdpOffer) -> dict:
         else:
             raise HTTPException(
                 status_code=503,
-                detail="Gaming rig is currently reconnecting to the cloud relay. Please try again in a few seconds.",
+                detail="Gaming rig is currently connecting. Please try again in a few seconds.",
             )
 
     if target_node_id and target_node_id in node_relay._nodes:
@@ -157,11 +157,11 @@ async def create_stream(offer: SdpOffer) -> dict:
             logger.warning("Failed to negotiate relayed stream with node #%s: %s", target_node_id, exc)
             raise HTTPException(
                 status_code=503,
-                detail="Gaming rig stream connection is initializing. Please retry in a moment.",
+                detail="Game stream is initializing. Please retry in a moment.",
             )
 
     # Neither local capture nor a connected node is available
     raise HTTPException(
         status_code=503,
-        detail="No gaming PC streaming node is currently online. Please ensure stream_node is running on your host PC.",
+        detail="Gaming rig is currently offline. Please try again in a few moments.",
     )

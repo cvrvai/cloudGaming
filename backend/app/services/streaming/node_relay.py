@@ -136,7 +136,7 @@ class NodeRelayManager:
         """Forward an SDP offer from a browser client to the specified gaming node, returning its SDP answer."""
         ws = self._nodes.get(node_id)
         if not ws:
-            raise RuntimeError(f"Gaming PC Node #{node_id} is not connected to the cloud backend.")
+            raise RuntimeError("Gaming PC is currently unavailable.")
 
         correlation_id = str(uuid.uuid4())
         loop = asyncio.get_running_loop()
@@ -206,7 +206,7 @@ class NodeRelayManager:
         """Send game command (START_GAME, STOP_GAME) to the target gaming node."""
         ws = self._nodes.get(node_id)
         if not ws:
-            raise RuntimeError(f"Gaming PC Node #{node_id} is not connected.")
+            raise RuntimeError("Gaming PC is currently unavailable.")
 
         correlation_id = str(uuid.uuid4())
         loop = asyncio.get_running_loop()
