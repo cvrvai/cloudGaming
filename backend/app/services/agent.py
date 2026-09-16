@@ -7,13 +7,19 @@ Enforces strict security:
 """
 import logging
 import os
+import re
 import subprocess
 import sys
 import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+try:
+    from app.db import get_db
+except ImportError:
+    get_db = None
 
 logger = logging.getLogger("agent")
 
@@ -151,17 +157,18 @@ def get_host_steam_and_game_status() -> Dict[str, Any]:
         return datetime.fromtimestamp(posix_us / 1000000.0, tz=timezone.utc)
 
     known_game_exes = {}
-    try:
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT ng.executable_path, g.title FROM node_games ng JOIN games g ON ng.game_id = g.id;")
-            for row in cursor.fetchall():
-                ep = (row.get("executable_path") or "").lower()
-                if ep:
-                    fname = Path(ep).name.lower()
-                    known_game_exes[fname] = row.get("title")
-    except Exception:
-        pass
+    if get_db is not None:
+        try:
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT ng.executable_path, g.title FROM node_games ng JOIN games g ON ng.game_id = g.id;")
+                for row in cursor.fetchall():
+                    ep = (row.get("executable_path") or "").lower()
+                    if ep:
+                        fname = Path(ep).name.lower()
+                        known_game_exes[fname] = row.get("title")
+        except Exception:
+            pass
 
     hSnap = kernel32.CreateToolhelp32Snapshot(0x00000002, 0)
     pe32 = PROCESSENTRY32()
@@ -250,6 +257,190 @@ def _resolve_game_executables_and_steam_appid(exe_path: str):
     return names, steam_appid
 
 
+def _extract_target_from_shortcut(path: Path) -> List[str]:
+    """Extract physical executable paths referenced inside a .lnk or .url file."""
+    targets = []
+    p_str = str(path)
+    if p_str.lower().endswith('.url'):
+        try:
+            with open(p_str, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            for line in content.splitlines():
+                if '=' in line:
+                    _, v = line.split('=', 1)
+                    v = v.strip().strip('"')
+                    if v.lower().endswith('.exe') and Path(v).is_file():
+                        targets.append(v)
+        except Exception:
+            pass
+    elif p_str.lower().endswith('.lnk'):
+        try:
+            with open(p_str, 'rb') as f:
+                raw = f.read()
+            m_ascii = re.findall(rb'[a-zA-Z]:\\[^\x00\r\n\t<>\":|?*]+\.exe', raw, re.IGNORECASE)
+            for b in m_ascii:
+                s = b.decode('utf-8', errors='ignore')
+                if Path(s).is_file() and s not in targets:
+                    targets.append(s)
+            m_utf16 = re.findall(rb'(?:[a-zA-Z]\x00:\x00\\(?:[^\x00\r\n\t<>\":|?*]\x00)+\.exe\x00)', raw, re.IGNORECASE)
+            for b in m_utf16:
+                s = b.decode('utf-16le', errors='ignore')
+                if Path(s).is_file() and s not in targets:
+                    targets.append(s)
+        except Exception:
+            pass
+    return targets
+
+
+def _score_game_match(candidate_path: Path, title: str, slug: str, configured_exe: Optional[str] = None) -> int:
+    """Score how well a candidate file/shortcut matches the requested game."""
+    stem = candidate_path.stem.lower()
+    title_lower = (title or "").lower().strip()
+    slug_lower = (slug or "").lower().replace('-', ' ').strip()
+
+    # 1. Exact stem matches title or slug
+    if stem == title_lower or stem == slug_lower:
+        return 100
+
+    # 2. Configured exe stem match
+    if configured_exe:
+        conf_stem = Path(configured_exe).stem.lower()
+        if stem == conf_stem:
+            return 95
+
+    # 3. Clean word tokens (filtering out generic filler words)
+    ignore_tokens = {'the', 'edition', 'pc', 'remastered', 'season', 'mode', 'game', 'final', 'deluxe'}
+    raw_tokens = [w for w in re.findall(r'[a-z0-9]+', title_lower) if w not in ignore_tokens and len(w) >= 2]
+    if not raw_tokens:
+        raw_tokens = [w for w in re.findall(r'[a-z0-9]+', title_lower) if len(w) >= 2]
+
+    cand_tokens = set(re.findall(r'[a-z0-9]+', stem))
+
+    if not raw_tokens:
+        return 0
+
+    # All key tokens present in candidate name
+    if all(tok in cand_tokens for tok in raw_tokens):
+        return 85
+
+    # Check match ratio
+    matched_count = sum(1 for tok in raw_tokens if tok in cand_tokens)
+    if matched_count >= max(1, len(raw_tokens) - 1):
+        return 70 + matched_count * 5
+
+    # Check substring match for primary game name (token length >= 4)
+    primary_tokens = [t for t in raw_tokens if len(t) >= 4]
+    if primary_tokens and any(t in stem for t in primary_tokens):
+        return 60
+
+    return 0
+
+
+def _find_local_game_file(title: str, slug: str, configured_path: Optional[str] = None) -> Optional[Path]:
+    """Search user desktop (including custom folders where shortcuts were moved),
+    Start Menu, Steam libraries, and standard drive game directories for a matching game executable or shortcut.
+    """
+    if configured_path and Path(configured_path).is_file():
+        return Path(configured_path)
+
+    search_roots = []
+
+    # 1. User Desktop & Public Desktop (recursive to find any folder where user moved shortcuts)
+    desktop_dirs = [
+        Path.home() / "Desktop",
+        Path.home() / "OneDrive" / "Desktop",
+        Path(os.environ.get("PUBLIC", "C:/Users/Public")) / "Desktop",
+    ]
+    for d in desktop_dirs:
+        if d.is_dir():
+            search_roots.append((d, 3))
+
+    # 2. Start Menu Programs
+    start_menu_dirs = [
+        Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs",
+        Path(os.environ.get("ProgramData", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs",
+    ]
+    for d in start_menu_dirs:
+        if d.is_dir():
+            search_roots.append((d, 3))
+
+    # 3. Steam Libraries
+    steam_roots = [
+        Path(r"C:\Program Files (x86)\Steam"),
+        Path(r"C:\Program Files\Steam"),
+    ]
+    steam_common_dirs = []
+    for s_root in steam_roots:
+        vdf = s_root / "steamapps" / "libraryfolders.vdf"
+        if vdf.is_file():
+            try:
+                txt = vdf.read_text("utf-8", errors="ignore")
+                for line in txt.splitlines():
+                    if '"path"' in line:
+                        parts = line.split('"path"', 1)[1].strip().strip('"').replace('\\\\', '\\')
+                        c_dir = Path(parts) / "steamapps" / "common"
+                        if c_dir.is_dir() and c_dir not in steam_common_dirs:
+                            steam_common_dirs.append(c_dir)
+            except Exception:
+                pass
+        common = s_root / "steamapps" / "common"
+        if common.is_dir() and common not in steam_common_dirs:
+            steam_common_dirs.append(common)
+
+    for sc in steam_common_dirs:
+        search_roots.append((sc, 2))
+
+    # 4. Standard Game installation folders on available drives
+    game_folders = [
+        Path(r"C:\Program Files\Epic Games"),
+        Path(r"C:\Games"),
+        Path(r"D:\Games"),
+        Path(r"E:\Games"),
+        Path(r"C:\XboxGames"),
+        Path(r"D:\XboxGames"),
+    ]
+    for gf in game_folders:
+        if gf.is_dir():
+            search_roots.append((gf, 2))
+
+    best_candidate: Optional[Tuple[int, Path]] = None
+    valid_extensions = {".lnk", ".url", ".exe"}
+
+    for root_dir, max_depth in search_roots:
+        try:
+            root_depth = len(root_dir.parts)
+            for dirpath, dirnames, filenames in os.walk(str(root_dir)):
+                curr_depth = len(Path(dirpath).parts) - root_depth
+                if curr_depth > max_depth:
+                    dirnames.clear()
+                    continue
+
+                for fname in filenames:
+                    ext = os.path.splitext(fname)[1].lower()
+                    if ext not in valid_extensions:
+                        continue
+
+                    # Ignore uninstaller and crash reporter files
+                    fname_lower = fname.lower()
+                    if any(bad in fname_lower for bad in ("uninstall", "crashreport", "unitycrash", "cleanup", "redist", "vcredist", "dxsetup")):
+                        continue
+
+                    cand_path = Path(dirpath) / fname
+                    score = _score_game_match(cand_path, title, slug, configured_path)
+                    if score > 0:
+                        # Slight preference for desktop shortcuts
+                        is_desktop = any(str(cand_path).startswith(str(d)) for d in desktop_dirs)
+                        final_score = score + (10 if is_desktop else 0)
+                        if not best_candidate or final_score > best_candidate[0]:
+                            best_candidate = (final_score, cand_path)
+        except Exception:
+            continue
+
+    if best_candidate and best_candidate[0] >= 50:
+        return best_candidate[1]
+    return None
+
+
 class GamingPCAgent:
     """Agent running on the host / gaming node to manage game lifecycles."""
 
@@ -272,19 +463,20 @@ class GamingPCAgent:
     def _load_authorized_game_exes(self) -> None:
         """Cache all configured game executables from DB or Cloud API."""
         loaded_from_db = False
-        try:
-            with get_db() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT executable_path FROM node_games WHERE enabled IS TRUE;")
-                rows = cursor.fetchall()
-                for row in rows:
-                    p = row.get("executable_path", "").strip()
-                    if p:
-                        names, _ = _resolve_game_executables_and_steam_appid(p)
-                        self._authorized_game_exes.update(names)
-                loaded_from_db = True
-        except Exception as e:
-            logger.debug("Could not load authorized game exes from DB (worker node mode): %s", e)
+        if get_db is not None:
+            try:
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT executable_path FROM node_games WHERE enabled IS TRUE;")
+                    rows = cursor.fetchall()
+                    for row in rows:
+                        p = row.get("executable_path", "").strip()
+                        if p:
+                            names, _ = _resolve_game_executables_and_steam_appid(p)
+                            self._authorized_game_exes.update(names)
+                    loaded_from_db = True
+            except Exception as e:
+                logger.debug("Could not load authorized game exes from DB (worker node mode): %s", e)
 
         if not loaded_from_db:
             try:
@@ -332,8 +524,11 @@ class GamingPCAgent:
                 if p and Path(p).name.lower() in running:
                     return True
                 title = (self._active_game_info.get("title") or "").lower()
-                for kw in ("minecraft", "spiritfarer", "stardew", "hades", "msar", "metalslug", "shipping"):
-                    if kw in title and any(kw in r for r in running):
+                slug = (self._active_game_info.get("slug") or "").lower().replace("-", " ")
+                tokens = {w for w in re.findall(r'[a-z0-9]+', f"{title} {slug}") if len(w) >= 4 and w not in ("game", "mode", "edition", "season", "final", "deluxe")}
+                tokens.update({"minecraft", "spiritfarer", "stardew", "hades", "msar", "metalslug", "shipping"})
+                for kw in tokens:
+                    if (kw in title or kw in slug or kw in ("msar", "shipping")) and any(kw in r for r in running):
                         return True
 
             self._load_authorized_game_exes()
@@ -385,40 +580,10 @@ class GamingPCAgent:
         with self._lock:
             config = None
             # 1. Try local database if available
-            try:
-                with get_db() as conn:
-                    cursor = conn.cursor()
-                    if game_id:
-                        cursor.execute(
-                            """
-                            SELECT ng.id, ng.node_id, ng.game_id, ng.executable_path,
-                                   ng.working_directory, ng.launch_arguments, ng.enabled, ng.status,
-                                   g.title, g.slug
-                            FROM node_games ng
-                            JOIN games g ON ng.game_id = g.id
-                            WHERE ng.node_id = %s AND ng.game_id = %s;
-                            """,
-                            (self.node_id, game_id),
-                        )
-                    elif slug:
-                        cursor.execute(
-                            """
-                            SELECT ng.id, ng.node_id, ng.game_id, ng.executable_path,
-                                   ng.working_directory, ng.launch_arguments, ng.enabled, ng.status,
-                                   g.title, g.slug
-                            FROM node_games ng
-                            JOIN games g ON ng.game_id = g.id
-                            WHERE ng.node_id = %s AND g.slug = %s;
-                            """,
-                            (self.node_id, slug),
-                        )
-                    else:
-                        raise ValueError("Either game_id or slug is required to start a game.")
-
-                    config = cursor.fetchone()
-
-                    if not config:
-                        # Fallback: Query any active node_game matching game_id / slug
+            if get_db is not None:
+                try:
+                    with get_db() as conn:
+                        cursor = conn.cursor()
                         if game_id:
                             cursor.execute(
                                 """
@@ -427,9 +592,9 @@ class GamingPCAgent:
                                        g.title, g.slug
                                 FROM node_games ng
                                 JOIN games g ON ng.game_id = g.id
-                                WHERE ng.game_id = %s LIMIT 1;
+                                WHERE ng.node_id = %s AND ng.game_id = %s;
                                 """,
-                                (game_id,),
+                                (self.node_id, game_id),
                             )
                         elif slug:
                             cursor.execute(
@@ -439,13 +604,44 @@ class GamingPCAgent:
                                        g.title, g.slug
                                 FROM node_games ng
                                 JOIN games g ON ng.game_id = g.id
-                                WHERE g.slug = %s LIMIT 1;
+                                WHERE ng.node_id = %s AND g.slug = %s;
                                 """,
-                                (slug,),
+                                (self.node_id, slug),
                             )
+                        else:
+                            raise ValueError("Either game_id or slug is required to start a game.")
+
                         config = cursor.fetchone()
-            except Exception as db_exc:
-                logger.debug("[Agent] Local DB query skipped/failed (worker node mode): %s", db_exc)
+
+                        if not config:
+                            # Fallback: Query any active node_game matching game_id / slug
+                            if game_id:
+                                cursor.execute(
+                                    """
+                                    SELECT ng.id, ng.node_id, ng.game_id, ng.executable_path,
+                                           ng.working_directory, ng.launch_arguments, ng.enabled, ng.status,
+                                           g.title, g.slug
+                                    FROM node_games ng
+                                    JOIN games g ON ng.game_id = g.id
+                                    WHERE ng.game_id = %s LIMIT 1;
+                                    """,
+                                    (game_id,),
+                                )
+                            elif slug:
+                                cursor.execute(
+                                    """
+                                    SELECT ng.id, ng.node_id, ng.game_id, ng.executable_path,
+                                           ng.working_directory, ng.launch_arguments, ng.enabled, ng.status,
+                                           g.title, g.slug
+                                    FROM node_games ng
+                                    JOIN games g ON ng.game_id = g.id
+                                    WHERE g.slug = %s LIMIT 1;
+                                    """,
+                                    (slug,),
+                                )
+                            config = cursor.fetchone()
+                except Exception as db_exc:
+                    logger.debug("[Agent] Local DB query skipped/failed (worker node mode): %s", db_exc)
 
             # 2. Fallback: Query Cloud API if running as worker node without local database
             if not config:
@@ -462,8 +658,8 @@ class GamingPCAgent:
                                     if (game_id and g.get("game_id") == game_id) or (slug and g.get("slug") == slug):
                                         config = g
                                         break
-                            if config:
-                                break
+                                if config:
+                                    break
                         # If still not found for self.node_id, search any machine as fallback
                         if not config:
                             for m in machines:
@@ -489,6 +685,23 @@ class GamingPCAgent:
             if not cwd or not Path(cwd).is_dir():
                 cwd = str(Path(exe_path).parent)
             args_str = config.get("launch_arguments", "").strip() if config.get("launch_arguments") else ""
+
+            # If configured executable does not exist on disk, auto-discover local game executable or shortcut
+            if not Path(exe_path).is_file():
+                logger.info(
+                    "Configured executable '%s' not found on disk. Searching Desktop (including subfolders), Start Menu, and game directories...",
+                    exe_path,
+                )
+                discovered = _find_local_game_file(
+                    title=config.get("title", ""),
+                    slug=config.get("slug", ""),
+                    configured_path=exe_path,
+                )
+                if discovered:
+                    logger.info("Auto-discovered local game executable/shortcut: %s", discovered)
+                    exe_path = str(discovered)
+                    if not cwd or not Path(cwd).is_dir():
+                        cwd = str(discovered.parent)
 
             # Check if active game is already running
             if self._active_process and self._active_process.poll() is None:
@@ -529,65 +742,104 @@ class GamingPCAgent:
             exe_names, _ = _resolve_game_executables_and_steam_appid(exe_path)
             self._authorized_game_exes.update(exe_names)
 
-            # Verify executable existence on local disk
+            # Check if target is a Windows shortcut (.lnk or .url)
+            is_shortcut = exe_path.lower().endswith((".lnk", ".url"))
             exe_exists = Path(exe_path).is_file()
             pid = None
             simulated = False
 
             if exe_exists:
-                try:
-                    logger.info("Executing native game executable: %s (CWD: %s)", exe_path, cwd)
-                    proc = subprocess.Popen(
-                        cmd,
-                        cwd=cwd,
-                        shell=False,
-                    )
-                    self._active_process = proc
-                    pid = proc.pid
-                    logger.info("Launched game '%s' (PID %s): %s", config["title"], pid, exe_path)
+                if is_shortcut:
+                    try:
+                        logger.info("Launching game via Windows shortcut/URL: %s (CWD: %s)", exe_path, cwd)
+                        # Extract physical target executables if available
+                        targets = _extract_target_from_shortcut(Path(exe_path))
+                        for t in targets:
+                            names, _ = _resolve_game_executables_and_steam_appid(t)
+                            self._authorized_game_exes.update(names)
+                            logger.info("Registered shortcut target executable: %s", t)
 
-                    # Start robust process tree watchdog
-                    self._start_process_watchdog(config["title"], config["game_id"])
-
-                    # Focus game window on Windows
-                    if sys.platform == "win32":
-                        threading.Thread(target=self._focus_game_window, daemon=True).start()
-                except Exception as e:
-                    elevated_ok = False
-                    # WinError 740: The requested operation requires elevation
-                    if sys.platform == "win32" and (getattr(e, "winerror", None) == 740 or "740" in str(e)):
-                        logger.warning("Physical executable requires elevation [WinError 740]. Attempting ShellExecuteW 'runas'...")
-                        try:
+                        if sys.platform == "win32":
                             import ctypes
                             ret = ctypes.windll.shell32.ShellExecuteW(
                                 None,
-                                "runas",
+                                "open",
                                 str(exe_path),
                                 args_str or None,
-                                str(cwd) if cwd else None,
+                                str(cwd) if cwd and Path(cwd).is_dir() else None,
                                 1,  # SW_SHOWNORMAL
                             )
-                            if ret > 32:
-                                elevated_ok = True
-                                logger.info("Launched elevated game '%s' via ShellExecuteW: %s", config["title"], exe_path)
-                                self._start_process_watchdog(config["title"], config["game_id"])
-                                threading.Thread(target=self._focus_game_window, daemon=True).start()
-                            else:
-                                logger.error("ShellExecuteW 'runas' failed with code %s", ret)
-                        except Exception as shell_err:
-                            logger.error("ShellExecuteW elevation exception: %s", shell_err)
+                            if ret <= 32:
+                                os.startfile(str(exe_path))
+                        else:
+                            subprocess.Popen(["xdg-open", exe_path])
 
-                    if not elevated_ok:
-                        logger.error("Failed to launch physical executable: %s", e)
+                        simulated = False
+                        self._start_process_watchdog(config["title"], config["game_id"])
+                        if sys.platform == "win32":
+                            threading.Thread(target=self._focus_game_window, daemon=True).start()
+                    except Exception as e:
+                        logger.error("Failed to launch game shortcut '%s': %s", exe_path, e)
                         return {
                             "status": "error",
-                            "error": f"Failed to launch game: {e}. The game requires elevation. Please run Command Prompt as Administrator!",
+                            "error": f"Failed to launch game shortcut: {e}",
                             "game_id": config["game_id"],
                             "title": config["title"],
                         }
+                else:
+                    try:
+                        logger.info("Executing native game executable: %s (CWD: %s)", exe_path, cwd)
+                        proc = subprocess.Popen(
+                            cmd,
+                            cwd=cwd,
+                            shell=False,
+                        )
+                        self._active_process = proc
+                        pid = proc.pid
+                        logger.info("Launched game '%s' (PID %s): %s", config["title"], pid, exe_path)
+
+                        # Start robust process tree watchdog
+                        self._start_process_watchdog(config["title"], config["game_id"])
+
+                        # Focus game window on Windows
+                        if sys.platform == "win32":
+                            threading.Thread(target=self._focus_game_window, daemon=True).start()
+                    except Exception as e:
+                        elevated_ok = False
+                        # WinError 740: The requested operation requires elevation
+                        if sys.platform == "win32" and (getattr(e, "winerror", None) == 740 or "740" in str(e)):
+                            logger.warning("Physical executable requires elevation [WinError 740]. Attempting ShellExecuteW 'runas'...")
+                            try:
+                                import ctypes
+                                ret = ctypes.windll.shell32.ShellExecuteW(
+                                    None,
+                                    "runas",
+                                    str(exe_path),
+                                    args_str or None,
+                                    str(cwd) if cwd else None,
+                                    1,  # SW_SHOWNORMAL
+                                )
+                                if ret > 32:
+                                    elevated_ok = True
+                                    logger.info("Launched elevated game '%s' via ShellExecuteW: %s", config["title"], exe_path)
+                                    self._start_process_watchdog(config["title"], config["game_id"])
+                                    threading.Thread(target=self._focus_game_window, daemon=True).start()
+                                else:
+                                    logger.error("ShellExecuteW 'runas' failed with code %s", ret)
+                            except Exception as shell_err:
+                                logger.error("ShellExecuteW elevation exception: %s", shell_err)
+
+                        if not elevated_ok:
+                            logger.error("Failed to launch physical executable: %s", e)
+                            return {
+                                "status": "error",
+                                "error": f"Failed to launch game: {e}. The game requires elevation. Please run Command Prompt as Administrator!",
+                                "game_id": config["game_id"],
+                                "title": config["title"],
+                            }
             else:
                 logger.info(
-                    "Admin-configured executable path '%s' not present on disk; running in simulated mode.",
+                    "Game executable or shortcut '%s' not present on disk; running in simulated mode.",
                     exe_path,
                 )
                 simulated = True
@@ -878,24 +1130,31 @@ class GamingPCAgent:
                 if p:
                     target_exes.add(Path(p).name.lower())
 
-            try:
-                with get_db() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT executable_path FROM node_games;")
-                    for row in cursor.fetchall():
-                        ep = (row.get("executable_path") or "").strip()
-                        if ep:
-                            target_exes.add(Path(ep).name.lower())
-            except Exception:
-                pass
+            if get_db is not None:
+                try:
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT executable_path FROM node_games;")
+                        for row in cursor.fetchall():
+                            ep = (row.get("executable_path") or "").strip()
+                            if ep:
+                                target_exes.add(Path(ep).name.lower())
+                except Exception:
+                    pass
 
-            # Also add common game exe patterns if running
+            # Also add common game exe patterns and active game tokens if running
             try:
                 running = _get_running_process_names()
+                active_tokens = set()
+                if self._active_game_info:
+                    t = (self._active_game_info.get("title") or "").lower()
+                    s = (self._active_game_info.get("slug") or "").lower().replace("-", " ")
+                    active_tokens = {w for w in re.findall(r'[a-z0-9]+', f"{t} {s}") if len(w) >= 4 and w not in ("game", "mode", "edition", "season")}
+                active_tokens.update({"minecraft", "spiritfarer", "stardew", "hades", "msar", "metalslug", "shipping"})
                 for r_exe in running:
                     if r_exe in protected_exes:
                         continue
-                    if any(k in r_exe for k in ("minecraft", "spiritfarer", "stardew", "hades", "msar", "metalslug", "shipping")):
+                    if any(k in r_exe for k in active_tokens):
                         target_exes.add(r_exe)
             except Exception:
                 pass
