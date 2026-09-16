@@ -339,7 +339,7 @@ def create_booking_atomic(
                     # Select machines where admin has explicitly configured this game as ready
                     cursor.execute(
                         """
-                        SELECT m.id, m.name 
+                        SELECT m.id, m.name, m.status 
                         FROM machines m
                         JOIN node_games ng ON m.id = ng.node_id
                         WHERE ng.game_id = %s 
@@ -352,7 +352,7 @@ def create_booking_atomic(
                     )
                 else:
                     cursor.execute(
-                        "SELECT id, name FROM machines WHERE status != 'maintenance' ORDER BY (CASE WHEN status = 'available' THEN 0 ELSE 1 END) ASC, last_seen DESC NULLS LAST, is_host DESC, id ASC FOR UPDATE;"
+                        "SELECT id, name, status FROM machines WHERE status != 'maintenance' ORDER BY (CASE WHEN status = 'available' THEN 0 ELSE 1 END) ASC, last_seen DESC NULLS LAST, is_host DESC, id ASC FOR UPDATE;"
                     )
                 available_candidates = cursor.fetchall()
                 if not available_candidates:
@@ -361,8 +361,15 @@ def create_booking_atomic(
                     else:
                         raise ValueError("No gaming rigs are currently online.")
 
+                now_check_iso = datetime.now(timezone.utc).isoformat()
+                is_immediate = (start_iso <= now_check_iso)
+
                 # Check each candidate for overlap
                 for cand in available_candidates:
+                    # For immediate instant sessions, skip machines that are not currently online and available
+                    if is_immediate and cand["status"] != "available":
+                        continue
+
                     cursor.execute(
                         """
                         SELECT id, user_id FROM bookings
@@ -382,7 +389,10 @@ def create_booking_atomic(
                         return dict(cursor.fetchone())
 
                 if not allocated_machine_id:
-                    raise BookingConflictError("All gaming servers capable of running this title are fully booked for this time slot.")
+                    if is_immediate:
+                        raise BookingConflictError("All gaming computers for this game are currently occupied. Please schedule a reservation for the next open slot.")
+                    else:
+                        raise BookingConflictError("All gaming servers capable of running this title are fully booked for this time slot.")
 
             # 1. Verify machine exists, lock it, and check not under maintenance
             cursor.execute("SELECT id, name, status FROM machines WHERE id = %s FOR UPDATE;", (allocated_machine_id,))

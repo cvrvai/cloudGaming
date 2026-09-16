@@ -94,9 +94,8 @@ async def create_booking(
     start_iso = start_dt.isoformat()
     end_iso = end_dt.isoformat()
 
-    # 2. Concurrency Lock: Prevent simultaneous double-booking on the exact same rig
-    target_node = req.machine_id or 2
-    lock_key = f"lock:slot:machine:{target_node}"
+    # 2. Concurrency Lock: Prevent simultaneous double-booking on the exact same rig or game
+    lock_key = f"lock:slot:machine:{req.machine_id}" if req.machine_id else f"lock:slot:game:{req.game_id or 'all'}"
     if not await acquire_lock(lock_key, ttl_seconds=6):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -208,12 +207,12 @@ async def get_slot_availability(
         )
         active_sessions = cursor.fetchall()
 
-        # Rig is currently free only if not actively booked and not in-use/streaming/offline
+        # Rig is currently free only if not actively booked, marked available, and not streaming
         booked_m_ids = {s["machine_id"] for s in active_sessions}
         free_machines = [
             m for m in capable_machines
             if m["id"] not in booked_m_ids
-            and m["status"] not in ("in-use", "streaming", "maintenance", "offline")
+            and m["status"] == "available"
             and not m.get("stream_started_at")
         ]
         free_count = len(free_machines)

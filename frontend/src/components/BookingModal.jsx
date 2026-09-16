@@ -6,8 +6,15 @@ import { CalendarIcon, ClockIcon, BoltIcon, RocketIcon, CheckCircleIcon, PlayIco
 export default function BookingModal({ game, machine, onClose, onBookingSuccess, onLaunchNow }) {
   const { token, user, openAuth } = useAuth();
 
+  // Compute upfront if this rig/game is definitely not free to play right now
+  const initiallyOccupied = useMemo(() => {
+    if (machine && (machine.status !== 'available' || machine.live_status === 'streaming')) return true;
+    if (game && (game.is_online === false || (game.ready_nodes_count !== undefined && game.ready_nodes_count === 0))) return true;
+    return false;
+  }, [machine, game]);
+
   // Mode: 'instant' or 'schedule'
-  const [mode, setMode] = useState('instant');
+  const [mode, setMode] = useState(() => (initiallyOccupied ? 'schedule' : 'instant'));
   const [durationMinutes, setDurationMinutes] = useState(60);
 
   // Local date formatting helper (prevents UTC timezone shifting)
@@ -218,11 +225,16 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
           setAvailability(data);
 
           // If rig is currently in use by another user right now or no free computer, switch to schedule mode
-          const noFree = data.can_play_now === false ||
+          const hasOtherPlayer = !!(data.current_session && !data.current_session.is_mine);
+          const hasExplicitFreeRig = data.can_play_now === true && data.free_machines_count && data.free_machines_count > 0;
+          const noFreeRig =
+            data.can_play_now === false ||
+            data.free_machines_count === 0 ||
+            data.capable_machines_count === 0 ||
             (data.is_currently_in_use && (!data.current_session || !data.current_session.is_mine)) ||
-            (data.free_machines_count === 0);
+            (hasOtherPlayer && !hasExplicitFreeRig);
 
-          if (noFree) {
+          if (noFreeRig) {
             setMode('schedule');
           }
         }
@@ -237,13 +249,32 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
   }, [token, scheduleDate, mode, game?.id, machine?.id, todayStr]);
 
   const isNoFreeComputer = useMemo(() => {
-    if (!availability) return false;
+    // 1. Machine prop check
+    if (machine && (machine.status !== 'available' || machine.live_status === 'streaming')) {
+      return true;
+    }
+    // 2. Offline game check
+    if (game && (game.is_online === false || (game.ready_nodes_count !== undefined && game.ready_nodes_count === 0))) {
+      return true;
+    }
+    if (!availability) return initiallyOccupied;
+
+    // 3. Explicit backend indicators
     if (availability.can_play_now === false) return true;
     if (availability.free_machines_count === 0) return true;
     if (availability.capable_machines_count === 0) return true;
     if (availability.is_currently_in_use && (!availability.current_session || !availability.current_session.is_mine)) return true;
+
+    // 4. Another player is currently streaming / playing right now
+    if (availability.current_session && !availability.current_session.is_mine) {
+      if (availability.can_play_now === true && availability.free_machines_count && availability.free_machines_count > 0) {
+        return false;
+      }
+      return true;
+    }
+
     return false;
-  }, [availability]);
+  }, [availability, machine, game, initiallyOccupied]);
 
   // Ensure modal auto-switches to schedule if availability indicates no free rig
   useEffect(() => {
@@ -256,7 +287,14 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
   const timeSlots = useMemo(() => {
     const slots = [];
     const bookings = availability?.bookings || [];
-    const capableCount = availability?.capable_machines_count || 1;
+    const effectiveCapacity = Math.max(
+      1,
+      game?.ready_nodes_count != null
+        ? game.ready_nodes_count
+        : availability?.free_machines_count != null
+        ? Math.max(1, (availability.free_machines_count || 0) + (availability.current_session ? 1 : 0))
+        : (availability?.capable_machines_count || 1)
+    );
 
     for (let h = 8; h <= 23; h++) {
       const timeStr = `${String(h).padStart(2, '0')}:00`;
@@ -268,22 +306,40 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
       let isBooked = false;
       let isMyBooking = false;
 
-      if (!isPast && bookings.length > 0) {
+      if (!isPast) {
         const slotStartMs = new Date(`${scheduleDate}T${String(h).padStart(2, '0')}:00:00`).getTime();
         const durationMs = durationMinutes * 60 * 1000;
         const slotEndMs = slotStartMs + durationMs;
 
-        const overlaps = bookings.filter((b) => {
-          const bStart = new Date(b.start_time).getTime();
-          const bEnd = new Date(b.end_time).getTime();
-          return bStart < slotEndMs && bEnd > slotStartMs;
-        });
-
-        if (overlaps.length >= capableCount) {
-          isBooked = true;
+        // If today, check against active streaming session
+        if (scheduleDate === todayStr && availability?.current_session) {
+          const s = availability.current_session;
+          if (s.start_time && s.end_time) {
+            const sStart = new Date(s.start_time).getTime();
+            const sEnd = new Date(s.end_time).getTime();
+            if (sStart < slotEndMs && sEnd > slotStartMs) {
+              if (s.is_mine) {
+                isMyBooking = true;
+              } else if (effectiveCapacity <= 1) {
+                isBooked = true;
+              }
+            }
+          }
         }
-        if (overlaps.some((b) => b.is_mine)) {
-          isMyBooking = true;
+
+        if (bookings.length > 0) {
+          const overlaps = bookings.filter((b) => {
+            const bStart = new Date(b.start_time).getTime();
+            const bEnd = new Date(b.end_time).getTime();
+            return bStart < slotEndMs && bEnd > slotStartMs;
+          });
+
+          if (overlaps.length >= effectiveCapacity) {
+            isBooked = true;
+          }
+          if (overlaps.some((b) => b.is_mine)) {
+            isMyBooking = true;
+          }
         }
       }
 
@@ -300,7 +356,7 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
       });
     }
     return slots;
-  }, [scheduleDate, todayStr, currentHour, durationMinutes, availability]);
+  }, [scheduleDate, todayStr, currentHour, durationMinutes, availability, game?.ready_nodes_count]);
 
   // Automatically select the next open available slot if current scheduleTime is booked or past
   useEffect(() => {
@@ -580,7 +636,7 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                   <p className="text-[11.5px] leading-relaxed text-white/85 m-0">
                     {availability?.current_session?.remaining_minutes ? (
                       <>
-                        Another player is actively streaming right now (~{availability.current_session.remaining_minutes} min{availability.current_session.remaining_minutes > 1 ? 's' : ''} left until {formatTimeDisplay(availability.current_session.end_time ? availability.current_session.end_time.substring(11, 16) : '')}).
+                        Another player is actively streaming right now (~{availability.current_session.remaining_minutes} min{availability.current_session.remaining_minutes > 1 ? 's' : ''} left until {availability.current_session.end_time ? new Date(availability.current_session.end_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}).
                       </>
                     ) : (
                       <>
