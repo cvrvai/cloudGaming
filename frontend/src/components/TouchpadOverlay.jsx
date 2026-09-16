@@ -346,10 +346,10 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20, mouseMo
     };
 
     return (
-        <div className="touchpad-mode rustdesk-touch-mode">
+        <div className="absolute inset-0 z-[5] pointer-events-none">
             <div
                 ref={surfaceRef}
-                className="touchpad-surface"
+                className="absolute inset-0 cursor-none pointer-events-auto [touch-action:none] bg-transparent"
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerEnd}

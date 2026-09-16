@@ -1509,17 +1509,17 @@ export default function AdminDashboard() {
   const sumCost = filteredDmaicRecords.reduce((s, r) => s + (r.energy_cost_usd ?? ((r.power_kwh ?? 0) * EDC_TARIFF_USD_PER_KWH)), 0);
 
   return (
-    <div className={`admin-dashboard-container ${adminTab === 'dmaic' && dmaicWhiteBg ? 'dmaic-white-container' : ''}`}>
+    <div className={`flex flex-col gap-7 ${adminTab === 'dmaic' && dmaicWhiteBg ? 'dmaic-white-container' : ''}`}>
       {/* Top Overview & Action Toolbar */}
-      <div className="admin-header-clean">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="pairing-mfa-badge">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold tracking-wide uppercase mb-1">
             <ShieldCheckIcon size={12} />
             <span>MFA Verified</span>
           </div>
-          <h1 className="admin-title">Admin Console</h1>
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight m-0">Admin Console</h1>
         </div>
-        <div className="admin-header-actions">
+        <div className="flex items-center gap-2.5 flex-wrap">
           {backendError && (
             <div style={{
               display: 'inline-flex',
@@ -1537,11 +1537,17 @@ export default function AdminDashboard() {
               <span>Reconnecting to server...</span>
             </div>
           )}
-          <button className="btn-pair-pc-header" onClick={openPairModal}>
+          <button
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:brightness-110 text-white font-bold text-xs shadow-lg shadow-cyan-500/20 cursor-pointer transition-all"
+            onClick={openPairModal}
+          >
             <KeyIcon size={14} />
             <span>Pair PC</span>
           </button>
-          <button className="btn-secondary" onClick={fetchAllAdminData} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <button
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-semibold text-xs cursor-pointer transition-all"
+            onClick={fetchAllAdminData}
+          >
             <RefreshIcon size={13} />
             <span>Refresh</span>
           </button>
@@ -1549,103 +1555,121 @@ export default function AdminDashboard() {
       </div>
 
       {/* Modern Bento Stats Grid */}
-      <div className="admin-bento-grid">
-        <div className="admin-bento-card glass-panel">
-          <div className="bento-top-row">
-            <span className="bento-tag">Fleet Rigs</span>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-2">
+        <div className="bg-slate-900/60 border border-white/10 backdrop-blur-xl rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-cyan-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Fleet Rigs</span>
           </div>
-          <div className="bento-value">
+          <div className="text-2xl font-black text-white tracking-tight flex items-baseline gap-1">
             {machines.filter((m) => ['available', 'in-use', 'streaming'].includes(m.live_status || m.status)).length}
-            <span className="bento-subval">/{machines.length}</span>
+            <span className="text-xs font-semibold text-slate-400">/{machines.length}</span>
           </div>
         </div>
 
-        <div className="admin-bento-card glass-panel">
-          <div className="bento-top-row">
-            <span className="bento-tag">Catalog Games</span>
+        <div className="bg-slate-900/60 border border-white/10 backdrop-blur-xl rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-cyan-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Catalog Games</span>
           </div>
-          <div className="bento-value">{games.length}</div>
+          <div className="text-2xl font-black text-white tracking-tight">{games.length}</div>
         </div>
 
-        <div className="admin-bento-card glass-panel">
-          <div className="bento-top-row">
-            <span className="bento-tag">PCs Streaming Now</span>
+        <div className="bg-slate-900/60 border border-white/10 backdrop-blur-xl rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-cyan-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">PCs Streaming Now</span>
           </div>
-          <div className={`bento-value ${livePcCount > 0 ? 'highlight-green' : ''}`}>
+          <div className={`text-2xl font-black tracking-tight ${livePcCount > 0 ? 'text-emerald-400' : 'text-white'}`}>
             {livePcCount}
           </div>
         </div>
 
-        <div className="admin-bento-card glass-panel">
-          <div className="bento-top-row">
-            <span className="bento-tag">Reservations</span>
+        <div className="bg-slate-900/60 border border-white/10 backdrop-blur-xl rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-cyan-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Reservations</span>
           </div>
-          <div className="bento-value">{bookings.length}</div>
+          <div className="text-2xl font-black text-white tracking-tight">{bookings.length}</div>
         </div>
 
         <div
-          className="admin-bento-card glass-panel"
+          className="bg-slate-900/60 border border-white/10 backdrop-blur-xl rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-cyan-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)] cursor-pointer"
           onClick={() => setAdminTab('users')}
-          style={{ cursor: 'pointer' }}
           title="Click to view all registered users"
         >
-          <div className="bento-top-row">
-            <span className="bento-tag">User Accounts</span>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">User Accounts</span>
           </div>
-          <div className="bento-value">{users.length}</div>
+          <div className="text-2xl font-black text-white tracking-tight">{users.length}</div>
         </div>
 
         <div
-          className="admin-bento-card glass-panel"
+          className="bg-slate-900/60 border border-white/10 backdrop-blur-xl rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-cyan-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)] cursor-pointer"
           onClick={() => setAdminTab('dmaic')}
-          style={{ cursor: 'pointer' }}
           title="Click to view Session Analytics & Telemetry Data"
         >
-          <div className="bento-head">
-            <span className="bento-tag">Quality Pass Rate</span>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Quality Pass Rate</span>
             <ActivityIcon size={16} />
           </div>
-          <div className="bento-val">
+          <div className="text-2xl font-black text-white tracking-tight">
             {dmaicMetrics?.ctq4_completion_rate ? `${dmaicMetrics.ctq4_completion_rate.completion_rate_pct}%` : '---'}
           </div>
-          <div className="bento-sub">
+          <div className="text-[11px] font-medium text-slate-400 mt-1 truncate">
             {dmaicMetrics?.ctq4_completion_rate ? `${dmaicMetrics.ctq4_completion_rate.completed_sessions || 0}/${dmaicMetrics.ctq4_completion_rate.total_sessions || 0} sessions completed` : 'Calculating metrics...'}
           </div>
         </div>
       </div>
 
       {/* Admin Subnav */}
-      <div className="admin-subnav-bar">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-white/10 [scrollbar-width:none]">
         <button
-          className={`admin-subnav-btn ${adminTab === 'machines' ? 'active' : ''}`}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs transition-all cursor-pointer whitespace-nowrap ${
+            adminTab === 'machines'
+              ? '!text-cyan-300 !bg-cyan-500/15 border border-cyan-400/40 shadow-[0_0_15px_rgba(0,210,255,0.15)]'
+              : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+          }`}
           onClick={() => setAdminTab('machines')}
         >
           <ServerIcon size={16} />
           <span>Machines &amp; Fleet</span>
         </button>
         <button
-          className={`admin-subnav-btn ${adminTab === 'games' ? 'active' : ''}`}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs transition-all cursor-pointer whitespace-nowrap ${
+            adminTab === 'games'
+              ? '!text-cyan-300 !bg-cyan-500/15 border border-cyan-400/40 shadow-[0_0_15px_rgba(0,210,255,0.15)]'
+              : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+          }`}
           onClick={() => setAdminTab('games')}
         >
           <GamepadIcon size={16} />
           <span>Games Library</span>
         </button>
         <button
-          className={`admin-subnav-btn ${adminTab === 'bookings' ? 'active' : ''}`}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs transition-all cursor-pointer whitespace-nowrap ${
+            adminTab === 'bookings'
+              ? '!text-cyan-300 !bg-cyan-500/15 border border-cyan-400/40 shadow-[0_0_15px_rgba(0,210,255,0.15)]'
+              : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+          }`}
           onClick={() => setAdminTab('bookings')}
         >
           <CalendarIcon size={16} />
           <span>Bookings &amp; Schedules</span>
         </button>
         <button
-          className={`admin-subnav-btn ${adminTab === 'users' ? 'active' : ''}`}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs transition-all cursor-pointer whitespace-nowrap ${
+            adminTab === 'users'
+              ? '!text-cyan-300 !bg-cyan-500/15 border border-cyan-400/40 shadow-[0_0_15px_rgba(0,210,255,0.15)]'
+              : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+          }`}
           onClick={() => setAdminTab('users')}
         >
           <UsersIcon size={16} />
           <span>User Management</span>
         </button>
         <button
-          className={`admin-subnav-btn ${adminTab === 'dmaic' ? 'active' : ''}`}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs transition-all cursor-pointer whitespace-nowrap ${
+            adminTab === 'dmaic'
+              ? '!text-cyan-300 !bg-cyan-500/15 border border-cyan-400/40 shadow-[0_0_15px_rgba(0,210,255,0.15)]'
+              : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+          }`}
           onClick={() => setAdminTab('dmaic')}
         >
           <ActivityIcon size={16} />

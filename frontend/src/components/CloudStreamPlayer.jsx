@@ -628,7 +628,9 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
 
   return (
     <div
-      className={`cloud-stream-player-container ${isFullscreen ? 'ios-pseudo-fullscreen' : ''}`}
+      className={`fixed inset-0 bg-black z-50 flex flex-col items-center justify-center overflow-hidden ${
+        isFullscreen ? '!fixed !inset-0 !w-screen !h-screen !h-[100dvh] !z-[999999] !m-0 !p-0' : ''
+      }`}
       ref={containerRef}
       onMouseMove={resetHudTimer}
     >
@@ -650,7 +652,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
       />
 
       {gamepadToast && (
-        <div className="controller-toast">
+        <div className="fixed top-[70px] left-1/2 -translate-x-1/2 z-[10002] bg-slate-950/90 backdrop-blur-xl border border-cyan-400/40 shadow-[0_8px_32px_rgba(0,0,0,0.7),0_0_20px_rgba(0,240,255,0.2)] px-4.5 py-2 rounded-full inline-flex items-center gap-2 text-white text-xs font-bold pointer-events-none animate-bounce">
           <GamepadIcon size={16} />
           <span>Controller Connected: {gamepadToast}</span>
         </div>
@@ -658,11 +660,11 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
 
       {/* Floating Virtual Keyboard Bar for Mobile & Touch Text Entry */}
       {isKeyboardOpen && (
-        <div className="stream-keyboard-bar">
+        <div className="absolute top-[60px] left-1/2 -translate-x-1/2 flex flex-wrap items-center gap-2 bg-slate-950/95 backdrop-blur-xl p-2.5 sm:p-3 rounded-xl border border-cyan-400/35 shadow-[0_8px_32px_rgba(0,0,0,0.7),0_0_20px_rgba(0,210,255,0.15)] z-[10002] max-w-[95vw] w-[520px]">
           <input
             ref={keyboardInputRef}
             type="text"
-            className="stream-text-input"
+            className="flex-1 min-w-[140px] bg-white/10 border border-white/20 rounded-lg text-white px-3 py-2 text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30"
             placeholder="Type character name or text for game..."
             value={keyboardText}
             onChange={(e) => setKeyboardText(e.target.value)}
@@ -675,20 +677,20 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
           />
           <button
             type="button"
-            className="btn-send-text"
+            className="bg-gradient-to-r from-blue-600 to-cyan-500 hover:opacity-90 text-white font-bold text-xs px-4 py-2 rounded-lg cursor-pointer transition-opacity"
             onClick={handleSendKeyboardText}
           >
             Send
           </button>
-          <div className="stream-quick-keys">
-            <button type="button" className="stream-quick-key-btn" onClick={() => sendVirtualKey('Backspace')}>⌫</button>
-            <button type="button" className="stream-quick-key-btn" onClick={() => sendVirtualKey('Enter')}>↵</button>
-            <button type="button" className="stream-quick-key-btn" onClick={() => sendVirtualKey('Space')}>Space</button>
-            <button type="button" className="stream-quick-key-btn" onClick={() => sendVirtualKey('Escape')}>Esc</button>
+          <div className="flex gap-1.5">
+            <button type="button" className="bg-white/10 hover:bg-white/15 active:bg-cyan-500/25 border border-white/15 active:border-cyan-400 text-slate-200 rounded-md px-2.5 py-1 text-xs font-semibold cursor-pointer transition-all select-none" onClick={() => sendVirtualKey('Backspace')}>⌫</button>
+            <button type="button" className="bg-white/10 hover:bg-white/15 active:bg-cyan-500/25 border border-white/15 active:border-cyan-400 text-slate-200 rounded-md px-2.5 py-1 text-xs font-semibold cursor-pointer transition-all select-none" onClick={() => sendVirtualKey('Enter')}>↵</button>
+            <button type="button" className="bg-white/10 hover:bg-white/15 active:bg-cyan-500/25 border border-white/15 active:border-cyan-400 text-slate-200 rounded-md px-2.5 py-1 text-xs font-semibold cursor-pointer transition-all select-none" onClick={() => sendVirtualKey('Space')}>Space</button>
+            <button type="button" className="bg-white/10 hover:bg-white/15 active:bg-cyan-500/25 border border-white/15 active:border-cyan-400 text-slate-200 rounded-md px-2.5 py-1 text-xs font-semibold cursor-pointer transition-all select-none" onClick={() => sendVirtualKey('Escape')}>Esc</button>
           </div>
           <button
             type="button"
-            className="stream-keyboard-close"
+            className="bg-transparent hover:bg-white/10 text-slate-400 hover:text-white p-1.5 rounded-md cursor-pointer flex items-center justify-center transition-colors"
             onClick={() => setIsKeyboardOpen(false)}
             title="Close keyboard"
           >
@@ -697,22 +699,22 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
         </div>
       )}
 
-      <div className="stream-canvas-wrapper">
+      <div className="absolute inset-0 w-full h-full flex items-center justify-center z-[1]">
         {isExiting ? null : gameExitedData ? (
-          <div className="stream-connecting-box glass-panel" style={{ maxWidth: '460px', padding: '28px' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px' }}>
-              <div style={{
-                width: 54, height: 54, borderRadius: '50%', background: 'rgba(74, 222, 128, 0.15)',
-                border: '1px solid rgba(74, 222, 128, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4ade80'
-              }}>
+          <div className="bg-slate-900/90 border border-slate-700/60 backdrop-blur-xl rounded-2xl shadow-2xl text-center max-w-[460px] p-7 mx-4">
+            <div className="flex justify-center mb-3.5">
+              <div className="w-[54px] h-[54px] rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
                 <CheckIcon size={28} />
               </div>
             </div>
-            <h3 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Game Process Ended</h3>
-            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem', lineHeight: '1.5', margin: '0 0 16px 0' }}>
+            <h3 className="text-xl font-bold text-white mb-2">Game Process Ended</h3>
+            <p className="text-white/80 text-sm leading-relaxed mb-4">
               The video stream was disconnected because the game closed on the remote PC.
             </p>
-            <button className="btn-primary" onClick={handleExitSession} style={{ padding: '10px 24px' }}>
+            <button
+              className="bg-gradient-to-r from-blue-600 to-cyan-500 hover:brightness-110 text-white font-bold text-sm px-6 py-2.5 rounded-xl shadow-lg cursor-pointer transition-all"
+              onClick={handleExitSession}
+            >
               Return to Dashboard
             </button>
           </div>

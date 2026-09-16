@@ -402,37 +402,53 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-dialog glass-panel geforce-booking-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close-btn" onClick={onClose} aria-label="Close">
+    <div
+      className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+      onClick={onClose}
+      onKeyDown={(e) => e.stopPropagation()}
+      onKeyUp={(e) => e.stopPropagation()}
+    >
+      <div
+        className="relative w-full max-w-[460px] rounded-2xl overflow-hidden bg-[#12132b]/95 border border-cyan-400/35 shadow-[0_20px_50px_rgba(0,0,0,0.85),0_0_30px_rgba(0,82,255,0.25)] text-white"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        onKeyUp={(e) => e.stopPropagation()}
+      >
+        <button
+          className="absolute top-3.5 right-3.5 z-20 w-7 h-7 rounded-full bg-black/50 hover:bg-black/75 text-white/80 hover:text-white flex items-center justify-center transition-colors border-0 cursor-pointer backdrop-blur-sm"
+          onClick={onClose}
+          aria-label="Close"
+        >
           <XIcon size={16} />
         </button>
 
         {/* Cinematic Game Header */}
-        <div className="modal-game-hero" style={{ backgroundImage: `url(${coverUrl})` }}>
-          <div className="modal-game-hero-overlay">
-            <div className="modal-hero-tags">
-              <span className="hero-tag-pill genre-pill">{genre}</span>
+        <div className="h-[120px] bg-cover bg-center relative flex items-end" style={{ backgroundImage: `url(${coverUrl})` }}>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#12132b] via-[#12132b]/70 to-black/30 p-3.5 md:p-4.5 flex flex-col justify-end">
+            <div className="flex gap-1.5 mb-1.5">
+              <span className="text-[9px] font-extrabold px-2 py-0.5 rounded bg-white/20 text-white uppercase tracking-wider">{genre}</span>
             </div>
-            <h2 className="modal-game-title">{title}</h2>
+            <h2 className="text-lg md:text-xl font-black text-white m-0 truncate drop-shadow-md">{title}</h2>
           </div>
         </div>
 
         {/* Confirmation Screen */}
         {confirmedBooking ? (
-          <div className="modal-success-screen">
-            <div className="success-icon-badge">
+          <div className="p-8 md:p-10 text-center flex flex-col items-center animate-[fadeIn_0.2s_ease-out]">
+            <div className="text-cyan-400 mb-4 flex items-center justify-center">
               {mode === 'instant' ? <PlayIcon size={38} /> : <CheckCircleIcon size={38} />}
             </div>
-            <h3>{mode === 'instant' ? 'Ready to Play!' : 'Reservation Confirmed'}</h3>
-            <p className="success-slot-text">
+            <h3 className="text-2xl font-extrabold text-white mb-2 tracking-tight">
+              {mode === 'instant' ? 'Ready to Play!' : 'Reservation Confirmed'}
+            </h3>
+            <p className="text-sm text-indigo-200/80 mb-1.5">
               {mode === 'instant' ? (
-                <>Rig ready for <strong>{title}</strong></>
+                <>Rig ready for <strong className="text-white">{title}</strong></>
               ) : (
-                <>Reserved <strong>{title}</strong></>
+                <>Reserved <strong className="text-white">{title}</strong></>
               )}
             </p>
-            <p className="success-time-text">
+            <p className="text-xs font-bold text-cyan-400 mb-6">
               {mode === 'instant' ? (
                 `Session Duration: ${durationMinutes} mins`
               ) : (
@@ -440,10 +456,10 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
               )}
             </p>
 
-            <div className="success-modal-actions">
+            <div className="flex flex-col gap-2.5 w-full max-w-xs mx-auto">
               {mode === 'instant' && onLaunchNow ? (
                 <button
-                  className="btn-primary btn-launch-now"
+                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white font-extrabold text-xs tracking-wide py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-[0_8px_24px_rgba(0,82,255,0.45)] hover:-translate-y-0.5 transition-all border-0"
                   onClick={() => {
                     onClose();
                     onLaunchNow(confirmedBooking);
@@ -453,14 +469,14 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                 </button>
               ) : (
                 <button
-                  className="btn-primary"
+                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white font-extrabold text-xs tracking-wide py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-[0_8px_24px_rgba(0,82,255,0.45)] hover:-translate-y-0.5 transition-all border-0"
                   onClick={onClose}
                 >
                   View Bookings
                 </button>
               )}
               <button
-                className="btn-secondary"
+                className="w-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs py-2 px-4 rounded-xl cursor-pointer transition-colors border-0"
                 onClick={onClose}
               >
                 Close
@@ -468,20 +484,28 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
             </div>
           </div>
         ) : (
-          <div className="booking-modal-body">
+          <div className="p-3.5 md:p-4.5 max-h-[calc(88vh-120px)] overflow-y-auto">
             {/* Centered Mode Selector Tabs */}
-            <div className="booking-mode-tabs-wrapper">
-              <div className="booking-mode-tabs">
+            <div className="flex justify-center w-full mb-3">
+              <div className="grid grid-cols-2 gap-1 w-full max-w-[250px] bg-white/[0.04] p-1 rounded-full border border-white/[0.08]">
                 <button
                   type="button"
-                  className={`booking-tab ${mode === 'instant' ? 'active' : ''}`}
+                  className={`flex items-center justify-center gap-1.5 py-1.5 px-3 text-[11px] font-bold rounded-full transition-all cursor-pointer border-0 ${
+                    mode === 'instant'
+                      ? 'bg-gradient-to-r from-blue-600 to-cyan-400 text-white shadow-[0_3px_12px_rgba(0,82,255,0.4)]'
+                      : 'bg-transparent text-indigo-200/70 hover:text-white'
+                  }`}
                   onClick={() => setMode('instant')}
                 >
                   <BoltIcon size={14} /> Play Now
                 </button>
                 <button
                   type="button"
-                  className={`booking-tab ${mode === 'schedule' ? 'active' : ''}`}
+                  className={`flex items-center justify-center gap-1.5 py-1.5 px-3 text-[11px] font-bold rounded-full transition-all cursor-pointer border-0 ${
+                    mode === 'schedule'
+                      ? 'bg-gradient-to-r from-blue-600 to-cyan-400 text-white shadow-[0_3px_12px_rgba(0,82,255,0.4)]'
+                      : 'bg-transparent text-indigo-200/70 hover:text-white'
+                  }`}
                   onClick={() => setMode('schedule')}
                 >
                   <CalendarIcon size={14} /> Schedule
@@ -491,71 +515,63 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
 
             {/* Rig Busy / In-Use Alert Banner */}
             {availability?.is_currently_in_use && availability.current_session && !availability.current_session.is_mine && (
-              <div className="rig-busy-banner">
-                <div className="rig-busy-icon">
+              <div className="flex items-start gap-3 bg-gradient-to-br from-amber-500/15 to-red-500/10 border border-amber-500/40 rounded-xl p-3 mb-3.5 shadow-[0_4px_20px_rgba(255,159,10,0.12)]">
+                <div className="text-amber-400 shrink-0 mt-0.5">
                   <ClockIcon size={18} />
                 </div>
-                <div className="rig-busy-info">
-                  <div className="rig-busy-title">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1 text-xs font-extrabold text-amber-400">
                     <span>⚡ Gaming Rig Currently in Use</span>
-                    <span className="rig-busy-badge">Occupied</span>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/20 border border-amber-500/45 text-amber-300 px-2 py-0.5 rounded-full">Occupied</span>
                   </div>
-                  <p className="rig-busy-desc">
+                  <p className="text-[11.5px] leading-relaxed text-white/85 m-0">
                     Another player is actively streaming right now (~{availability.current_session.remaining_minutes} min{availability.current_session.remaining_minutes > 1 ? 's' : ''} left until {formatTimeDisplay(availability.current_session.end_time.substring(11, 16))}). Please choose an available time slot below to reserve your turn.
                   </p>
                 </div>
               </div>
             )}
 
-            {error && <div className="booking-error-banner">{error}</div>}
+            {error && <div className="bg-red-500/15 border border-red-500/30 text-red-400 px-3 py-2 rounded-lg text-xs font-medium mb-3">{error}</div>}
 
             {/* 2-Hour Daily Free Beta Quota Banner */}
-            <div
-              style={{
-                background: 'rgba(0, 210, 255, 0.08)',
-                border: '1px solid rgba(0, 210, 255, 0.22)',
-                borderRadius: '10px',
-                padding: '7px 12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '11px',
-                marginBottom: '12px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#00d2ff', fontWeight: 700 }}>
+            <div className="bg-cyan-400/[0.08] border border-cyan-400/20 rounded-xl px-3 py-2 flex items-center justify-between text-[11px] mb-3 text-white">
+              <div className="flex items-center gap-1.5 text-cyan-400 font-bold">
                 <ClockIcon size={13} />
                 <span>Beta Free Quota: 2 Hours / Day</span>
               </div>
               {dailyQuota ? (
-                <span style={{ color: dailyQuota.remaining_minutes > 0 ? '#4ade80' : '#ff5b52', fontWeight: 800 }}>
+                <span className={`font-extrabold ${dailyQuota.remaining_minutes > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {dailyQuota.remaining_minutes} mins left
                 </span>
               ) : !user ? (
-                <span style={{ color: '#94a3b8', fontSize: '10.5px' }}>
+                <span className="text-slate-400 text-[10.5px]">
                   Sign in required
                 </span>
               ) : null}
             </div>
 
-            <form onSubmit={handleBookSession} className="booking-modal-form">
+            <form onSubmit={handleBookSession} className="flex flex-col gap-3">
               {mode === 'instant' ? (
-                <div className="instant-mode-panel">
-                  <div className="form-group">
-                    <label className="form-label-caps">Session Duration</label>
-                    <div className="duration-grid">
+                <div>
+                  <div className="flex flex-col gap-1">
+                    <label className="block text-[10px] font-extrabold tracking-wider text-indigo-200/70 uppercase mb-1.5">Session Duration</label>
+                    <div className="grid grid-cols-4 gap-1.5 mb-3">
                       {durationOptions.map((item) => {
                         const isExceeded = dailyQuota && !dailyQuota.is_admin && item.value > dailyQuota.remaining_minutes;
                         return (
                           <button
                             key={item.value}
                             type="button"
-                            className={`duration-card ${durationMinutes === item.value ? 'selected' : ''} ${isExceeded ? 'disabled' : ''}`}
+                            className={`p-2 rounded-lg text-center cursor-pointer transition-all flex flex-col items-center border ${
+                              durationMinutes === item.value
+                                ? 'bg-blue-600/25 border-cyan-400 shadow-[0_0_14px_rgba(0,210,255,0.3)] text-cyan-300 font-bold'
+                                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 hover:border-cyan-400/30 text-white'
+                            } ${isExceeded ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
                             onClick={() => !isExceeded && setDurationMinutes(item.value)}
                             disabled={submitting || isExceeded}
                             title={isExceeded ? `Exceeds 2-hour daily quota (${dailyQuota.remaining_minutes} mins left)` : ''}
                           >
-                            <span className="duration-label">{item.label}</span>
+                            <span className="text-[11px] font-extrabold">{item.label}</span>
                           </button>
                         );
                       })}
@@ -563,37 +579,45 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                   </div>
                 </div>
               ) : (
-                <div className="schedule-mode-panel">
+                <div>
                   {/* Quick Date Selector (3 clean columns) */}
-                  <div className="form-group">
-                    <label className="form-label-caps">Date</label>
-                    <div className="date-quick-chips">
+                  <div className="flex flex-col gap-1">
+                    <label className="block text-[10px] font-extrabold tracking-wider text-indigo-200/70 uppercase mb-1.5">Date</label>
+                    <div className="grid grid-cols-3 gap-2 mb-3">
                       {quickDates.map((q) => (
                         <button
                           key={q.dateStr}
                           type="button"
-                          className={`date-chip ${scheduleDate === q.dateStr && !showCalendarDrawer ? 'selected' : ''}`}
+                          className={`min-h-[48px] p-1.5 rounded-lg text-center cursor-pointer transition-all flex flex-col items-center justify-center border ${
+                            scheduleDate === q.dateStr && !showCalendarDrawer
+                              ? 'bg-blue-600/25 border-cyan-400 shadow-[0_0_12px_rgba(0,210,255,0.3)] text-cyan-300'
+                              : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 hover:border-cyan-400/35 text-white'
+                          }`}
                           onClick={() => {
                             handleSelectDate(q.dateStr);
                             setShowCalendarDrawer(false);
                           }}
                           disabled={submitting}
                         >
-                          <span className="date-chip-label">{q.label}</span>
-                          <span className="date-chip-sub">{q.sub}</span>
+                          <span className="text-[11px] font-extrabold">{q.label}</span>
+                          <span className="text-[9px] text-indigo-200/60 mt-0.5">{q.sub}</span>
                         </button>
                       ))}
                       <button
                         type="button"
-                        className={`date-chip custom-date-chip ${isOtherDate || showCalendarDrawer ? 'selected' : ''}`}
+                        className={`min-h-[48px] p-1.5 rounded-lg text-center cursor-pointer transition-all flex flex-col items-center justify-center border ${
+                          isOtherDate || showCalendarDrawer
+                            ? 'bg-blue-600/25 border-cyan-400 shadow-[0_0_12px_rgba(0,210,255,0.3)] text-cyan-300'
+                            : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 hover:border-cyan-400/35 text-white'
+                        }`}
                         title="Pick custom date"
                         onClick={handleToggleCalendar}
                         disabled={submitting}
                       >
-                        <span className="date-chip-label">
+                        <span className="text-[11px] font-extrabold">
                           {isOtherDate ? formatCustomDateLabel(scheduleDate) : 'Pick Date'}
                         </span>
-                        <span className="date-chip-sub">
+                        <span className="text-[9px] text-indigo-200/60 mt-0.5 flex items-center gap-1">
                           <CalendarIcon size={11} /> {isOtherDate ? getCustomWeekday(scheduleDate) : showCalendarDrawer ? 'Close' : 'Calendar'}
                         </span>
                       </button>
@@ -601,23 +625,23 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
 
                     {/* Inline Twilight Mini-Calendar Drawer */}
                     {showCalendarDrawer && (
-                      <div className="inline-calendar-drawer">
-                        <div className="cal-header">
+                      <div className="bg-[#10132b] border border-cyan-400/30 rounded-xl p-2.5 mb-3 shadow-[0_8px_24px_rgba(0,0,0,0.6),0_0_16px_rgba(0,82,255,0.2)] animate-[fadeIn_0.15s_ease-out]">
+                        <div className="flex items-center justify-between mb-2 px-1">
                           <button
                             type="button"
-                            className="cal-nav-btn"
+                            className="w-6 h-6 rounded bg-white/5 hover:bg-cyan-400/20 border border-white/10 hover:border-cyan-400 text-white hover:text-cyan-300 flex items-center justify-center cursor-pointer transition-colors text-sm disabled:opacity-25 disabled:cursor-not-allowed"
                             onClick={handlePrevMonth}
                             disabled={viewYear === now.getFullYear() && viewMonth <= now.getMonth()}
                             title="Previous Month"
                           >
                             ‹
                           </button>
-                          <span className="cal-month-title">
+                          <span className="text-xs font-extrabold text-white tracking-wide">
                             {new Date(viewYear, viewMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                           </span>
                           <button
                             type="button"
-                            className="cal-nav-btn"
+                            className="w-6 h-6 rounded bg-white/5 hover:bg-cyan-400/20 border border-white/10 hover:border-cyan-400 text-white hover:text-cyan-300 flex items-center justify-center cursor-pointer transition-colors text-sm disabled:opacity-25 disabled:cursor-not-allowed"
                             onClick={handleNextMonth}
                             title="Next Month"
                           >
@@ -625,22 +649,28 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                           </button>
                         </div>
 
-                        <div className="cal-weekdays-row">
+                        <div className="grid grid-cols-7 gap-1 text-center mb-1.5">
                           {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((w) => (
-                            <span key={w} className="cal-weekday-cell">{w}</span>
+                            <span key={w} className="text-[9px] font-extrabold text-indigo-200/60 uppercase">{w}</span>
                           ))}
                         </div>
 
-                        <div className="cal-days-grid">
+                        <div className="grid grid-cols-7 gap-1">
                           {getCalendarDays().map((cell, idx) => {
                             if (!cell.isCurrentMonth) {
-                              return <span key={`pad-${idx}`} className="cal-day-cell cal-empty" />;
+                              return <span key={`pad-${idx}`} className="aspect-square" />;
                             }
                             return (
                               <button
                                 key={cell.dateStr}
                                 type="button"
-                                className={`cal-day-cell ${cell.isSelected ? 'selected' : ''} ${cell.isToday ? 'today' : ''} ${cell.isPast ? 'disabled' : ''}`}
+                                className={`aspect-square flex items-center justify-center rounded text-[11px] font-bold cursor-pointer transition-colors p-0 border border-transparent ${
+                                  cell.isSelected
+                                    ? 'bg-gradient-to-r from-blue-600 to-cyan-400 text-white font-extrabold shadow-[0_2px_10px_rgba(0,82,255,0.45)]'
+                                    : cell.isToday
+                                    ? 'border-cyan-400/50 text-cyan-300 bg-white/5'
+                                    : 'bg-white/[0.04] hover:bg-cyan-400/20 hover:text-cyan-300 text-white'
+                                } ${cell.isPast ? 'opacity-20 cursor-not-allowed line-through hover:bg-transparent hover:text-white' : ''}`}
                                 onClick={() => handleDaySelect(cell.dateStr)}
                                 disabled={cell.isPast || submitting}
                               >
@@ -654,16 +684,16 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                   </div>
 
                   {/* Quick Time Slots Selector with Periods */}
-                  <div className="form-group">
-                    <div className="time-picker-header">
-                      <label className="form-label-caps">Start Time</label>
-                      <div className="time-picker-meta">
-                        <span className="time-selected-pill">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-[10px] font-extrabold tracking-wider text-indigo-200/70 uppercase mb-0">Start Time</label>
+                      <div className="flex items-center gap-2">
+                        <span className="bg-cyan-400/10 border border-cyan-400/35 text-cyan-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1">
                           <ClockIcon size={12} /> {formatTimeDisplay(scheduleTime)}
                         </span>
                         <button
                           type="button"
-                          className="btn-toggle-custom-time"
+                          className="bg-transparent border-0 text-indigo-200/70 hover:text-cyan-300 text-[10px] font-bold underline cursor-pointer p-0 transition-colors"
                           onClick={() => setShowCustomTime(!showCustomTime)}
                         >
                           {showCustomTime ? 'Quick Slots' : 'Custom'}
@@ -672,7 +702,7 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                     </div>
 
                     {showCustomTime ? (
-                      <div className="custom-time-wrapper">
+                      <div className="mb-3">
                         <input
                           type="time"
                           value={scheduleTime}
@@ -683,20 +713,24 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                           }}
                           required
                           disabled={submitting}
-                          className="geforce-input"
+                          className="w-full bg-white/5 focus:bg-white/[0.08] border border-white/12 focus:border-cyan-400 py-2 px-3 rounded-lg text-white text-xs outline-none transition-all"
                         />
                       </div>
                     ) : (
-                      <div className="time-slots-wrapper">
+                      <div>
                         {/* Period Filter Tabs (Morning / Afternoon / Evening) */}
-                        <div className="time-period-tabs">
+                        <div className="grid grid-cols-3 gap-1.5 bg-white/[0.03] p-1 rounded-lg mb-2 border border-white/[0.06]">
                           {timePeriods.map((p) => {
                             const isAllPast = scheduleDate === todayStr && p.hours[p.hours.length - 1] <= currentHour;
                             return (
                               <button
                                 key={p.id}
                                 type="button"
-                                className={`time-period-tab ${activePeriod === p.id ? 'active' : ''} ${isAllPast ? 'disabled' : ''}`}
+                                className={`py-1 px-1 rounded-md text-[10px] font-bold text-center cursor-pointer transition-colors border ${
+                                  activePeriod === p.id
+                                    ? 'bg-blue-600/25 border-cyan-400 text-cyan-300 shadow-[0_0_10px_rgba(0,210,255,0.2)]'
+                                    : 'bg-transparent border-transparent text-indigo-200/70 hover:text-white hover:bg-white/[0.06]'
+                                } ${isAllPast ? 'opacity-30 cursor-not-allowed' : ''}`}
                                 onClick={() => handleSelectPeriod(p.id)}
                                 disabled={isAllPast || submitting}
                               >
@@ -707,7 +741,7 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                         </div>
 
                         {/* Filtered Slots for the selected period */}
-                        <div className="time-slots-grid period-slots-grid">
+                        <div className="grid grid-cols-4 gap-1.5 mb-3 max-h-[140px] overflow-y-auto pr-0.5">
                           {timeSlots
                             .filter((slot) => {
                               const p = timePeriods.find((tp) => tp.id === activePeriod);
@@ -721,7 +755,13 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                                 <button
                                   key={slot.timeStr}
                                   type="button"
-                                  className={`time-slot-btn ${isSelected ? 'selected' : ''} ${slot.isPast ? 'disabled' : ''} ${slot.isBooked ? 'is-booked' : slot.isAvailable ? 'is-available' : ''} ${slot.isMyBooking ? 'is-mine' : ''}`}
+                                  className={`min-h-[46px] p-1.5 rounded-lg flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-all border ${
+                                    isSelected
+                                      ? 'bg-gradient-to-r from-blue-600 to-cyan-400 text-white shadow-[0_4px_14px_rgba(0,82,255,0.45)] border-cyan-400'
+                                      : isDisabled
+                                      ? 'bg-white/[0.02] border-white/[0.04] opacity-35 cursor-not-allowed'
+                                      : 'bg-white/[0.04] hover:bg-emerald-500/10 border-emerald-500/25 hover:border-emerald-400 text-white'
+                                  }`}
                                   onClick={() => !isDisabled && handleSelectSlot(slot.timeStr, slot.hour)}
                                   disabled={isDisabled || submitting}
                                   title={
@@ -734,8 +774,16 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                                       : 'Available slot'
                                   }
                                 >
-                                  <span className="slot-time-text">{slot.label}</span>
-                                  <span className={`slot-status-pill ${slot.isPast ? 'past' : slot.isMyBooking ? 'mine' : slot.isBooked ? 'booked' : 'open'}`}>
+                                  <span className="text-[11px] font-bold whitespace-nowrap">{slot.label}</span>
+                                  <span className={`text-[8.5px] font-extrabold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
+                                    slot.isPast
+                                      ? 'bg-white/[0.06] text-slate-400 border border-white/[0.08]'
+                                      : slot.isMyBooking
+                                      ? 'bg-cyan-400/20 text-cyan-300 border border-cyan-400/40'
+                                      : slot.isBooked
+                                      ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                                      : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                  }`}>
                                     {slot.isPast ? 'Past' : slot.isMyBooking ? 'Yours' : slot.isBooked ? 'Booked' : 'Open'}
                                   </span>
                                 </button>
@@ -746,21 +794,25 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                     )}
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label-caps">Session Duration</label>
-                    <div className="duration-grid">
+                  <div className="flex flex-col gap-1">
+                    <label className="block text-[10px] font-extrabold tracking-wider text-indigo-200/70 uppercase mb-1.5">Session Duration</label>
+                    <div className="grid grid-cols-4 gap-1.5 mb-3">
                       {durationOptions.map((item) => {
                         const isExceeded = dailyQuota && !dailyQuota.is_admin && item.value > dailyQuota.remaining_minutes;
                         return (
                           <button
                             key={item.value}
                             type="button"
-                            className={`duration-card ${durationMinutes === item.value ? 'selected' : ''} ${isExceeded ? 'disabled' : ''}`}
+                            className={`p-2 rounded-lg text-center cursor-pointer transition-all flex flex-col items-center border ${
+                              durationMinutes === item.value
+                                ? 'bg-blue-600/25 border-cyan-400 shadow-[0_0_14px_rgba(0,210,255,0.3)] text-cyan-300 font-bold'
+                                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 hover:border-cyan-400/30 text-white'
+                            } ${isExceeded ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
                             onClick={() => !isExceeded && setDurationMinutes(item.value)}
                             disabled={submitting || isExceeded}
                             title={isExceeded ? `Exceeds 2-hour daily quota (${dailyQuota.remaining_minutes} mins left)` : ''}
                           >
-                            <span className="duration-label">{item.label}</span>
+                            <span className="text-[11px] font-extrabold">{item.label}</span>
                           </button>
                         );
                       })}
@@ -770,10 +822,10 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
               )}
 
               {/* Centered Compact Action Button */}
-              <div className="booking-confirm-wrapper">
+              <div className="flex justify-center w-full mt-3.5">
                 <button
                   type="submit"
-                  className="btn-geforce-confirm"
+                  className="w-auto min-w-[170px] max-w-[230px] bg-gradient-to-r from-blue-600 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white text-xs font-extrabold tracking-wide py-2.5 px-5 rounded-full border-0 cursor-pointer shadow-[0_4px_16px_rgba(0,82,255,0.35)] hover:shadow-[0_8px_22px_rgba(0,210,255,0.5)] hover:-translate-y-0.5 transition-all inline-flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
                   disabled={submitting}
                 >
                   {submitting ? (

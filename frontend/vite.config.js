@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 // Keep the API and input WebSocket on the page's origin. Besides avoiding CORS,
 // this lets a Cloudflare Tunnel provide HTTPS/WSS without exposing port 8000.
@@ -9,7 +10,10 @@ export default defineConfig(({ mode }) => {
   const publicHost = env.VITE_PUBLIC_HOST;
 
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      tailwindcss(),
+    ],
     server: {
       // `true` preserves LAN development. Use 127.0.0.1 for a tunnel-only host.
       host: env.VITE_LISTEN_HOST || true,

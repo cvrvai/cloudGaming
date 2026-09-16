@@ -137,7 +137,7 @@ function CloudKHPlatform() {
   };
 
   return (
-    <div className="app-container">
+    <div className="w-[100dvw] h-[100dvh] min-h-[100dvh] flex flex-col overflow-hidden bg-[radial-gradient(ellipse_at_top,_#18233c_0%,_#0d111a_60%,_#080a10_100%)] text-slate-100 font-sans select-none">
       {activeTab === 'stream' && activeSession ? (
         <CloudStreamPlayer
           sessionData={activeSession}
@@ -155,7 +155,7 @@ function CloudKHPlatform() {
             onSearchChange={setSearchQuery}
           />
 
-          <main className="cloudkh-main-content">
+          <main className="flex-1 overflow-y-auto px-3 py-3 md:px-6 md:py-4 pb-12 max-w-[1400px] w-full mx-auto box-border [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {activeTab === 'games' && (
               <GamesView
                 onSelectGame={(game) => {

@@ -73,36 +73,47 @@ export default function AuthModal() {
   };
 
   return (
-    <div className="modal-backdrop" onClick={handleClose}>
+    <div
+      className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+      onClick={handleClose}
+      onKeyDown={(e) => e.stopPropagation()}
+      onKeyUp={(e) => e.stopPropagation()}
+    >
       <div
-        className={`modal-dialog glass-panel auth-modal-dialog ${mfaChallenge ? 'mfa-dialog' : ''}`}
+        className={`relative w-full ${mfaChallenge ? 'max-w-[340px] p-5' : 'max-w-[380px] p-6'} rounded-2xl bg-[#12132b]/95 border border-cyan-400/25 shadow-[0_20px_50px_rgba(0,0,0,0.85),0_0_30px_rgba(0,82,255,0.2)] text-white`}
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        onKeyUp={(e) => e.stopPropagation()}
       >
-        <button className="modal-close-btn" onClick={handleClose} aria-label="Close">
+        <button
+          className="absolute top-3.5 right-3.5 w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white/70 hover:text-white flex items-center justify-center transition-colors cursor-pointer border-0"
+          onClick={handleClose}
+          aria-label="Close"
+        >
           <XIcon size={16} />
         </button>
 
         {mfaChallenge ? (
-          <div className="mfa-container compact">
-            <div className="auth-header compact">
-              <div className="auth-logo-badge mfa-logo-badge compact">
-                <ShieldCheckIcon className="mfa-badge-icon" size={18} />
+          <div className="flex flex-col animate-[fadeIn_0.2s_ease-out]">
+            <div className="text-center mb-3">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600/20 to-cyan-400/20 border-[1.5px] border-cyan-400/50 shadow-[0_0_14px_rgba(0,210,255,0.35)] flex items-center justify-center mx-auto mb-2 p-0.5 text-cyan-400">
+                <ShieldCheckIcon size={18} />
               </div>
-              <h2>Two-Step Verification</h2>
-              <p className="auth-subtitle">
+              <h2 className="text-base font-extrabold text-white tracking-tight m-0 mb-1">Two-Step Verification</h2>
+              <p className="text-[11.5px] text-indigo-200/70 m-0 leading-relaxed">
                 Enter the 6-digit code from your authenticator app
               </p>
             </div>
 
             {mfaChallenge.mfa_setup_required && (
-              <div className="mfa-setup-compact">
-                <div className="mfa-setup-top">
-                  <span className="mfa-setup-tag">
+              <div className="bg-cyan-400/[0.04] border border-cyan-400/20 rounded-xl p-2.5 mb-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="inline-flex items-center gap-1.5 text-[10.5px] font-bold text-cyan-400 uppercase tracking-wide">
                     <KeyIcon size={12} /> First-Time Setup Key
                   </span>
                   <button
                     type="button"
-                    className="mfa-copy-btn"
+                    className="bg-cyan-400/15 hover:bg-cyan-400 border border-cyan-400/35 hover:text-slate-900 text-cyan-400 px-2 py-0.5 rounded text-[10.5px] font-bold cursor-pointer transition-all inline-flex items-center gap-1"
                     onClick={() => {
                       if (mfaChallenge.secret) {
                         navigator.clipboard.writeText(mfaChallenge.secret);
@@ -110,7 +121,6 @@ export default function AuthModal() {
                         setTimeout(() => setCopiedSecret(false), 2000);
                       }
                     }}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                   >
                     {copiedSecret ? (
                       <>
@@ -122,22 +132,24 @@ export default function AuthModal() {
                     )}
                   </button>
                 </div>
-                <div className="mfa-secret-box">
-                  <code className="mfa-secret-code">{mfaChallenge.secret}</code>
+                <div className="bg-black/45 border border-white/[0.08] rounded-md p-1.5 flex items-center justify-center">
+                  <code className="font-mono text-[11.5px] font-bold text-[#00ffcc] tracking-widest break-all select-all text-center">
+                    {mfaChallenge.secret}
+                  </code>
                 </div>
               </div>
             )}
 
             {mfaError && (
-              <div className="auth-error-banner compact" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div className="bg-red-500/15 border border-red-500/30 text-red-400 px-2.5 py-1.5 rounded-lg text-xs font-medium mb-3 flex items-center gap-1.5 leading-snug">
                 <AlertTriangleIcon size={14} />
                 <span>{mfaError}</span>
               </div>
             )}
 
-            <form onSubmit={handleMfaSubmit} className="auth-form compact">
-              <div className="form-group compact">
-                <div className="mfa-input-wrap">
+            <form onSubmit={handleMfaSubmit} className="flex flex-col gap-2.5">
+              <div className="flex flex-col gap-1 mb-2">
+                <div className="flex justify-center my-0.5">
                   <input
                     type="text"
                     inputMode="numeric"
@@ -150,19 +162,19 @@ export default function AuthModal() {
                       const val = e.target.value.replace(/\D/g, '').slice(0, 6);
                       setMfaCode(val);
                     }}
-                    className="mfa-code-input"
+                    className="w-full max-w-[210px] h-10 font-mono text-xl font-extrabold text-center tracking-[6px] py-1 px-2.5 rounded-lg bg-black/55 border-[1.5px] border-cyan-400/40 focus:border-cyan-400 text-cyan-300 shadow-[inset_0_0_12px_rgba(0,210,255,0.12),0_2px_8px_rgba(0,0,0,0.4)] focus:shadow-[inset_0_0_16px_rgba(0,210,255,0.3),0_0_12px_rgba(0,210,255,0.35)] outline-none transition-all placeholder:text-white/20"
                     disabled={mfaSubmitting}
                   />
                 </div>
-                <div className="mfa-helper-text">
+                <div className="text-[10.5px] text-white/50 text-center mt-1">
                   Codes refresh every 30 seconds
                 </div>
               </div>
 
-              <div className="auth-submit-wrapper">
+              <div className="flex justify-center w-full mt-1.5">
                 <button
                   type="submit"
-                  className="auth-submit-btn"
+                  className="w-full max-w-[220px] h-9 bg-gradient-to-r from-blue-600 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white text-xs font-extrabold tracking-wide rounded-full border-0 cursor-pointer shadow-[0_4px_16px_rgba(0,82,255,0.35)] hover:shadow-[0_8px_22px_rgba(0,210,255,0.5)] hover:-translate-y-0.5 transition-all inline-flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                   disabled={mfaSubmitting || mfaCode.length !== 6}
                 >
                   {mfaSubmitting ? 'Verifying...' : 'Verify Code'}
@@ -170,10 +182,10 @@ export default function AuthModal() {
               </div>
             </form>
 
-            <div className="auth-footer-prompt compact">
+            <div className="text-center mt-2.5">
               <button
                 type="button"
-                className="auth-text-link"
+                className="bg-transparent border-0 text-cyan-400 hover:text-white font-bold cursor-pointer p-0 underline transition-colors text-xs"
                 onClick={() => {
                   setMfaChallenge(null);
                   setMfaCode('');
@@ -186,19 +198,25 @@ export default function AuthModal() {
           </div>
         ) : (
           <>
-            <div className="auth-header">
-              <div className="auth-logo-badge">
-                <img src="/logo_transparent.png" alt="CloudKH" className="auth-logo-img" />
+            <div className="text-center mb-4">
+              <div className="w-11 h-11 rounded-xl bg-blue-600/15 border-[1.5px] border-cyan-400/40 shadow-[0_0_16px_rgba(0,210,255,0.35)] flex items-center justify-center mx-auto mb-2.5 p-1">
+                <img src="/logo_transparent.png" alt="CloudKH" className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(0,210,255,0.7)]" />
               </div>
-              <h2>{authMode === 'login' ? 'Welcome Back' : 'Create Account'}</h2>
+              <h2 className="text-lg font-extrabold text-white tracking-tight m-0">
+                {authMode === 'login' ? 'Welcome Back' : 'Create Account'}
+              </h2>
             </div>
 
             {/* Centered Segmented Pill Tabs */}
-            <div className="auth-tab-switch-wrapper">
-              <div className="auth-tab-switch">
+            <div className="flex justify-center w-full mb-3.5">
+              <div className="grid grid-cols-2 gap-1 w-full max-w-[230px] bg-white/[0.04] p-1 rounded-full border border-white/[0.08]">
                 <button
                   type="button"
-                  className={`auth-tab ${authMode === 'login' ? 'active' : ''}`}
+                  className={`py-1.5 px-3.5 text-[11px] font-bold rounded-full transition-all text-center cursor-pointer border-0 ${
+                    authMode === 'login'
+                      ? 'bg-gradient-to-r from-blue-600 to-cyan-400 text-white shadow-[0_3px_12px_rgba(0,82,255,0.4)]'
+                      : 'bg-transparent text-indigo-200/70 hover:text-white'
+                  }`}
                   onClick={() => {
                     setAuthMode('login');
                     setError(null);
@@ -208,7 +226,11 @@ export default function AuthModal() {
                 </button>
                 <button
                   type="button"
-                  className={`auth-tab ${authMode === 'register' ? 'active' : ''}`}
+                  className={`py-1.5 px-3.5 text-[11px] font-bold rounded-full transition-all text-center cursor-pointer border-0 ${
+                    authMode === 'register'
+                      ? 'bg-gradient-to-r from-blue-600 to-cyan-400 text-white shadow-[0_3px_12px_rgba(0,82,255,0.4)]'
+                      : 'bg-transparent text-indigo-200/70 hover:text-white'
+                  }`}
                   onClick={() => {
                     setAuthMode('register');
                     setError(null);
@@ -220,18 +242,18 @@ export default function AuthModal() {
             </div>
 
             {error && (
-              <div className="auth-error-banner" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="bg-red-500/15 border border-red-500/30 text-red-400 px-3 py-2 rounded-lg text-xs font-medium mb-3 flex items-center gap-2 leading-snug">
                 <AlertTriangleIcon size={15} />
                 <span>{error}</span>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="auth-form">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               {authMode === 'register' && (
-                <div className="form-group">
-                  <label>Full Name</label>
-                  <div className="auth-input-wrap">
-                    <UserIcon className="input-field-icon" size={16} />
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-extrabold text-indigo-200/70 uppercase tracking-wider">Full Name</label>
+                  <div className="relative flex items-center w-full group">
+                    <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-cyan-400 pointer-events-none transition-colors z-10" size={16} />
                     <input
                       type="text"
                       placeholder="Your Name"
@@ -239,15 +261,16 @@ export default function AuthModal() {
                       onChange={(e) => setName(e.target.value)}
                       required
                       disabled={submitting}
+                      className="w-full bg-white/5 focus:bg-white/[0.08] border border-white/12 focus:border-cyan-400 py-2.5 px-10 rounded-lg text-white text-sm outline-none transition-all focus:shadow-[0_0_14px_rgba(0,210,255,0.25)] placeholder:text-white/30"
                     />
                   </div>
                 </div>
               )}
 
-              <div className="form-group">
-                <label>Email Address</label>
-                <div className="auth-input-wrap">
-                  <MailIcon className="input-field-icon" size={16} />
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-extrabold text-indigo-200/70 uppercase tracking-wider">Email Address</label>
+                <div className="relative flex items-center w-full group">
+                  <MailIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-cyan-400 pointer-events-none transition-colors z-10" size={16} />
                   <input
                     type="email"
                     placeholder="name@example.com"
@@ -255,14 +278,15 @@ export default function AuthModal() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     disabled={submitting}
+                    className="w-full bg-white/5 focus:bg-white/[0.08] border border-white/12 focus:border-cyan-400 py-2.5 px-10 rounded-lg text-white text-sm outline-none transition-all focus:shadow-[0_0_14px_rgba(0,210,255,0.25)] placeholder:text-white/30"
                   />
                 </div>
               </div>
 
-              <div className="form-group">
-                <label>Password</label>
-                <div className="auth-input-wrap">
-                  <LockIcon className="input-field-icon" size={16} />
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-extrabold text-indigo-200/70 uppercase tracking-wider">Password</label>
+                <div className="relative flex items-center w-full group">
+                  <LockIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-cyan-400 pointer-events-none transition-colors z-10" size={16} />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     placeholder="••••••••"
@@ -271,10 +295,11 @@ export default function AuthModal() {
                     required
                     minLength={6}
                     disabled={submitting}
+                    className="w-full bg-white/5 focus:bg-white/[0.08] border border-white/12 focus:border-cyan-400 py-2.5 px-10 rounded-lg text-white text-sm outline-none transition-all focus:shadow-[0_0_14px_rgba(0,210,255,0.25)] placeholder:text-white/30"
                   />
                   <button
                     type="button"
-                    className="btn-toggle-pw"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-0 text-white/40 hover:text-cyan-400 p-1 flex items-center justify-center transition-colors z-10 cursor-pointer"
                     onClick={() => setShowPassword(!showPassword)}
                     tabIndex={-1}
                     title={showPassword ? 'Hide password' : 'Show password'}
@@ -285,8 +310,12 @@ export default function AuthModal() {
               </div>
 
               {/* Centered Compact Submit Button */}
-              <div className="auth-submit-wrapper">
-                <button type="submit" className="auth-submit-btn" disabled={submitting}>
+              <div className="flex justify-center w-full mt-1.5">
+                <button
+                  type="submit"
+                  className="w-auto min-w-[170px] max-w-[220px] bg-gradient-to-r from-blue-600 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white text-xs font-extrabold tracking-wide py-2.5 px-6 rounded-full border-0 cursor-pointer shadow-[0_4px_16px_rgba(0,82,255,0.35)] hover:shadow-[0_8px_22px_rgba(0,210,255,0.5)] hover:-translate-y-0.5 transition-all inline-flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  disabled={submitting}
+                >
                   {submitting
                     ? 'Please wait...'
                     : authMode === 'login'
@@ -296,13 +325,13 @@ export default function AuthModal() {
               </div>
             </form>
 
-            <div className="auth-footer-prompt">
+            <div className="text-center mt-3 text-xs text-indigo-200/70">
               {authMode === 'login' ? (
-                <p>
+                <p className="m-0">
                   Don't have an account?{' '}
                   <button
                     type="button"
-                    className="auth-text-link"
+                    className="bg-transparent border-0 text-cyan-400 hover:text-white font-bold cursor-pointer p-0 underline transition-colors"
                     onClick={() => {
                       setAuthMode('register');
                       setError(null);
@@ -312,11 +341,11 @@ export default function AuthModal() {
                   </button>
                 </p>
               ) : (
-                <p>
+                <p className="m-0">
                   Already have an account?{' '}
                   <button
                     type="button"
-                    className="auth-text-link"
+                    className="bg-transparent border-0 text-cyan-400 hover:text-white font-bold cursor-pointer p-0 underline transition-colors"
                     onClick={() => {
                       setAuthMode('login');
                       setError(null);

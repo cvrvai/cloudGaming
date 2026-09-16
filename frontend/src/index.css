@@ -1,7 +1,20 @@
+@import "tailwindcss";
+
 /* =========================================================
    CloudKH Twilight Indigo — Official Ergonomic Color Palette
    Comfortable, eye-friendly, zero-glare purple-blue atmosphere
    ========================================================= */
+
+@theme {
+  --color-twilight-bg: #12132b;
+  --color-twilight-navbar: rgba(22, 23, 52, 0.95);
+  --color-twilight-card: rgba(34, 36, 76, 0.88);
+  --color-twilight-card-hover: rgba(44, 46, 96, 0.98);
+  --color-twilight-inner: #1a1b3f;
+  --color-accent-blue: #0052ff;
+  --color-accent-cyan: #00d2ff;
+  --color-accent-press: #0045d8;
+}
 
 :root {
   color-scheme: dark;
