@@ -10,6 +10,7 @@ from app.db import get_db
 from app.core.redis import cache_get, cache_set, cache_delete, check_rate_limit
 from app.services.auth import get_current_user, require_admin
 from app.services.streaming.node_relay import node_relay
+from app.services.streaming.manager import stream_manager
 from app.services.agent import get_host_steam_and_game_status
 
 router = APIRouter(prefix="/machines", tags=["machines"])

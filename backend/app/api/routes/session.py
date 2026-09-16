@@ -110,6 +110,7 @@ async def verify_session_access(
                     "START_GAME",
                     {
                         "game_id": booking["game_id"],
+                        "game_title": booking["game_title"],
                         "user_id": booking["user_id"],
                     },
                     timeout=8.0,
