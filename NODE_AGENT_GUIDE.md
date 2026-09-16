@@ -120,47 +120,62 @@ Invoke-RestMethod -Uri "https://api.cloudkh.space/api/machines/<MACHINE_ID>/game
 
 ---
 
-## 4. Running as a Persistent Background Daemon
+## 4. Running as a 24/7 Persistent Background Daemon
 
-### One-Click Launch
-The root directory includes:
-- `start_node.bat`: Starts the streaming daemon automatically using `.node_config.json`.
-- `setup_node.bat`: Interactive setup and pairing script.
+### Self-Healing Daemon Architecture
+Both `run_node.bat` and `start_node.bat` implement a self-healing supervision loop (`:daemon_loop`):
+* **Auto-Restart on Exit:** If Python crashes, encounters a driver exception, or exits for any reason, the batch script logs the exit code and **automatically relaunches `stream_node.py` within 3 seconds**. It never halts at `pause`.
+* **QuickEdit Mode Protection:** Windows Console QuickEdit mode is automatically disabled in the registry (`HKCU\Console\QuickEdit = 0`) on launch. In Windows 10, clicking inside an active console window pauses the entire process; disabling QuickEdit eliminates this freezing issue.
+* **Auto-Sync:** On every restart, `run_node.bat` runs `git pull --ff-only` to seamlessly ingest updates.
 
-### Launching via Agent Background Task
-When starting the node daemon in background:
-```powershell
-.\backend\.venv\Scripts\python.exe -u stream_node.py --api https://api.cloudkh.space
-```
-The node will log:
-```text
-==============================================================
-  CloudKH Gaming PC Streaming Service
-==============================================================
-  Node ID:     #3
-  Node Name:   Gaming Rig Node
-  GPU:         NVIDIA GeForce RTX ...
-  Backend:     https://api.cloudkh.space
-  Status:      ONLINE & READY FOR SESSIONS
-==============================================================
-[*] Streaming daemon active. Press Ctrl+C to stop.
-[18:00:00] [OK] Connected to CloudKH Cloud Relay. Ready for player sessions.
-```
-
-### Automatic Startup with Windows (Optional)
-To ensure the node launches whenever the computer boots:
-1. Open Windows Run dialog: `shell:startup`
-2. Create a shortcut to `start_node.bat` inside that folder.
+### Windows Boot Autostart (`install_startup.bat`)
+To ensure the node launches automatically on Windows boot (e.g. after overnight Windows Updates):
+1. Double-click `install_startup.bat` (or run it via PowerShell).
+2. It generates a minimized shortcut in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\CloudKH_Node.lnk`.
+3. The PC now runs 24 hours / 7 days without requiring manual user login.
 
 ---
 
-## 5. Troubleshooting & Diagnostics Reference
+## 5. Critical Operating Rules for AI Agents
 
-| Issue | Cause | Resolution |
+> [!IMPORTANT]
+> **RULE 1: NEVER RE-PAIR AN ALREADY PAIRED GAMING PC**
+> * Pairing is a **one-time** hardware registration.
+> * When a PC pairs, `.node_config.json` is permanently created with `node_id` (e.g. Node #3 for `DESKTOP-BR6FNPB`).
+> * The cloud database permanently stores this machine.
+> * Whenever `stream_node.py` starts, it automatically reads `.node_config.json` and connects to `wss://api.cloudkh.space/ws/node/{node_id}`.
+> * **DO NOT** prompt the user for a new 6-digit code or run `--re-pair` unless the PC was deleted from the database or hardware was replaced.
+
+> [!NOTE]
+> **RULE 2: UNDERSTAND CLOUD BACKEND DEPLOYMENT RECONNECTS**
+> * Every time code is committed and pushed to `origin/main`, Render redeploys the cloud backend container (~60–90 seconds).
+> * During this reboot, active WebSocket tunnels are closed by the server.
+> * In `stream_node.py`, the client logs `Tunnel disconnected... Reconnecting in 3s...` and retries with backoff.
+> * **Do NOT assume the gaming PC is dead or down.** It will automatically reconnect as soon as Render finishes booting.
+
+> [!TIP]
+> **RULE 3: WINDOWS 10 24/7 POWER MANAGEMENT REQUIREMENTS**
+> Even when Windows Sleep is set to "Never", ensure these two hardware settings:
+> 1. **Network Adapter Power Saving:** In Device Manager > Network Adapters > Properties > Power Management, uncheck *"Allow the computer to turn off this device to save power"*. Otherwise, Windows drops Ethernet power after idle periods.
+> 2. **Display Sleep vs System Sleep:** Turning off the physical monitor is fine; Windows Sleep must remain set to **"Never"**.
+
+> [!WARNING]
+> **RULE 4: NEVER EXPOSE INTERNAL IMPLEMENTATION DETAILS TO END USERS**
+> * Software engineering standard: Do not display script filenames (`stream_node.py`), internal architecture names (`node_id`, `node relay`, `host PC`), or stack traces in player-facing UI or error messages.
+> * Use friendly, polished status phrases (e.g. *"Starting your game…"*, *"Connecting to game session…"*, *"Gaming rig is currently offline. Please try again in a few moments."*).
+
+---
+
+## 6. Troubleshooting & Diagnostics Reference
+
+| Symptom / Error | True Root Cause | Correct Resolution (AI Agent Action) |
 |---|---|---|
-| `No module named websockets` | Missing package in venv | Run `.\backend\.venv\Scripts\pip.exe install -r backend\requirements.txt` |
-| `GStreamer OFFLINE` | GStreamer MSVC 64-bit not found | Install GStreamer MSVC x86_64 Runtime + Dev from gstreamer.freedesktop.org |
+| `Gaming PC is currently unavailable` | Cloud backend recently restarted, or node reconnecting | Wait 15–30 seconds for WebSocket handshake. Do NOT re-pair. |
+| Console paused / unresponsive | QuickEdit mode triggered by a mouse click | Press `Enter` in the console, or relaunch via `run_node.bat` (which disables QuickEdit). |
+| Node goes offline after 30 mins | Network adapter sleep enabled in Windows Device Manager | Disable "Allow the computer to turn off this device to save power" in NIC Power Management. |
+| PC reboots after Windows update | Process not launched at startup | Run `install_startup.bat` to place the daemon in Windows Startup folder. |
+| `Failed to fetch` on cancel booking | Cloud backend restarting or race condition | Upgraded in `082aacd` — cancellation now uses single authoritative endpoint with safe parsing. |
+| `No module named websockets` | Missing dependency in virtual environment | Run `.\backend\.venv\Scripts\pip.exe install -r backend\requirements.txt` |
+| `GStreamer OFFLINE` | GStreamer MSVC 64-bit not installed | Install GStreamer MSVC x86_64 Runtime + Dev from gstreamer.freedesktop.org |
 | `vgamepad not available` | ViGEmBus driver not installed | Keyboard fallback works automatically. For Xbox controller emulation, install [ViGEmBus](https://github.com/ViGEm/ViGEmBus/releases). |
-| `Invalid or expired pairing code` | 10-minute code expired | Generate a new code in the Admin Console at `https://cloudkh.space` |
-| `Tunnel connection error` | Network drop | `stream_node.py` auto-retries every 3–30 seconds. Verify internet connectivity. |
-| Re-pairing needed | Need to change node ID / name | Run `.\backend\.venv\Scripts\python.exe stream_node.py --re-pair` |
+
