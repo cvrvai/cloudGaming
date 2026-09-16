@@ -278,50 +278,72 @@ export default function Navbar({
         </div>
       </header>
 
-      {/* Mobile Bottom Navigation Dock - Instant Thumb Reach */}
-      <nav className="cloudkh-bottom-nav">
+      {/* Mobile Bottom Navigation Dock - Hidden on Desktop (md:hidden), Fixed to bottom on mobile */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[52px] bg-[#101b31]/95 backdrop-blur-xl border-t border-cyan-400/20 shadow-[0_-4px_20px_rgba(0,0,0,0.6)] z-[2000] flex items-center justify-around px-4 pb-[env(safe-area-inset-bottom,0px)] select-none">
         <button
-          className={`bottom-nav-item ${activeTab === 'games' ? 'active' : ''}`}
+          type="button"
+          className={`flex-1 flex flex-col items-center justify-center gap-0.5 bg-transparent border-none text-[11px] font-bold cursor-pointer py-1.5 relative transition-colors ${
+            activeTab === 'games'
+              ? 'text-cyan-400 before:content-[\'\'] before:absolute before:top-0 before:w-9 before:h-[3px] before:rounded-b before:bg-gradient-to-r before:from-blue-600 before:to-cyan-400 before:shadow-[0_0_8px_#00d2ff]'
+              : 'text-indigo-200/60 hover:text-white'
+          }`}
           onClick={() => onTabChange('games')}
         >
-          <span className="bottom-nav-icon">
+          <span className={`flex items-center justify-center ${activeTab === 'games' ? 'drop-shadow-[0_0_8px_rgba(0,210,255,0.7)]' : ''}`}>
             <GamepadIcon size={19} />
           </span>
-          <span className="bottom-nav-label">Games</span>
+          <span className="text-[10px] leading-tight">Games</span>
         </button>
 
         <button
-          className={`bottom-nav-item ${activeTab === 'bookings' ? 'active' : ''}`}
+          type="button"
+          className={`flex-1 flex flex-col items-center justify-center gap-0.5 bg-transparent border-none text-[11px] font-bold cursor-pointer py-1.5 relative transition-colors ${
+            activeTab === 'bookings'
+              ? 'text-cyan-400 before:content-[\'\'] before:absolute before:top-0 before:w-9 before:h-[3px] before:rounded-b before:bg-gradient-to-r before:from-blue-600 before:to-cyan-400 before:shadow-[0_0_8px_#00d2ff]'
+              : 'text-indigo-200/60 hover:text-white'
+          }`}
           onClick={() => onTabChange('bookings')}
         >
-          <span className="bottom-nav-icon">
+          <span className={`flex items-center justify-center relative ${activeTab === 'bookings' ? 'drop-shadow-[0_0_8px_rgba(0,210,255,0.7)]' : ''}`}>
             <CalendarIcon size={19} />
             {activeBookingsCount > 0 && (
-              <span className="bottom-badge-pill">{activeBookingsCount}</span>
+              <span className="absolute -top-1 -right-2 bg-gradient-to-r from-blue-600 to-cyan-400 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full shadow-[0_0_8px_rgba(0,210,255,0.6)]">
+                {activeBookingsCount}
+              </span>
             )}
           </span>
-          <span className="bottom-nav-label">Bookings</span>
+          <span className="text-[10px] leading-tight">Bookings</span>
         </button>
 
         <button
-          className={`bottom-nav-item ${activeTab === 'profile' ? 'active' : ''}`}
+          type="button"
+          className={`flex-1 flex flex-col items-center justify-center gap-0.5 bg-transparent border-none text-[11px] font-bold cursor-pointer py-1.5 relative transition-colors ${
+            activeTab === 'profile'
+              ? 'text-cyan-400 before:content-[\'\'] before:absolute before:top-0 before:w-9 before:h-[3px] before:rounded-b before:bg-gradient-to-r before:from-blue-600 before:to-cyan-400 before:shadow-[0_0_8px_#00d2ff]'
+              : 'text-indigo-200/60 hover:text-white'
+          }`}
           onClick={() => (user ? onTabChange('profile') : openAuth('login'))}
         >
-          <span className="bottom-nav-icon">
+          <span className={`flex items-center justify-center ${activeTab === 'profile' ? 'drop-shadow-[0_0_8px_rgba(0,210,255,0.7)]' : ''}`}>
             <UserIcon size={19} />
           </span>
-          <span className="bottom-nav-label">Profile</span>
+          <span className="text-[10px] leading-tight">Profile</span>
         </button>
 
         {user?.role === 'admin' && (
           <button
-            className={`bottom-nav-item ${activeTab === 'admin' ? 'active' : ''}`}
+            type="button"
+            className={`flex-1 flex flex-col items-center justify-center gap-0.5 bg-transparent border-none text-[11px] font-bold cursor-pointer py-1.5 relative transition-colors ${
+              activeTab === 'admin'
+                ? 'text-cyan-400 before:content-[\'\'] before:absolute before:top-0 before:w-9 before:h-[3px] before:rounded-b before:bg-gradient-to-r before:from-blue-600 before:to-cyan-400 before:shadow-[0_0_8px_#00d2ff]'
+                : 'text-indigo-200/60 hover:text-white'
+            }`}
             onClick={() => onTabChange('admin')}
           >
-            <span className="bottom-nav-icon">
+            <span className={`flex items-center justify-center ${activeTab === 'admin' ? 'drop-shadow-[0_0_8px_rgba(0,210,255,0.7)]' : ''}`}>
               <SettingsIcon size={19} />
             </span>
-            <span className="bottom-nav-label">Admin</span>
+            <span className="text-[10px] leading-tight">Admin</span>
           </button>
         )}
       </nav>
