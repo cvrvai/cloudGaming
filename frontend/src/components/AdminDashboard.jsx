@@ -794,10 +794,14 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchAllAdminData();
-    // Machine state is live; heavier admin/DMAIC data refreshes less often.
+    // Machine state is live (4s); admin telemetry data refreshes every 10s or immediately on focus/feedback
     const machineInterval = setInterval(fetchMachinesOnly, 4000);
-    const adminDataInterval = setInterval(fetchAllAdminData, 30000);
+    const adminDataInterval = setInterval(fetchAllAdminData, 10000);
     const ticker = setInterval(() => setTimeTick(Date.now()), 1000);
+
+    const onInstantRefresh = () => fetchAllAdminData();
+    window.addEventListener('focus', onInstantRefresh);
+    window.addEventListener('cloudkh-feedback-submitted', onInstantRefresh);
 
     // 30-minute security inactivity timeout for administrator session
     let idleTimer;
@@ -818,6 +822,8 @@ export default function AdminDashboard() {
       clearInterval(adminDataInterval);
       clearInterval(ticker);
       clearTimeout(idleTimer);
+      window.removeEventListener('focus', onInstantRefresh);
+      window.removeEventListener('cloudkh-feedback-submitted', onInstantRefresh);
       userEvents.forEach((evt) => window.removeEventListener(evt, resetIdleTimer));
     };
   }, [token]);

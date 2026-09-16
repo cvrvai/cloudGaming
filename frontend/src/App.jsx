@@ -123,6 +123,10 @@ function CloudKHPlatform() {
           }),
         });
         setBookingsRefreshKey((k) => k + 1);
+        try {
+          sessionStorage.removeItem('cloudkh_admin_data_v1');
+        } catch {}
+        window.dispatchEvent(new CustomEvent('cloudkh-feedback-submitted'));
       }
     } catch (e) {
       console.warn('Feedback submit error:', e);
