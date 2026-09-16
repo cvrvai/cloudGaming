@@ -393,6 +393,11 @@ async def cancel_booking(
                 "UPDATE bookings SET status = 'cancelled' WHERE id = %s;",
                 (booking_id,),
             )
+        if booking.get("machine_id"):
+            cursor.execute(
+                "UPDATE machines SET status = 'available', stream_started_at = NULL, last_seen = %s WHERE id = %s;",
+                (now_iso, booking["machine_id"]),
+            )
         conn.commit()
 
     from app.core.redis import cache_delete

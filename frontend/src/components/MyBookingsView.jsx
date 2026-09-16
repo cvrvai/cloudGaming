@@ -73,16 +73,31 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
 
   const handleCancelBooking = async (bookingId, isActive = false) => {
     const confirmMsg = isActive
-      ? 'Cancel this active session early? This will end the stream immediately, free up the gaming rig, and save remaining time.'
-      : 'Are you sure you want to cancel this reservation?';
+      ? 'End this active session now? This frees up the gaming PC immediately.'
+      : 'Cancel this reservation?';
     if (!window.confirm(confirmMsg)) return;
     setCancellingId(bookingId);
     try {
+      if (isActive) {
+        fetch(`${API_BASE}/api/session/stop`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ booking_id: bookingId }),
+        }).catch(() => {});
+      }
       const res = await fetch(`${API_BASE}/api/bookings/${bookingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
+        setBookingsData((prev) => ({
+          ...prev,
+          active: prev.active.filter((b) => b.id !== bookingId),
+          upcoming: prev.upcoming.filter((b) => b.id !== bookingId),
+        }));
         fetchBookings();
         fetchQuota();
       } else {

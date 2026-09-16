@@ -28,6 +28,10 @@ class SdpOffer(BaseModel):
     bitrate: Optional[int] = None
     node_id: Optional[int] = None
     machine_id: Optional[int] = None
+    game_id: Optional[int] = None
+    game_title: Optional[str] = None
+    slug: Optional[str] = None
+    booking_id: Optional[int] = None
 
 
 class SdpAnswer(BaseModel):
@@ -72,6 +76,38 @@ async def create_stream(offer: SdpOffer) -> dict:
         fallback_id = node_relay.get_any_connected_node_id()
         if fallback_id:
             target_node_id = fallback_id
+
+    req_game_id = offer.game_id
+    req_game_title = offer.game_title
+    req_slug = offer.slug
+    req_booking_id = offer.booking_id
+
+    if not req_game_id and target_node_id:
+        try:
+            from datetime import datetime, timezone
+            from app.db import get_db
+            now_iso = datetime.now(timezone.utc).isoformat()
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT b.id, b.game_id, b.game_title, g.slug
+                    FROM bookings b
+                    LEFT JOIN games g ON b.game_id = g.id
+                    WHERE b.machine_id = %s AND b.status = 'confirmed' AND b.start_time <= %s AND b.end_time >= %s
+                    ORDER BY b.start_time DESC LIMIT 1;
+                    """,
+                    (target_node_id, now_iso, now_iso),
+                )
+                act_b = cursor.fetchone()
+                if act_b:
+                    req_game_id = act_b["game_id"]
+                    req_game_title = act_b["game_title"]
+                    req_slug = act_b.get("slug")
+                    req_booking_id = act_b["id"]
+        except Exception:
+            pass
+
     if target_node_id and (target_node_id in node_relay._nodes or node_relay.is_node_connected(target_node_id)):
         try:
             _, turn_uri = await get_ice_configuration()
@@ -83,7 +119,28 @@ async def create_stream(offer: SdpOffer) -> dict:
                 fps=offer.fps,
                 bitrate=offer.bitrate,
                 turn_server=turn_uri,
+                game_id=req_game_id,
+                game_title=req_game_title,
+                slug=req_slug,
+                booking_id=req_booking_id,
             )
+            # Stamp stream_started_at in DB
+            try:
+                from datetime import datetime, timezone
+                from app.db import get_db
+                from app.core.redis import cache_delete
+                now_iso = datetime.now(timezone.utc).isoformat()
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "UPDATE machines SET status = 'in-use', stream_started_at = %s, last_seen = %s WHERE id = %s AND stream_started_at IS NULL;",
+                        (now_iso, now_iso, target_node_id),
+                    )
+                    conn.commit()
+                await cache_delete("machines:raw")
+            except Exception:
+                pass
+
             return answer
         except Exception as exc:
             logger.exception("Failed to negotiate relayed stream with node #%s", target_node_id)

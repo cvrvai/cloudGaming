@@ -144,9 +144,9 @@ async def list_machines():
 
     for m in machines:
         is_host_pc = bool(m.get("is_host"))
-        is_connected = is_host_pc or node_relay.is_node_connected(m["id"])
+        is_connected = node_relay.is_node_connected(m["id"]) or (is_host_pc and stream_manager.available)
 
-        if is_host_pc:
+        if is_host_pc and stream_manager.available:
             if host_status.get("is_running"):
                 m["status"] = "in-use"
                 m["live_status"] = "streaming"
@@ -240,17 +240,14 @@ async def list_machines():
                     cache_needs_invalidation = True
                     continue
 
-        if m.get("stream_started_at") or m.get("status") in ("streaming", "in-use"):
+        if m.get("stream_started_at") and m.get("status") in ("streaming", "in-use"):
             m["status"] = "in-use"
             m["live_status"] = "streaming"
         elif m["status"] == "maintenance":
             m["live_status"] = "maintenance"
         elif is_connected or m.get("status") == "available":
-            is_currently_in_use = any(
-                b["start_time"] <= now_iso <= b["end_time"] for b in m.get("bookings", [])
-            )
-            m["status"] = "in-use" if is_currently_in_use else "available"
-            m["live_status"] = "streaming" if is_currently_in_use else "available"
+            m["status"] = "available"
+            m["live_status"] = "available"
         else:
             m["status"] = "standby"
             m["live_status"] = "standby"

@@ -208,10 +208,9 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
   }, [resetHudTimer]);
 
   const handleExitSession = useCallback(() => {
-    if (feedbackOpen) return;
     setIsExiting(true);
 
-    // 1. Send stop_session over WebSocket input relay
+    // 1. Send stop_session over WebSocket input relay immediately
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       try {
         wsRef.current.send(JSON.stringify({
@@ -223,7 +222,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
       }
     }
 
-    // 2. Direct REST API stop call to guarantee remote PC game termination
+    // 2. Direct REST API stop calls to immediately free the rig and release remaining time slot
     const token = localStorage.getItem('token');
     if (token) {
       fetch(`${apiBase}/api/session/stop`, {
@@ -232,11 +231,26 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({
+          booking_id: sessionData?.booking_id,
+          machine_id: sessionData?.machine_id,
+        }),
       }).catch((e) => console.warn('Failed to stop session via API:', e));
+
+      if (sessionData?.booking_id) {
+        fetch(`${apiBase}/api/bookings/${sessionData.booking_id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch((e) => console.warn('Failed to release booking:', e));
+      }
     }
 
-    setFeedbackOpen(true);
-  }, [apiBase, feedbackOpen, sessionData?.machine_id]);
+    // 3. Send telemetry in the background
+    void sendSessionTelemetry('user_exit', true);
+
+    // 4. Return to bookings immediately (0ms delay)
+    onSessionEnd?.();
+  }, [apiBase, onSessionEnd, sendSessionTelemetry, sessionData?.booking_id, sessionData?.machine_id]);
 
   const finishSessionWithFeedback = useCallback(async (feedback = {}) => {
     setFeedbackSubmitting(true);
@@ -693,6 +707,9 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
             serverIP={serverIP}
             apiBase={apiBase}
             machineId={sessionData?.machine_id}
+            gameId={sessionData?.game_id}
+            gameTitle={sessionData?.game_title}
+            bookingId={sessionData?.booking_id}
             iceServers={iceServers}
             quality="auto"
             showStats={false}

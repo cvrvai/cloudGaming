@@ -303,23 +303,46 @@ def _score_game_match(candidate_path: Path, title: str, slug: str, configured_ex
     title_lower = (title or "").lower().strip()
     slug_lower = (slug or "").lower().replace('-', ' ').strip()
 
-    # 1. Exact stem matches title or slug
-    if stem == title_lower or stem == slug_lower:
+    # Normalize Roman numerals and numbers: "ii" <-> "2", "two" <-> "2", etc.
+    def _normalize_numerals(s: str) -> str:
+        s = re.sub(r'\bii\b', '2', s)
+        s = re.sub(r'\biii\b', '3', s)
+        s = re.sub(r'\biv\b', '4', s)
+        s = re.sub(r'\btwo\b', '2', s)
+        s = re.sub(r'\bthree\b', '3', s)
+        return s
+
+    norm_stem = _normalize_numerals(stem)
+    norm_title = _normalize_numerals(title_lower)
+    norm_slug = _normalize_numerals(slug_lower)
+
+    # 1. Exact stem matches title or slug (or normalized)
+    if stem in (title_lower, slug_lower) or norm_stem in (norm_title, norm_slug):
         return 100
 
     # 2. Configured exe stem match
     if configured_exe:
         conf_stem = Path(configured_exe).stem.lower()
-        if stem == conf_stem:
+        if stem == conf_stem or norm_stem == _normalize_numerals(conf_stem):
             return 95
+
+    # If candidate is a shortcut (.lnk / .url), inspect its underlying target executables
+    if candidate_path.suffix.lower() in ('.lnk', '.url'):
+        targets = _extract_target_from_shortcut(candidate_path)
+        for t in targets:
+            t_stem = Path(t).stem.lower()
+            if t_stem in (title_lower, slug_lower) or _normalize_numerals(t_stem) in (norm_title, norm_slug):
+                return 98
+            if configured_exe and t_stem == Path(configured_exe).stem.lower():
+                return 95
 
     # 3. Clean word tokens (filtering out generic filler words)
     ignore_tokens = {'the', 'edition', 'pc', 'remastered', 'season', 'mode', 'game', 'final', 'deluxe'}
-    raw_tokens = [w for w in re.findall(r'[a-z0-9]+', title_lower) if w not in ignore_tokens and len(w) >= 2]
+    raw_tokens = [w for w in re.findall(r'[a-z0-9]+', norm_title) if w not in ignore_tokens and len(w) >= 2]
     if not raw_tokens:
-        raw_tokens = [w for w in re.findall(r'[a-z0-9]+', title_lower) if len(w) >= 2]
+        raw_tokens = [w for w in re.findall(r'[a-z0-9]+', norm_title) if len(w) >= 2]
 
-    cand_tokens = set(re.findall(r'[a-z0-9]+', stem))
+    cand_tokens = set(re.findall(r'[a-z0-9]+', norm_stem))
 
     if not raw_tokens:
         return 0
@@ -335,8 +358,8 @@ def _score_game_match(candidate_path: Path, title: str, slug: str, configured_ex
 
     # Check substring match for primary game name (token length >= 4)
     primary_tokens = [t for t in raw_tokens if len(t) >= 4]
-    if primary_tokens and any(t in stem for t in primary_tokens):
-        return 60
+    if primary_tokens and any(t in norm_stem for t in primary_tokens):
+        return 65
 
     return 0
 
@@ -355,10 +378,13 @@ def _find_local_game_file(title: str, slug: str, configured_path: Optional[str] 
         Path.home() / "Desktop",
         Path.home() / "OneDrive" / "Desktop",
         Path(os.environ.get("PUBLIC", "C:/Users/Public")) / "Desktop",
+        Path.home() / "Games",
+        Path.home() / "Saved Games",
+        Path.home() / "Downloads",
     ]
     for d in desktop_dirs:
         if d.is_dir():
-            search_roots.append((d, 3))
+            search_roots.append((d, 4))
 
     # 2. Start Menu Programs
     start_menu_dirs = [

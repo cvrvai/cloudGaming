@@ -326,6 +326,16 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                         print(f"\n[{ts}] [STREAM] Incoming session offer from browser client...")
 
                         # Verify authorized game process and its native window HWND (grace period up to 20s for heavy games)
+                        game_id = offer.get("game_id")
+                        game_title = offer.get("game_title")
+                        if not host_agent.is_game_running() and (game_id or game_title):
+                            print(f"[{ts}] [STREAM] Game not currently running. Auto-launching (ID: {game_id}, Title: '{game_title}')...")
+                            try:
+                                launch_res = host_agent.start_game(game_id=game_id, slug=offer.get("slug"))
+                                print(f"[{ts}] [AGENT] Launch triggered: {launch_res.get('status')} - {launch_res.get('title', '')}")
+                            except Exception as launch_exc:
+                                print(f"[{ts}] [!] Auto-launch error: {launch_exc}")
+
                         wait_sec = 0.0
                         game_hwnd = None
                         print(f"[{ts}] [STREAM] Verifying active game session (waiting up to 20s for launch)...")
@@ -446,6 +456,10 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                                 host_agent.stop_game()
                             except Exception as exc:
                                 print(f"[{ts}] [!] Error stopping game on client request: {exc}")
+                            try:
+                                await ws.send(json.dumps({"type": "session_stopped", "node_id": node_id}))
+                            except Exception:
+                                pass
 
                     # Handle direct session stop or exit command
                     elif msg_type in ("stop_session", "exit_game", "STOP_GAME", "STOP_SESSION"):
@@ -459,6 +473,10 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                             host_agent.stop_game()
                         except Exception as exc:
                             print(f"[{ts}] [!] Error stopping game: {exc}")
+                        try:
+                            await ws.send(json.dumps({"type": "session_stopped", "node_id": node_id}))
+                        except Exception:
+                            pass
 
                     # Handle game execution command from gatekeeper
                     elif msg_type == "agent_command":

@@ -155,6 +155,7 @@ async def verify_session_access(
 
 class StopSessionRequest(BaseModel):
     booking_id: Optional[int] = None
+    machine_id: Optional[int] = None
 
 
 @router.post("/stop")
@@ -179,23 +180,43 @@ async def stop_session(
     try:
         with get_db() as conn:
             cursor = conn.cursor()
+            target_machine = req.machine_id if req and req.machine_id else None
             if req and req.booking_id:
                 cursor.execute(
                     """
                     UPDATE bookings
                     SET status = 'completed', end_time = %s
-                    WHERE id = %s AND (user_id = %s OR %s = 'admin') AND status = 'confirmed';
+                    WHERE id = %s AND (user_id = %s OR %s = 'admin') AND status = 'confirmed'
+                    RETURNING machine_id;
                     """,
                     (now_iso, req.booking_id, current_user["id"], current_user.get("role")),
                 )
+                row = cursor.fetchone()
+                if row and not target_machine:
+                    target_machine = row["machine_id"]
             else:
                 cursor.execute(
                     """
                     UPDATE bookings
                     SET status = 'completed', end_time = %s
-                    WHERE user_id = %s AND status = 'confirmed' AND start_time <= %s AND end_time > %s;
+                    WHERE user_id = %s AND status = 'confirmed' AND start_time <= %s AND end_time > %s
+                    RETURNING machine_id;
                     """,
                     (now_iso, current_user["id"], now_iso, now_iso),
+                )
+                row = cursor.fetchone()
+                if row and not target_machine:
+                    target_machine = row["machine_id"]
+
+            if target_machine:
+                cursor.execute(
+                    "UPDATE machines SET status = 'available', stream_started_at = NULL, last_seen = %s WHERE id = %s;",
+                    (now_iso, target_machine),
+                )
+            else:
+                cursor.execute(
+                    "UPDATE machines SET status = 'available', stream_started_at = NULL, last_seen = %s WHERE status = 'in-use' OR stream_started_at IS NOT NULL;",
+                    (now_iso,),
                 )
             conn.commit()
         await cache_delete("machines:raw")

@@ -73,16 +73,38 @@ async def streaming_node_endpoint(websocket: WebSocket, node_id: int):
                 error = msg.get("error")
                 node_relay.resolve_command(corr_id, result=result, error=error)
 
-            elif msg_type == "game_exited":
-                logger.info("Node #%d reported game_exited: %s", node_id, msg)
+            elif msg_type in ("game_exited", "session_stopped"):
+                logger.info("Node #%d reported %s: %s", node_id, msg_type, msg)
                 await node_relay.broadcast_game_exited(node_id, msg)
+                now_iso = datetime.now(timezone.utc).isoformat()
+                try:
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "UPDATE machines SET status = 'available', stream_started_at = NULL, last_seen = %s WHERE id = %s;",
+                            (now_iso, node_id),
+                        )
+                        cursor.execute(
+                            """
+                            UPDATE bookings
+                            SET status = 'completed', end_time = %s
+                            WHERE machine_id = %s AND status = 'confirmed';
+                            """,
+                            (now_iso, node_id),
+                        )
+                        conn.commit()
+                    from app.core.redis import cache_delete
+                    await cache_delete("machines:raw")
+                except Exception as db_err:
+                    logger.warning("Error finalizing machine #%d status on %s: %s", node_id, msg_type, db_err)
 
             elif msg_type == "heartbeat":
                 now_iso = datetime.now(timezone.utc).isoformat()
                 with get_db() as conn:
                     cursor = conn.cursor()
+                    # Only reset to available if not currently active stream
                     cursor.execute(
-                        "UPDATE machines SET last_seen = %s, status = 'available' WHERE id = %s;",
+                        "UPDATE machines SET last_seen = %s, status = CASE WHEN stream_started_at IS NOT NULL THEN 'in-use' ELSE 'available' END WHERE id = %s;",
                         (now_iso, node_id),
                     )
                     conn.commit()
@@ -133,10 +155,12 @@ async def streaming_node_endpoint(websocket: WebSocket, node_id: int):
             with get_db() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "UPDATE machines SET status = 'offline' WHERE id = %s AND status != 'maintenance';",
+                    "UPDATE machines SET status = 'offline', stream_started_at = NULL WHERE id = %s AND status != 'maintenance';",
                     (node_id,),
                 )
                 conn.commit()
+            from app.core.redis import cache_delete
+            await cache_delete("machines:raw")
             logger.info("Marked node #%d as offline in DB", node_id)
         except Exception as db_exc:
             logger.warning("Failed to update status to offline for node #%d: %s", node_id, db_exc)

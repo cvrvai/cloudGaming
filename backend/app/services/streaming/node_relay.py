@@ -127,6 +127,10 @@ class NodeRelayManager:
         fps: Optional[int] = None,
         bitrate: Optional[int] = None,
         turn_server: Optional[str] = None,
+        game_id: Optional[int] = None,
+        game_title: Optional[str] = None,
+        slug: Optional[str] = None,
+        booking_id: Optional[int] = None,
         timeout: float = 20.0,
     ) -> dict:
         """Forward an SDP offer from a browser client to the specified gaming node, returning its SDP answer."""
@@ -150,6 +154,10 @@ class NodeRelayManager:
                 "fps": fps,
                 "bitrate": bitrate,
                 "turn_server": turn_server,
+                "game_id": game_id,
+                "game_title": game_title,
+                "slug": slug,
+                "booking_id": booking_id,
             },
         }
 
