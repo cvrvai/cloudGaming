@@ -19,6 +19,7 @@ import {
   RamIcon,
   UsersIcon,
   ChartIcon,
+  ActivityIcon,
   DownloadIcon,
   UserIcon,
   ZapIcon,

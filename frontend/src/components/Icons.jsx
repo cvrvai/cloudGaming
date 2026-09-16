@@ -858,3 +858,21 @@ export function KeyboardIcon({ className = "icon-svg", size = 18 }) {
     </svg>
   );
 }
+
+export function ActivityIcon({ className = "icon-svg", size = 18 }) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  );
+}
