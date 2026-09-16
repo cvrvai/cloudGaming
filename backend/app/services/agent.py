@@ -21,6 +21,11 @@ try:
 except ImportError:
     get_db = None
 
+try:
+    from app.services.storage.save_manager import save_manager
+except ImportError:
+    save_manager = None
+
 logger = logging.getLogger("agent")
 
 # Predefined, strictly permitted operations
@@ -717,7 +722,7 @@ class GamingPCAgent:
 
             # Multi-Tenant User Save Isolation: mount player private save state
             save_mount_info = None
-            if user_id:
+            if user_id and save_manager is not None:
                 save_dir = save_manager.resolve_game_save_dir(
                     game_slug=config.get("slug"),
                     configured_save_path=config.get("save_directory"),
@@ -1042,11 +1047,12 @@ class GamingPCAgent:
             self._active_process = None
             self._active_game_info = None
 
-        logger.info("[Agent] Game '%s' exited. Unmounting & archiving user saves...", title)
-        try:
-            save_manager.unmount_session(clean_after=True)
-        except Exception as exc:
-            logger.warning("[Agent] Save unmount error on exit: %s", exc)
+        if save_manager is not None:
+            logger.info("[Agent] Game '%s' exited. Unmounting & archiving user saves...", title)
+            try:
+                save_manager.unmount_session(clean_after=True)
+            except Exception as exc:
+                logger.warning("[Agent] Save unmount error on exit: %s", exc)
 
         for cb in list(self._exit_callbacks):
             try:
@@ -1063,8 +1069,13 @@ class GamingPCAgent:
             self._active_game_info = None
             self._watchdog_active = False
 
-        time.sleep(0.5)  # Allow process to finish writing files to disk
-        archive_res = save_manager.unmount_session(clean_after=True)
+        archive_res = None
+        if save_manager is not None:
+            time.sleep(0.5)  # Allow process to finish writing files to disk
+            try:
+                archive_res = save_manager.unmount_session(clean_after=True)
+            except Exception as exc:
+                logger.warning("[Agent] Save unmount error in stop_game: %s", exc)
 
         if info:
             for cb in list(self._exit_callbacks):

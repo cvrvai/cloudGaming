@@ -343,6 +343,7 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
 
                         if not game_hwnd and not host_agent.is_game_running():
                             err_msg = "Streaming blocked: Game took longer than 20 seconds to launch on the host PC."
+                            ts = datetime.now().strftime("%H:%M:%S")
                             print(f"[{ts}] [!] {err_msg}")
                             await ws.send(json.dumps({
                                 "type": "stream_error",
