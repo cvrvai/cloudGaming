@@ -6,6 +6,7 @@ import {
   MonitorIcon,
   GamepadIcon,
   ClipboardListIcon,
+  CalendarIcon,
   PlusIcon,
   EditIcon,
   TrashIcon,
