@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE, formatRigName } from '../config';
-import { CalendarIcon, ClockIcon, BoltIcon, RocketIcon, CheckCircleIcon, PlayIcon, XIcon, AlertTriangleIcon, UserIcon } from './Icons';
+import { XIcon } from './Icons';
 
 export default function BookingModal({ game, machine, onClose, onBookingSuccess, onLaunchNow }) {
   const { token, user, openAuth } = useAuth();
@@ -194,9 +194,9 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
   };
 
   const durationOptions = [
-    { label: '30 Mins', value: 30 },
-    { label: '1 Hour', value: 60 },
-    { label: '2 Hours (Max)', value: 120 },
+    { label: '30m', value: 30 },
+    { label: '1h', value: 60 },
+    { label: '2h (Max)', value: 120 },
   ];
 
   const [dailyQuota, setDailyQuota] = useState(null);
@@ -486,80 +486,77 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
 
   return (
     <div
-      className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+      className="fixed inset-0 z-[2000] flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm"
       onClick={onClose}
       onKeyDown={(e) => e.stopPropagation()}
       onKeyUp={(e) => e.stopPropagation()}
     >
       <div
-        className="relative w-full max-w-[460px] rounded-2xl overflow-hidden bg-[#12132b]/95 border border-cyan-400/35 shadow-[0_20px_50px_rgba(0,0,0,0.85),0_0_30px_rgba(0,82,255,0.25)] text-white"
+        className="relative w-full max-w-[390px] rounded-xl overflow-hidden bg-[#0d1020] border border-white/10 shadow-2xl text-white"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
         onKeyUp={(e) => e.stopPropagation()}
       >
         <button
-          className="absolute top-3.5 right-3.5 z-20 w-7 h-7 rounded-full bg-black/50 hover:bg-black/75 text-white/80 hover:text-white flex items-center justify-center transition-colors border-0 cursor-pointer backdrop-blur-sm"
+          className="absolute top-2.5 right-2.5 z-20 w-6 h-6 rounded-full bg-black/40 hover:bg-black/70 text-slate-300 hover:text-white flex items-center justify-center transition-colors border-0 cursor-pointer"
           onClick={onClose}
           aria-label="Close"
         >
-          <XIcon size={16} />
+          <XIcon size={14} />
         </button>
 
-        {/* Cinematic Game Header */}
-        <div className="h-[120px] bg-cover bg-center relative flex items-end" style={{ backgroundImage: `url(${coverUrl})` }}>
-          <div className="absolute inset-0 bg-gradient-to-t from-[#12132b] via-[#12132b]/70 to-black/30 p-3.5 md:p-4.5 flex flex-col justify-end">
-            <div className="flex gap-1.5 mb-1.5">
-              <span className="text-[9px] font-extrabold px-2 py-0.5 rounded bg-white/20 text-white uppercase tracking-wider">{genre}</span>
+        {/* Compact Game Header */}
+        <div className="relative h-20 bg-cover bg-center flex items-end" style={{ backgroundImage: `url(${coverUrl})` }}>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0d1020] via-[#0d1020]/75 to-black/40 p-3 flex items-end">
+            <div className="min-w-0 pr-6">
+              <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">{genre}</span>
+              <h2 className="text-base font-bold text-white m-0 truncate leading-tight">{title}</h2>
             </div>
-            <h2 className="text-lg md:text-xl font-black text-white m-0 truncate drop-shadow-md">{title}</h2>
           </div>
         </div>
 
         {/* Confirmation Screen */}
         {confirmedBooking ? (
-          <div className="p-8 md:p-10 text-center flex flex-col items-center animate-[fadeIn_0.2s_ease-out]">
-            <div className="text-cyan-400 mb-4 flex items-center justify-center">
-              {mode === 'instant' ? <PlayIcon size={38} /> : <CheckCircleIcon size={38} />}
-            </div>
-            <h3 className="text-2xl font-extrabold text-white mb-2 tracking-tight">
-              {mode === 'instant' ? 'Ready to Play!' : 'Reservation Confirmed'}
+          <div className="p-6 text-center flex flex-col items-center">
+            <h3 className="text-base font-bold text-white mb-1">
+              {mode === 'instant' ? 'Ready to Play' : 'Reservation Confirmed'}
             </h3>
-            <p className="text-sm text-indigo-200/80 mb-1.5">
+            <p className="text-xs text-slate-400 mb-1">
               {mode === 'instant' ? (
-                <>Rig ready for <strong className="text-white">{title}</strong></>
+                <>Rig ready for <span className="text-white font-medium">{title}</span></>
               ) : (
-                <>Reserved <strong className="text-white">{title}</strong></>
+                <>Reserved <span className="text-white font-medium">{title}</span></>
               )}
             </p>
-            <p className="text-xs font-bold text-cyan-400 mb-6">
+            <p className="text-xs font-semibold text-blue-400 mb-4">
               {mode === 'instant' ? (
-                `Session Duration: ${durationMinutes} mins`
+                `${durationMinutes} mins session`
               ) : (
-                `${new Date(confirmedBooking.start_time).toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${new Date(confirmedBooking.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – ${new Date(confirmedBooking.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                `${new Date(confirmedBooking.start_time).toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${new Date(confirmedBooking.start_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} – ${new Date(confirmedBooking.end_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
               )}
             </p>
 
-            <div className="flex flex-col gap-2.5 w-full max-w-xs mx-auto">
+            <div className="flex flex-col gap-2 w-full max-w-[200px] mx-auto">
               {mode === 'instant' && onLaunchNow ? (
                 <button
-                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white font-extrabold text-xs tracking-wide py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-[0_8px_24px_rgba(0,82,255,0.45)] hover:-translate-y-0.5 transition-all border-0"
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs py-2 px-4 rounded-lg cursor-pointer transition-all border-0"
                   onClick={() => {
                     onClose();
                     onLaunchNow(confirmedBooking);
                   }}
                 >
-                  <PlayIcon size={16} /> Play Now
+                  Play Now
                 </button>
               ) : (
                 <button
-                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white font-extrabold text-xs tracking-wide py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-[0_8px_24px_rgba(0,82,255,0.45)] hover:-translate-y-0.5 transition-all border-0"
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs py-2 px-4 rounded-lg cursor-pointer transition-all border-0"
                   onClick={onClose}
                 >
                   View Bookings
                 </button>
               )}
               <button
-                className="w-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs py-2 px-4 rounded-xl cursor-pointer transition-colors border-0"
+                className="w-full bg-white/10 hover:bg-white/15 text-white font-medium text-xs py-1.5 px-3 rounded-lg cursor-pointer transition-colors border-0"
                 onClick={onClose}
               >
                 Close
@@ -567,149 +564,104 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
             </div>
           </div>
         ) : (
-          <div className="p-3.5 md:p-4.5 max-h-[calc(88vh-120px)] overflow-y-auto">
-            {/* Centered Mode Selector Tabs */}
-            <div className="flex flex-col items-center w-full mb-3">
-              <div className="grid grid-cols-2 gap-1 w-full max-w-[280px] bg-white/[0.04] p-1 rounded-full border border-white/[0.08]">
+          <div className="p-3.5 max-h-[calc(90vh-90px)] overflow-y-auto">
+            {/* Mode Selector */}
+            <div className="flex justify-center mb-2.5">
+              <div className="grid grid-cols-2 gap-1 w-full max-w-[240px] bg-white/[0.05] p-0.5 rounded-lg border border-white/10 text-xs">
                 <button
                   type="button"
                   disabled={isNoFreeComputer}
-                  className={`flex items-center justify-center gap-1.5 py-1.5 px-3 text-[11px] font-bold rounded-full transition-all border-0 ${
+                  className={`py-1 px-2.5 text-[11px] font-medium rounded-md transition-all border-0 ${
                     isNoFreeComputer
-                      ? 'bg-transparent text-slate-500 opacity-60 cursor-not-allowed'
+                      ? 'text-slate-500 cursor-not-allowed opacity-50'
                       : mode === 'instant'
-                      ? 'bg-gradient-to-r from-blue-600 to-cyan-400 text-white shadow-[0_3px_12px_rgba(0,82,255,0.4)] cursor-pointer'
-                      : 'bg-transparent text-indigo-200/70 hover:text-white cursor-pointer'
+                      ? 'bg-blue-600 text-white shadow-sm font-semibold'
+                      : 'text-slate-300 hover:text-white hover:bg-white/[0.04] cursor-pointer'
                   }`}
                   onClick={() => {
                     if (isNoFreeComputer) return;
                     setMode('instant');
                   }}
-                  title={isNoFreeComputer ? 'All gaming computers for this game are currently occupied' : 'Start playing instantly'}
                 >
-                  <BoltIcon size={14} />
-                  <span>Play Now</span>
-                  {isNoFreeComputer && (
-                    <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                      In Use
-                    </span>
-                  )}
+                  Play Now {isNoFreeComputer && <span className="text-[9px] opacity-75">(Busy)</span>}
                 </button>
                 <button
                   type="button"
-                  className={`flex items-center justify-center gap-1.5 py-1.5 px-3 text-[11px] font-bold rounded-full transition-all cursor-pointer border-0 ${
+                  className={`py-1 px-2.5 text-[11px] font-medium rounded-md transition-all border-0 cursor-pointer ${
                     mode === 'schedule'
-                      ? 'bg-gradient-to-r from-blue-600 to-cyan-400 text-white shadow-[0_3px_12px_rgba(0,82,255,0.4)]'
-                      : 'bg-transparent text-indigo-200/70 hover:text-white'
+                      ? 'bg-blue-600 text-white shadow-sm font-semibold'
+                      : 'text-slate-300 hover:text-white hover:bg-white/[0.04]'
                   }`}
                   onClick={() => setMode('schedule')}
                 >
-                  <CalendarIcon size={14} />
-                  <span>Schedule</span>
-                  {isNoFreeComputer && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#22d3ee]" />
-                  )}
+                  Schedule
                 </button>
               </div>
-
-              {isNoFreeComputer && (
-                <div className="text-[10.5px] font-semibold text-amber-400 mt-1.5 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_#fbbf24]" />
-                  <span>Computers occupied &bull; Auto-showing schedule for next open slot</span>
-                </div>
-              )}
             </div>
 
-            {/* Rig Busy / In-Use Alert Banner */}
+            {/* In-Use Alert Banner (Compact, icon-free) */}
             {isNoFreeComputer && (
-              <div className="flex items-start gap-3 bg-gradient-to-br from-amber-500/15 to-red-500/10 border border-amber-500/40 rounded-xl p-3 mb-3.5 shadow-[0_4px_20px_rgba(255,159,10,0.12)]">
-                <div className="text-amber-400 shrink-0 mt-0.5">
-                  <ClockIcon size={18} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2 mb-1 text-xs font-extrabold text-amber-400">
-                    <span>⚡ No Free Gaming PC Right Now</span>
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/20 border border-amber-500/45 text-amber-300 px-2 py-0.5 rounded-full">
-                      All Rigs In Use
-                    </span>
-                  </div>
-                  <p className="text-[11.5px] leading-relaxed text-white/85 m-0">
-                    {availability?.current_session?.remaining_minutes ? (
-                      <>
-                        Another player is actively streaming right now (~{availability.current_session.remaining_minutes} min{availability.current_session.remaining_minutes > 1 ? 's' : ''} left until {availability.current_session.end_time ? new Date(availability.current_session.end_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}).
-                      </>
-                    ) : (
-                      <>
-                        All gaming computers configured for <strong>{title}</strong> are currently running active sessions or occupied.
-                      </>
-                    )}{' '}
-                    We have auto-switched to <strong>Schedule</strong> so you can select an available time slot below to reserve your turn.
-                  </p>
-                </div>
+              <div className="bg-amber-500/10 border border-amber-500/25 rounded-lg px-2.5 py-1.5 mb-2 text-[11px] text-amber-200/90 flex items-center justify-between">
+                <span className="truncate">
+                  Rig in use{availability?.current_session?.remaining_minutes ? ` (~${availability.current_session.remaining_minutes}m left)` : ''} &bull; Switched to schedule
+                </span>
+                {availability?.current_session?.end_time && (
+                  <span className="text-[10px] text-amber-300/80 font-medium shrink-0 ml-2">
+                    until {new Date(availability.current_session.end_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                  </span>
+                )}
               </div>
             )}
 
-            {error && <div className="bg-red-500/15 border border-red-500/30 text-red-400 px-3 py-2 rounded-lg text-xs font-medium mb-3">{error}</div>}
+            {error && <div className="bg-red-500/15 border border-red-500/30 text-red-400 px-2.5 py-1.5 rounded-lg text-xs font-medium mb-2">{error}</div>}
 
-            {/* 2-Hour Daily Free Beta Quota Banner */}
-            <div className="bg-cyan-400/[0.08] border border-cyan-400/20 rounded-xl px-3 py-2 flex items-center justify-between text-[11px] mb-3 text-white">
-              <div className="flex items-center gap-1.5 text-cyan-400 font-bold">
-                <ClockIcon size={13} />
-                <span>Beta Free Quota: 2 Hours / Day</span>
-              </div>
-              {dailyQuota ? (
-                <span className={`font-extrabold ${dailyQuota.remaining_minutes > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {dailyQuota.remaining_minutes} mins left
-                </span>
-              ) : !user ? (
-                <span className="text-slate-400 text-[10.5px]">
-                  Sign in required
-                </span>
-              ) : null}
+            {/* Daily Quota Indicator (Clean, subtle metadata line) */}
+            <div className="flex items-center justify-between text-[10px] text-slate-400 mb-2 px-0.5">
+              <span>Daily Quota (2h limit)</span>
+              <span className={dailyQuota && dailyQuota.remaining_minutes > 0 ? 'text-slate-300 font-medium' : 'text-red-400'}>
+                {dailyQuota ? `${dailyQuota.remaining_minutes}m left` : !user ? 'Sign in to reserve' : '2h / day'}
+              </span>
             </div>
 
-            <form onSubmit={handleBookSession} className="flex flex-col gap-3">
+            <form onSubmit={handleBookSession} className="flex flex-col gap-2">
               {mode === 'instant' ? (
                 <div>
-                  <div className="flex flex-col gap-1">
-                    <label className="block text-[10px] font-extrabold tracking-wider text-indigo-200/70 uppercase mb-1.5">Session Duration</label>
-                    <div className="grid grid-cols-4 gap-1.5 mb-3">
-                      {durationOptions.map((item) => {
-                        const isExceeded = dailyQuota && !dailyQuota.is_admin && item.value > dailyQuota.remaining_minutes;
-                        return (
-                          <button
-                            key={item.value}
-                            type="button"
-                            className={`p-2 rounded-lg text-center cursor-pointer transition-all flex flex-col items-center border ${
-                              durationMinutes === item.value
-                                ? 'bg-blue-600/25 border-cyan-400 shadow-[0_0_14px_rgba(0,210,255,0.3)] text-cyan-300 font-bold'
-                                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 hover:border-cyan-400/30 text-white'
-                            } ${isExceeded ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
-                            onClick={() => !isExceeded && setDurationMinutes(item.value)}
-                            disabled={submitting || isExceeded}
-                            title={isExceeded ? `Exceeds 2-hour daily quota (${dailyQuota.remaining_minutes} mins left)` : ''}
-                          >
-                            <span className="text-[11px] font-extrabold">{item.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Duration</div>
+                  <div className="grid grid-cols-3 gap-1.5 mb-2">
+                    {durationOptions.map((item) => {
+                      const isExceeded = dailyQuota && !dailyQuota.is_admin && item.value > dailyQuota.remaining_minutes;
+                      return (
+                        <button
+                          key={item.value}
+                          type="button"
+                          className={`h-7 px-2 rounded-md text-xs font-medium text-center transition-all border cursor-pointer ${
+                            durationMinutes === item.value
+                              ? 'bg-blue-600/20 border-blue-500 text-blue-300 font-semibold'
+                              : 'bg-white/[0.03] hover:bg-white/[0.06] border-white/10 text-slate-300 hover:text-white'
+                          } ${isExceeded ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
+                          onClick={() => !isExceeded && setDurationMinutes(item.value)}
+                          disabled={submitting || isExceeded}
+                        >
+                          {item.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               ) : (
                 <div>
-                  {/* Quick Date Selector (3 clean columns) */}
-                  <div className="flex flex-col gap-1">
-                    <label className="block text-[10px] font-extrabold tracking-wider text-indigo-200/70 uppercase mb-1.5">Date</label>
-                    <div className="grid grid-cols-3 gap-2 mb-3">
+                  {/* Date Selector */}
+                  <div className="mb-2">
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Date</div>
+                    <div className="grid grid-cols-3 gap-1.5">
                       {quickDates.map((q) => (
                         <button
                           key={q.dateStr}
                           type="button"
-                          className={`min-h-[48px] p-1.5 rounded-lg text-center cursor-pointer transition-all flex flex-col items-center justify-center border ${
+                          className={`py-1.5 px-2 rounded-md text-center transition-all border text-xs cursor-pointer ${
                             scheduleDate === q.dateStr && !showCalendarDrawer
-                              ? 'bg-blue-600/25 border-cyan-400 shadow-[0_0_12px_rgba(0,210,255,0.3)] text-cyan-300'
-                              : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 hover:border-cyan-400/35 text-white'
+                              ? 'bg-blue-600/20 border-blue-500 text-blue-300 font-semibold'
+                              : 'bg-white/[0.03] hover:bg-white/[0.06] border-white/10 text-slate-300 hover:text-white'
                           }`}
                           onClick={() => {
                             handleSelectDate(q.dateStr);
@@ -717,63 +669,60 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                           }}
                           disabled={submitting}
                         >
-                          <span className="text-[11px] font-extrabold">{q.label}</span>
-                          <span className="text-[9px] text-indigo-200/60 mt-0.5">{q.sub}</span>
+                          <div className="font-semibold text-[11px]">{q.label}</div>
+                          <div className="text-[9px] text-slate-400">{q.sub}</div>
                         </button>
                       ))}
                       <button
                         type="button"
-                        className={`min-h-[48px] p-1.5 rounded-lg text-center cursor-pointer transition-all flex flex-col items-center justify-center border ${
+                        className={`py-1.5 px-2 rounded-md text-center transition-all border text-xs cursor-pointer ${
                           isOtherDate || showCalendarDrawer
-                            ? 'bg-blue-600/25 border-cyan-400 shadow-[0_0_12px_rgba(0,210,255,0.3)] text-cyan-300'
-                            : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 hover:border-cyan-400/35 text-white'
+                            ? 'bg-blue-600/20 border-blue-500 text-blue-300 font-semibold'
+                            : 'bg-white/[0.03] hover:bg-white/[0.06] border-white/10 text-slate-300 hover:text-white'
                         }`}
-                        title="Pick custom date"
                         onClick={handleToggleCalendar}
                         disabled={submitting}
                       >
-                        <span className="text-[11px] font-extrabold">
-                          {isOtherDate ? formatCustomDateLabel(scheduleDate) : 'Pick Date'}
-                        </span>
-                        <span className="text-[9px] text-indigo-200/60 mt-0.5 flex items-center gap-1">
-                          <CalendarIcon size={11} /> {isOtherDate ? getCustomWeekday(scheduleDate) : showCalendarDrawer ? 'Close' : 'Calendar'}
-                        </span>
+                        <div className="font-semibold text-[11px]">
+                          {isOtherDate ? formatCustomDateLabel(scheduleDate) : 'Calendar'}
+                        </div>
+                        <div className="text-[9px] text-slate-400">
+                          {isOtherDate ? getCustomWeekday(scheduleDate) : showCalendarDrawer ? 'Close' : 'Pick Date'}
+                        </div>
                       </button>
                     </div>
 
-                    {/* Inline Twilight Mini-Calendar Drawer */}
+                    {/* Inline Calendar Drawer */}
                     {showCalendarDrawer && (
-                      <div className="bg-[#10132b] border border-cyan-400/30 rounded-xl p-2.5 mb-3 shadow-[0_8px_24px_rgba(0,0,0,0.6),0_0_16px_rgba(0,82,255,0.2)] animate-[fadeIn_0.15s_ease-out]">
-                        <div className="flex items-center justify-between mb-2 px-1">
+                      <div className="bg-[#0e1222] border border-white/10 rounded-lg p-2 mt-1.5 mb-1.5">
+                        <div className="flex items-center justify-between mb-1.5 px-1">
                           <button
                             type="button"
-                            className="w-6 h-6 rounded bg-white/5 hover:bg-cyan-400/20 border border-white/10 hover:border-cyan-400 text-white hover:text-cyan-300 flex items-center justify-center cursor-pointer transition-colors text-sm disabled:opacity-25 disabled:cursor-not-allowed"
+                            className="w-5 h-5 rounded bg-white/5 hover:bg-white/15 text-white flex items-center justify-center cursor-pointer text-xs border-0 disabled:opacity-25"
                             onClick={handlePrevMonth}
                             disabled={viewYear === now.getFullYear() && viewMonth <= now.getMonth()}
-                            title="Previous Month"
                           >
                             ‹
                           </button>
-                          <span className="text-xs font-extrabold text-white tracking-wide">
-                            {new Date(viewYear, viewMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                          <span className="text-[11px] font-semibold text-white">
+                            {new Date(viewYear, viewMonth, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                           </span>
                           <button
                             type="button"
-                            className="w-6 h-6 rounded bg-white/5 hover:bg-cyan-400/20 border border-white/10 hover:border-cyan-400 text-white hover:text-cyan-300 flex items-center justify-center cursor-pointer transition-colors text-sm disabled:opacity-25 disabled:cursor-not-allowed"
+                            className="w-5 h-5 rounded bg-white/5 hover:bg-white/15 text-white flex items-center justify-center cursor-pointer text-xs border-0 disabled:opacity-25"
                             onClick={handleNextMonth}
-                            title="Next Month"
                           >
                             ›
                           </button>
                         </div>
 
-                        <div className="grid grid-cols-7 gap-1 text-center mb-1.5">
+                        <div className="grid grid-cols-7 gap-0.5 text-center mb-1">
                           {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((w) => (
-                            <span key={w} className="text-[9px] font-extrabold text-indigo-200/60 uppercase">{w}</span>
+                            <span key={w} className="text-[8.5px] font-semibold text-slate-400">{w}</span>
                           ))}
                         </div>
 
-                        <div className="grid grid-cols-7 gap-1">
+                        <div className="grid grid-cols-7 gap-0.5">
                           {getCalendarDays().map((cell, idx) => {
                             if (!cell.isCurrentMonth) {
                               return <span key={`pad-${idx}`} className="aspect-square" />;
@@ -782,13 +731,13 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                               <button
                                 key={cell.dateStr}
                                 type="button"
-                                className={`aspect-square flex items-center justify-center rounded text-[11px] font-bold cursor-pointer transition-colors p-0 border border-transparent ${
+                                className={`aspect-square flex items-center justify-center rounded text-[10px] font-medium cursor-pointer p-0 border-0 ${
                                   cell.isSelected
-                                    ? 'bg-gradient-to-r from-blue-600 to-cyan-400 text-white font-extrabold shadow-[0_2px_10px_rgba(0,82,255,0.45)]'
+                                    ? 'bg-blue-600 text-white font-bold'
                                     : cell.isToday
-                                    ? 'border-cyan-400/50 text-cyan-300 bg-white/5'
-                                    : 'bg-white/[0.04] hover:bg-cyan-400/20 hover:text-cyan-300 text-white'
-                                } ${cell.isPast ? 'opacity-20 cursor-not-allowed line-through hover:bg-transparent hover:text-white' : ''}`}
+                                    ? 'bg-white/10 text-white font-semibold'
+                                    : 'hover:bg-white/10 text-slate-300'
+                                } ${cell.isPast ? 'opacity-20 cursor-not-allowed line-through hover:bg-transparent' : ''}`}
                                 onClick={() => handleDaySelect(cell.dateStr)}
                                 disabled={cell.isPast || submitting}
                               >
@@ -801,26 +750,26 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                     )}
                   </div>
 
-                  {/* Quick Time Slots Selector with Periods */}
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-[10px] font-extrabold tracking-wider text-indigo-200/70 uppercase mb-0">Start Time</label>
+                  {/* Start Time Section */}
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Start Time</span>
                       <div className="flex items-center gap-2">
-                        <span className="bg-cyan-400/10 border border-cyan-400/35 text-cyan-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <ClockIcon size={12} /> {formatTimeDisplay(scheduleTime)}
+                        <span className="text-xs font-semibold text-white">
+                          {formatTimeDisplay(scheduleTime)}
                         </span>
                         <button
                           type="button"
-                          className="bg-transparent border-0 text-indigo-200/70 hover:text-cyan-300 text-[10px] font-bold underline cursor-pointer p-0 transition-colors"
+                          className="bg-transparent border-0 text-slate-400 hover:text-white text-[10px] cursor-pointer p-0 underline"
                           onClick={() => setShowCustomTime(!showCustomTime)}
                         >
-                          {showCustomTime ? 'Quick Slots' : 'Custom'}
+                          {showCustomTime ? 'Presets' : 'Custom'}
                         </button>
                       </div>
                     </div>
 
                     {showCustomTime ? (
-                      <div className="mb-3">
+                      <div className="mb-2">
                         <input
                           type="time"
                           value={scheduleTime}
@@ -831,23 +780,23 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                           }}
                           required
                           disabled={submitting}
-                          className="w-full bg-white/5 focus:bg-white/[0.08] border border-white/12 focus:border-cyan-400 py-2 px-3 rounded-lg text-white text-xs outline-none transition-all"
+                          className="w-full bg-white/5 border border-white/10 py-1.5 px-2.5 rounded-md text-white text-xs outline-none focus:border-blue-500"
                         />
                       </div>
                     ) : (
                       <div>
-                        {/* Period Filter Tabs (Morning / Afternoon / Evening) */}
-                        <div className="grid grid-cols-3 gap-1.5 bg-white/[0.03] p-1 rounded-lg mb-2 border border-white/[0.06]">
+                        {/* Period Filter Tabs */}
+                        <div className="grid grid-cols-3 gap-1 bg-white/[0.03] p-0.5 rounded-md mb-1.5 border border-white/[0.06]">
                           {timePeriods.map((p) => {
                             const isAllPast = scheduleDate === todayStr && p.hours[p.hours.length - 1] <= currentHour;
                             return (
                               <button
                                 key={p.id}
                                 type="button"
-                                className={`py-1 px-1 rounded-md text-[10px] font-bold text-center cursor-pointer transition-colors border ${
+                                className={`py-0.5 text-[10px] font-medium rounded transition-colors border-0 cursor-pointer ${
                                   activePeriod === p.id
-                                    ? 'bg-blue-600/25 border-cyan-400 text-cyan-300 shadow-[0_0_10px_rgba(0,210,255,0.2)]'
-                                    : 'bg-transparent border-transparent text-indigo-200/70 hover:text-white hover:bg-white/[0.06]'
+                                    ? 'bg-white/15 text-white font-semibold'
+                                    : 'text-slate-400 hover:text-white bg-transparent'
                                 } ${isAllPast ? 'opacity-30 cursor-not-allowed' : ''}`}
                                 onClick={() => handleSelectPeriod(p.id)}
                                 disabled={isAllPast || submitting}
@@ -858,8 +807,8 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                           })}
                         </div>
 
-                        {/* Filtered Slots for the selected period */}
-                        <div className="grid grid-cols-4 gap-1.5 mb-3 max-h-[140px] overflow-y-auto pr-0.5">
+                        {/* Slots */}
+                        <div className="grid grid-cols-4 gap-1 mb-2 max-h-[110px] overflow-y-auto pr-0.5">
                           {timeSlots
                             .filter((slot) => {
                               const p = timePeriods.find((tp) => tp.id === activePeriod);
@@ -873,37 +822,26 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                                 <button
                                   key={slot.timeStr}
                                   type="button"
-                                  className={`min-h-[46px] p-1.5 rounded-lg flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-all border ${
+                                  className={`h-7 px-1.5 rounded text-[11px] font-medium transition-all border flex items-center justify-center ${
                                     isSelected
-                                      ? 'bg-gradient-to-r from-blue-600 to-cyan-400 text-white shadow-[0_4px_14px_rgba(0,82,255,0.45)] border-cyan-400'
+                                      ? 'bg-blue-600 text-white border-blue-500 font-semibold shadow-sm'
                                       : isDisabled
-                                      ? 'bg-white/[0.02] border-white/[0.04] opacity-35 cursor-not-allowed'
-                                      : 'bg-white/[0.04] hover:bg-emerald-500/10 border-emerald-500/25 hover:border-emerald-400 text-white'
+                                      ? 'bg-white/[0.02] border-white/[0.04] text-slate-500 opacity-40 cursor-not-allowed line-through'
+                                      : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-200 hover:text-white cursor-pointer'
                                   }`}
                                   onClick={() => !isDisabled && handleSelectSlot(slot.timeStr, slot.hour)}
                                   disabled={isDisabled || submitting}
                                   title={
                                     slot.isPast
-                                      ? 'Past time slot'
+                                      ? 'Past'
                                       : slot.isMyBooking
-                                      ? 'You already booked this slot'
+                                      ? 'Your reservation'
                                       : slot.isBooked
-                                      ? 'Slot occupied by another player'
-                                      : 'Available slot'
+                                      ? 'Booked'
+                                      : 'Available'
                                   }
                                 >
-                                  <span className="text-[11px] font-bold whitespace-nowrap">{slot.label}</span>
-                                  <span className={`text-[8.5px] font-extrabold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
-                                    slot.isPast
-                                      ? 'bg-white/[0.06] text-slate-400 border border-white/[0.08]'
-                                      : slot.isMyBooking
-                                      ? 'bg-cyan-400/20 text-cyan-300 border border-cyan-400/40'
-                                      : slot.isBooked
-                                      ? 'bg-red-500/20 text-red-400 border border-red-500/40'
-                                      : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                  }`}>
-                                    {slot.isPast ? 'Past' : slot.isMyBooking ? 'Yours' : slot.isBooked ? 'Booked' : 'Open'}
-                                  </span>
+                                  {slot.label}
                                 </button>
                               );
                             })}
@@ -912,25 +850,25 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                     )}
                   </div>
 
-                  <div className="flex flex-col gap-1">
-                    <label className="block text-[10px] font-extrabold tracking-wider text-indigo-200/70 uppercase mb-1.5">Session Duration</label>
-                    <div className="grid grid-cols-4 gap-1.5 mb-3">
+                  {/* Duration */}
+                  <div className="mb-2">
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Duration</div>
+                    <div className="grid grid-cols-3 gap-1.5">
                       {durationOptions.map((item) => {
                         const isExceeded = dailyQuota && !dailyQuota.is_admin && item.value > dailyQuota.remaining_minutes;
                         return (
                           <button
                             key={item.value}
                             type="button"
-                            className={`p-2 rounded-lg text-center cursor-pointer transition-all flex flex-col items-center border ${
+                            className={`h-7 px-2 rounded-md text-xs font-medium text-center transition-all border cursor-pointer ${
                               durationMinutes === item.value
-                                ? 'bg-blue-600/25 border-cyan-400 shadow-[0_0_14px_rgba(0,210,255,0.3)] text-cyan-300 font-bold'
-                                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 hover:border-cyan-400/30 text-white'
+                                ? 'bg-blue-600/20 border-blue-500 text-blue-300 font-semibold'
+                                : 'bg-white/[0.03] hover:bg-white/[0.06] border-white/10 text-slate-300 hover:text-white'
                             } ${isExceeded ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
                             onClick={() => !isExceeded && setDurationMinutes(item.value)}
                             disabled={submitting || isExceeded}
-                            title={isExceeded ? `Exceeds 2-hour daily quota (${dailyQuota.remaining_minutes} mins left)` : ''}
                           >
-                            <span className="text-[11px] font-extrabold">{item.label}</span>
+                            {item.label}
                           </button>
                         );
                       })}
@@ -939,28 +877,24 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                 </div>
               )}
 
-              {/* Centered Compact Action Button */}
-              <div className="flex justify-center w-full mt-3.5">
+              {/* Submit Button */}
+              <div className="mt-2">
                 <button
                   type="submit"
-                  className="w-auto min-w-[170px] max-w-[230px] bg-gradient-to-r from-blue-600 to-cyan-400 hover:from-blue-500 hover:to-cyan-300 text-white text-xs font-extrabold tracking-wide py-2.5 px-5 rounded-full border-0 cursor-pointer shadow-[0_4px_16px_rgba(0,82,255,0.35)] hover:shadow-[0_8px_22px_rgba(0,210,255,0.5)] hover:-translate-y-0.5 transition-all inline-flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold py-2 px-4 rounded-lg border-0 cursor-pointer shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={submitting}
                 >
-                  {submitting ? (
-                    mode === 'instant' ? 'Connecting to Rig...' : 'Reserving Slot...'
-                  ) : !user ? (
-                    <>
-                      <UserIcon size={14} /> {mode === 'instant' ? 'Sign In to Play' : 'Sign In to Reserve'}
-                    </>
-                  ) : mode === 'instant' ? (
-                    <>
-                      <PlayIcon size={14} /> Play Now
-                    </>
-                  ) : (
-                    <>
-                      <CalendarIcon size={14} /> Confirm Reservation
-                    </>
-                  )}
+                  {submitting
+                    ? mode === 'instant'
+                      ? 'Connecting...'
+                      : 'Reserving...'
+                    : !user
+                    ? mode === 'instant'
+                      ? 'Sign In to Play'
+                      : 'Sign In to Reserve'
+                    : mode === 'instant'
+                    ? 'Play Now'
+                    : 'Confirm Reservation'}
                 </button>
               </div>
             </form>
