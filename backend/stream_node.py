@@ -305,7 +305,14 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                     try:
                         while True:
                             await asyncio.sleep(10)
-                            await ws.send(json.dumps({"type": "heartbeat"}))
+                            active = (
+                                (len(stream_manager._peers) > 0 if hasattr(stream_manager, "_peers") else False)
+                                or host_agent.is_game_running()
+                            )
+                            await ws.send(json.dumps({
+                                "type": "heartbeat",
+                                "is_streaming": active,
+                            }))
                     except (asyncio.CancelledError, Exception):
                         pass
 
@@ -331,7 +338,11 @@ async def run_streaming_tunnel(api_base: str, node_id: int, machine_name: str) -
                         if not host_agent.is_game_running() and (game_id or game_title):
                             print(f"[{ts}] [STREAM] Game not currently running. Auto-launching (ID: {game_id}, Title: '{game_title}')...")
                             try:
-                                launch_res = host_agent.start_game(game_id=game_id, slug=offer.get("slug"))
+                                launch_res = host_agent.start_game(
+                                    game_id=game_id,
+                                    slug=offer.get("slug"),
+                                    title=game_title,
+                                )
                                 print(f"[{ts}] [AGENT] Launch triggered: {launch_res.get('status')} - {launch_res.get('title', '')}")
                             except Exception as launch_exc:
                                 print(f"[{ts}] [!] Auto-launch error: {launch_exc}")

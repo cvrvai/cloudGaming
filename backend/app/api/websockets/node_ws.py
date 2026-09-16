@@ -100,14 +100,28 @@ async def streaming_node_endpoint(websocket: WebSocket, node_id: int):
 
             elif msg_type == "heartbeat":
                 now_iso = datetime.now(timezone.utc).isoformat()
-                with get_db() as conn:
-                    cursor = conn.cursor()
-                    # Only reset to available if not currently active stream
-                    cursor.execute(
-                        "UPDATE machines SET last_seen = %s, status = CASE WHEN stream_started_at IS NOT NULL THEN 'in-use' ELSE 'available' END WHERE id = %s;",
-                        (now_iso, node_id),
-                    )
-                    conn.commit()
+                is_streaming = bool(msg.get("is_streaming", False))
+                try:
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            "SELECT id FROM bookings WHERE machine_id = %s AND status = 'confirmed' LIMIT 1;",
+                            (node_id,),
+                        )
+                        has_booking = bool(cursor.fetchone())
+                        if not has_booking and not is_streaming:
+                            cursor.execute(
+                                "UPDATE machines SET last_seen = %s, status = 'available', stream_started_at = NULL WHERE id = %s;",
+                                (now_iso, node_id),
+                            )
+                        else:
+                            cursor.execute(
+                                "UPDATE machines SET last_seen = %s, status = 'in-use' WHERE id = %s;",
+                                (now_iso, node_id),
+                            )
+                        conn.commit()
+                except Exception as hb_err:
+                    logger.debug("Heartbeat status update error: %s", hb_err)
                 await websocket.send_json({"type": "heartbeat_ack", "timestamp": now_iso})
 
             elif msg_type == "node_specs":

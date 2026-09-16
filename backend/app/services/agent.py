@@ -262,6 +262,46 @@ def _resolve_game_executables_and_steam_appid(exe_path: str):
     return names, steam_appid
 
 
+def _resolve_steam_app_executables(appid: str) -> List[str]:
+    """Scan Steam library folders to find executable paths for a given Steam AppID."""
+    exes = []
+    steam_roots = [
+        Path(r"C:\Program Files (x86)\Steam"),
+        Path(r"C:\Program Files\Steam"),
+    ]
+    lib_dirs = []
+    for sr in steam_roots:
+        if sr.is_dir() and sr not in lib_dirs:
+            lib_dirs.append(sr)
+        vdf = sr / "steamapps" / "libraryfolders.vdf"
+        if vdf.is_file():
+            try:
+                for line in vdf.read_text("utf-8", errors="ignore").splitlines():
+                    if '"path"' in line:
+                        p = line.split('"path"', 1)[1].strip().strip('"').replace('\\\\', '\\')
+                        pp = Path(p)
+                        if pp.is_dir() and pp not in lib_dirs:
+                            lib_dirs.append(pp)
+            except Exception:
+                pass
+
+    for lib in lib_dirs:
+        acf = lib / "steamapps" / f"appmanifest_{appid}.acf"
+        if acf.is_file():
+            try:
+                txt = acf.read_text("utf-8", errors="ignore")
+                m = re.search(r'"installdir"\s+"([^"]+)"', txt, re.IGNORECASE)
+                if m:
+                    idir = lib / "steamapps" / "common" / m.group(1)
+                    if idir.is_dir():
+                        for f in idir.glob("**/*.exe"):
+                            if not any(bad in f.name.lower() for bad in ("crash", "redist", "prereq", "setup", "dxsetup")):
+                                exes.append(str(f))
+            except Exception:
+                pass
+    return exes
+
+
 def _extract_target_from_shortcut(path: Path) -> List[str]:
     """Extract physical executable paths referenced inside a .lnk or .url file."""
     targets = []
@@ -272,9 +312,17 @@ def _extract_target_from_shortcut(path: Path) -> List[str]:
                 content = f.read()
             for line in content.splitlines():
                 if '=' in line:
-                    _, v = line.split('=', 1)
+                    k, v = line.split('=', 1)
+                    k = k.strip().lower()
                     v = v.strip().strip('"')
-                    if v.lower().endswith('.exe') and Path(v).is_file():
+                    if k == 'url' and 'steam://rungameid/' in v.lower():
+                        m = re.search(r'steam://rungameid/(\d+)', v, re.IGNORECASE)
+                        if m:
+                            steam_exes = _resolve_steam_app_executables(m.group(1))
+                            for se in steam_exes:
+                                if se not in targets:
+                                    targets.append(se)
+                    elif v.lower().endswith('.exe') and Path(v).is_file():
                         targets.append(v)
         except Exception:
             pass
@@ -300,6 +348,8 @@ def _extract_target_from_shortcut(path: Path) -> List[str]:
 def _score_game_match(candidate_path: Path, title: str, slug: str, configured_exe: Optional[str] = None) -> int:
     """Score how well a candidate file/shortcut matches the requested game."""
     stem = candidate_path.stem.lower()
+    # Separate PascalCase / CamelCase, e.g. "StardewValley" -> "stardew valley"
+    spaced_stem = re.sub(r'([a-z0-9])([A-Z])', r'\1 \2', candidate_path.stem).lower()
     title_lower = (title or "").lower().strip()
     slug_lower = (slug or "").lower().replace('-', ' ').strip()
 
@@ -313,11 +363,12 @@ def _score_game_match(candidate_path: Path, title: str, slug: str, configured_ex
         return s
 
     norm_stem = _normalize_numerals(stem)
+    norm_spaced = _normalize_numerals(spaced_stem)
     norm_title = _normalize_numerals(title_lower)
     norm_slug = _normalize_numerals(slug_lower)
 
     # 1. Exact stem matches title or slug (or normalized)
-    if stem in (title_lower, slug_lower) or norm_stem in (norm_title, norm_slug):
+    if stem in (title_lower, slug_lower) or norm_stem in (norm_title, norm_slug) or norm_spaced in (norm_title, norm_slug):
         return 100
 
     # 2. Configured exe stem match
@@ -342,7 +393,7 @@ def _score_game_match(candidate_path: Path, title: str, slug: str, configured_ex
     if not raw_tokens:
         raw_tokens = [w for w in re.findall(r'[a-z0-9]+', norm_title) if len(w) >= 2]
 
-    cand_tokens = set(re.findall(r'[a-z0-9]+', norm_stem))
+    cand_tokens = set(re.findall(r'[a-z0-9]+', f"{norm_stem} {norm_spaced}"))
 
     if not raw_tokens:
         return 0
@@ -358,7 +409,7 @@ def _score_game_match(candidate_path: Path, title: str, slug: str, configured_ex
 
     # Check substring match for primary game name (token length >= 4)
     primary_tokens = [t for t in raw_tokens if len(t) >= 4]
-    if primary_tokens and any(t in norm_stem for t in primary_tokens):
+    if primary_tokens and any(t in norm_stem or t in norm_spaced for t in primary_tokens):
         return 65
 
     return 0
@@ -371,20 +422,39 @@ def _find_local_game_file(title: str, slug: str, configured_path: Optional[str] 
     if configured_path and Path(configured_path).is_file():
         return Path(configured_path)
 
+    ts = datetime.now().strftime("%H:%M:%S")
+    print(f"[{ts}] [AGENT] Auto-discovering local game file/shortcut for '{title}'...")
+
     search_roots = []
 
     # 1. User Desktop & Public Desktop (recursive to find any folder where user moved shortcuts)
-    desktop_dirs = [
+    desktop_dirs = []
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            from ctypes import wintypes
+            for csidl in (0x0010, 0x0019):  # CSIDL_DESKTOPDIRECTORY, CSIDL_COMMON_DESKTOPDIRECTORY
+                buf = ctypes.create_unicode_buffer(wintypes.MAX_PATH)
+                if ctypes.windll.shell32.SHGetFolderPathW(None, csidl, None, 0, buf) == 0:
+                    p = Path(buf.value)
+                    if p.is_dir() and p not in desktop_dirs:
+                        desktop_dirs.append(p)
+        except Exception:
+            pass
+
+    for d in [
         Path.home() / "Desktop",
         Path.home() / "OneDrive" / "Desktop",
         Path(os.environ.get("PUBLIC", "C:/Users/Public")) / "Desktop",
         Path.home() / "Games",
         Path.home() / "Saved Games",
         Path.home() / "Downloads",
-    ]
+    ]:
+        if d.is_dir() and d not in desktop_dirs:
+            desktop_dirs.append(d)
+
     for d in desktop_dirs:
-        if d.is_dir():
-            search_roots.append((d, 4))
+        search_roots.append((d, 4))
 
     # 2. Start Menu Programs
     start_menu_dirs = [
@@ -395,7 +465,7 @@ def _find_local_game_file(title: str, slug: str, configured_path: Optional[str] 
         if d.is_dir():
             search_roots.append((d, 3))
 
-    # 3. Steam Libraries
+    # 3. Steam Libraries across all library folders
     steam_roots = [
         Path(r"C:\Program Files (x86)\Steam"),
         Path(r"C:\Program Files\Steam"),
@@ -421,21 +491,23 @@ def _find_local_game_file(title: str, slug: str, configured_path: Optional[str] 
     for sc in steam_common_dirs:
         search_roots.append((sc, 2))
 
-    # 4. Standard Game installation folders on available drives
-    game_folders = [
-        Path(r"C:\Program Files\Epic Games"),
-        Path(r"C:\Games"),
-        Path(r"D:\Games"),
-        Path(r"E:\Games"),
-        Path(r"C:\XboxGames"),
-        Path(r"D:\XboxGames"),
-    ]
-    for gf in game_folders:
-        if gf.is_dir():
-            search_roots.append((gf, 2))
+    # 4. Scan all available drives for standard game folders
+    available_drives = ["C:\\"]
+    if sys.platform == "win32":
+        try:
+            import string
+            available_drives = [f"{letter}:\\" for letter in string.ascii_uppercase if os.path.exists(f"{letter}:\\")]
+        except Exception:
+            pass
+
+    for drive in available_drives:
+        for sub in ("Games", "SteamLibrary\\steamapps\\common", "XboxGames", "Epic Games", "Program Files\\Epic Games", "Program Files (x86)\\Epic Games"):
+            cand_folder = Path(drive) / sub
+            if cand_folder.is_dir() and cand_folder not in [r[0] for r in search_roots]:
+                search_roots.append((cand_folder, 2))
 
     best_candidate: Optional[Tuple[int, Path]] = None
-    valid_extensions = {".lnk", ".url", ".exe"}
+    valid_extensions = {".lnk", ".url", ".exe", ".bat", ".cmd"}
 
     for root_dir, max_depth in search_roots:
         try:
@@ -468,7 +540,10 @@ def _find_local_game_file(title: str, slug: str, configured_path: Optional[str] 
             continue
 
     if best_candidate and best_candidate[0] >= 50:
+        print(f"[{ts}] [AGENT] Found matching game launch file: {best_candidate[1]} (Match score: {best_candidate[0]})")
         return best_candidate[1]
+
+    print(f"[{ts}] [AGENT] [!] No matching game file or shortcut found for '{title}'.")
     return None
 
 
@@ -798,22 +873,50 @@ class GamingPCAgent:
             exe_names, _ = _resolve_game_executables_and_steam_appid(exe_path)
             self._authorized_game_exes.update(exe_names)
 
-            # Check if target is a Windows shortcut (.lnk or .url)
-            is_shortcut = exe_path.lower().endswith((".lnk", ".url"))
+            # Check if target is a Windows shortcut (.lnk, .url, .bat, .cmd)
+            is_shortcut = exe_path.lower().endswith((".lnk", ".url", ".bat", ".cmd"))
             exe_exists = Path(exe_path).is_file()
             pid = None
             simulated = False
+            ts = datetime.now().strftime("%H:%M:%S")
+
+            if not exe_exists:
+                print(f"\n[{ts}] [AGENT] [!] CRITICAL: Game executable or shortcut for '{config['title']}' was NOT found on this PC!")
+                print(f"[{ts}] [AGENT] [!] Target path attempted: {exe_path}")
+                print(f"[{ts}] [AGENT] [!] Please ensure the shortcut for '{config['title']}' is on your Desktop or in your Desktop games folder.\n")
+                if sys.platform == "win32" or self.node_id is not None:
+                    raise FileNotFoundError(
+                        f"Game '{config['title']}' was not found on this gaming PC! Please place its shortcut on your Desktop or in your Desktop games folder."
+                    )
+                logger.info(
+                    "Game executable or shortcut '%s' not present on disk; running in simulated mode.",
+                    exe_path,
+                )
+                simulated = True
+
+            # Register active game info immediately so watchdog and status checks identify it
+            self._active_game_info = {
+                "game_id": config["game_id"],
+                "user_id": user_id,
+                "title": config["title"],
+                "slug": config["slug"],
+                "executable_path": exe_path,
+                "pid": pid,
+                "simulated": simulated,
+                "save_mount": save_mount_info,
+                "started_at": datetime.now(timezone.utc).isoformat(),
+            }
 
             if exe_exists:
                 if is_shortcut:
                     try:
-                        logger.info("Launching game via Windows shortcut/URL: %s (CWD: %s)", exe_path, cwd)
+                        print(f"[{ts}] [AGENT] Launching '{config['title']}' via shortcut/script: {exe_path} (CWD: {cwd})...")
                         # Extract physical target executables if available
                         targets = _extract_target_from_shortcut(Path(exe_path))
                         for t in targets:
                             names, _ = _resolve_game_executables_and_steam_appid(t)
                             self._authorized_game_exes.update(names)
-                            logger.info("Registered shortcut target executable: %s", t)
+                            print(f"[{ts}] [AGENT] Registered underlying target: {t}")
 
                         if sys.platform == "win32":
                             import ctypes
@@ -830,12 +933,11 @@ class GamingPCAgent:
                         else:
                             subprocess.Popen(["xdg-open", exe_path])
 
-                        simulated = False
                         self._start_process_watchdog(config["title"], config["game_id"])
                         if sys.platform == "win32":
                             threading.Thread(target=self._focus_game_window, daemon=True).start()
                     except Exception as e:
-                        logger.error("Failed to launch game shortcut '%s': %s", exe_path, e)
+                        print(f"[{ts}] [AGENT] [!] Failed to launch game shortcut '{exe_path}': {e}")
                         return {
                             "status": "error",
                             "error": f"Failed to launch game shortcut: {e}",
@@ -844,7 +946,7 @@ class GamingPCAgent:
                         }
                 else:
                     try:
-                        logger.info("Executing native game executable: %s (CWD: %s)", exe_path, cwd)
+                        print(f"[{ts}] [AGENT] Launching native game executable: {exe_path} (CWD: {cwd})...")
                         proc = subprocess.Popen(
                             cmd,
                             cwd=cwd,
@@ -852,7 +954,8 @@ class GamingPCAgent:
                         )
                         self._active_process = proc
                         pid = proc.pid
-                        logger.info("Launched game '%s' (PID %s): %s", config["title"], pid, exe_path)
+                        self._active_game_info["pid"] = pid
+                        print(f"[{ts}] [AGENT] Launched game '{config['title']}' (PID: {pid}) successfully!")
 
                         # Start robust process tree watchdog
                         self._start_process_watchdog(config["title"], config["game_id"])
@@ -864,7 +967,7 @@ class GamingPCAgent:
                         elevated_ok = False
                         # WinError 740: The requested operation requires elevation
                         if sys.platform == "win32" and (getattr(e, "winerror", None) == 740 or "740" in str(e)):
-                            logger.warning("Physical executable requires elevation [WinError 740]. Attempting ShellExecuteW 'runas'...")
+                            print(f"[{ts}] [AGENT] Physical executable requires elevation [WinError 740]. Launching via ShellExecuteW 'runas'...")
                             try:
                                 import ctypes
                                 ret = ctypes.windll.shell32.ShellExecuteW(
@@ -877,40 +980,22 @@ class GamingPCAgent:
                                 )
                                 if ret > 32:
                                     elevated_ok = True
-                                    logger.info("Launched elevated game '%s' via ShellExecuteW: %s", config["title"], exe_path)
+                                    print(f"[{ts}] [AGENT] Launched elevated game '{config['title']}' via ShellExecuteW.")
                                     self._start_process_watchdog(config["title"], config["game_id"])
                                     threading.Thread(target=self._focus_game_window, daemon=True).start()
                                 else:
-                                    logger.error("ShellExecuteW 'runas' failed with code %s", ret)
+                                    print(f"[{ts}] [AGENT] [!] ShellExecuteW 'runas' failed with code {ret}")
                             except Exception as shell_err:
-                                logger.error("ShellExecuteW elevation exception: %s", shell_err)
+                                print(f"[{ts}] [AGENT] [!] ShellExecuteW elevation error: {shell_err}")
 
                         if not elevated_ok:
-                            logger.error("Failed to launch physical executable: %s", e)
+                            print(f"[{ts}] [AGENT] [!] Failed to launch physical executable: {e}")
                             return {
                                 "status": "error",
                                 "error": f"Failed to launch game: {e}. The game requires elevation. Please run Command Prompt as Administrator!",
                                 "game_id": config["game_id"],
                                 "title": config["title"],
                             }
-            else:
-                logger.info(
-                    "Game executable or shortcut '%s' not present on disk; running in simulated mode.",
-                    exe_path,
-                )
-                simulated = True
-
-            self._active_game_info = {
-                "game_id": config["game_id"],
-                "user_id": user_id,
-                "title": config["title"],
-                "slug": config["slug"],
-                "executable_path": exe_path,
-                "pid": pid,
-                "simulated": simulated,
-                "save_mount": save_mount_info,
-                "started_at": datetime.now(timezone.utc).isoformat(),
-            }
 
             return {
                 "status": "started",
