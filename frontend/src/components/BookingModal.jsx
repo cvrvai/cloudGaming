@@ -217,8 +217,12 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
           const data = await res.json();
           setAvailability(data);
 
-          // If rig is currently in use by another user right now, switch to schedule mode
-          if (data.is_currently_in_use && data.current_session && !data.current_session.is_mine) {
+          // If rig is currently in use by another user right now or no free computer, switch to schedule mode
+          const noFree = data.can_play_now === false ||
+            (data.is_currently_in_use && (!data.current_session || !data.current_session.is_mine)) ||
+            (data.free_machines_count === 0);
+
+          if (noFree) {
             setMode('schedule');
           }
         }
@@ -231,6 +235,22 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
     fetchAvailability();
     return () => { active = false; };
   }, [token, scheduleDate, mode, game?.id, machine?.id, todayStr]);
+
+  const isNoFreeComputer = useMemo(() => {
+    if (!availability) return false;
+    if (availability.can_play_now === false) return true;
+    if (availability.free_machines_count === 0) return true;
+    if (availability.capable_machines_count === 0) return true;
+    if (availability.is_currently_in_use && (!availability.current_session || !availability.current_session.is_mine)) return true;
+    return false;
+  }, [availability]);
+
+  // Ensure modal auto-switches to schedule if availability indicates no free rig
+  useEffect(() => {
+    if (isNoFreeComputer && mode === 'instant') {
+      setMode('schedule');
+    }
+  }, [isNoFreeComputer, mode]);
 
   // Hourly slots from 08:00 AM to 11:00 PM with real-time availability
   const timeSlots = useMemo(() => {
@@ -338,6 +358,13 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
     setSubmitting(true);
 
     try {
+      if (mode === 'instant' && isNoFreeComputer) {
+        setMode('schedule');
+        setError('All gaming computers for this game are currently in use. Please select a reservation time slot below to schedule your turn.');
+        setSubmitting(false);
+        return;
+      }
+
       let startIso;
       let endIso;
 
@@ -486,18 +513,31 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
         ) : (
           <div className="p-3.5 md:p-4.5 max-h-[calc(88vh-120px)] overflow-y-auto">
             {/* Centered Mode Selector Tabs */}
-            <div className="flex justify-center w-full mb-3">
-              <div className="grid grid-cols-2 gap-1 w-full max-w-[250px] bg-white/[0.04] p-1 rounded-full border border-white/[0.08]">
+            <div className="flex flex-col items-center w-full mb-3">
+              <div className="grid grid-cols-2 gap-1 w-full max-w-[280px] bg-white/[0.04] p-1 rounded-full border border-white/[0.08]">
                 <button
                   type="button"
-                  className={`flex items-center justify-center gap-1.5 py-1.5 px-3 text-[11px] font-bold rounded-full transition-all cursor-pointer border-0 ${
-                    mode === 'instant'
-                      ? 'bg-gradient-to-r from-blue-600 to-cyan-400 text-white shadow-[0_3px_12px_rgba(0,82,255,0.4)]'
-                      : 'bg-transparent text-indigo-200/70 hover:text-white'
+                  disabled={isNoFreeComputer}
+                  className={`flex items-center justify-center gap-1.5 py-1.5 px-3 text-[11px] font-bold rounded-full transition-all border-0 ${
+                    isNoFreeComputer
+                      ? 'bg-transparent text-slate-500 opacity-60 cursor-not-allowed'
+                      : mode === 'instant'
+                      ? 'bg-gradient-to-r from-blue-600 to-cyan-400 text-white shadow-[0_3px_12px_rgba(0,82,255,0.4)] cursor-pointer'
+                      : 'bg-transparent text-indigo-200/70 hover:text-white cursor-pointer'
                   }`}
-                  onClick={() => setMode('instant')}
+                  onClick={() => {
+                    if (isNoFreeComputer) return;
+                    setMode('instant');
+                  }}
+                  title={isNoFreeComputer ? 'All gaming computers for this game are currently occupied' : 'Start playing instantly'}
                 >
-                  <BoltIcon size={14} /> Play Now
+                  <BoltIcon size={14} />
+                  <span>Play Now</span>
+                  {isNoFreeComputer && (
+                    <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      In Use
+                    </span>
+                  )}
                 </button>
                 <button
                   type="button"
@@ -508,24 +548,46 @@ export default function BookingModal({ game, machine, onClose, onBookingSuccess,
                   }`}
                   onClick={() => setMode('schedule')}
                 >
-                  <CalendarIcon size={14} /> Schedule
+                  <CalendarIcon size={14} />
+                  <span>Schedule</span>
+                  {isNoFreeComputer && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#22d3ee]" />
+                  )}
                 </button>
               </div>
+
+              {isNoFreeComputer && (
+                <div className="text-[10.5px] font-semibold text-amber-400 mt-1.5 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_#fbbf24]" />
+                  <span>Computers occupied &bull; Auto-showing schedule for next open slot</span>
+                </div>
+              )}
             </div>
 
             {/* Rig Busy / In-Use Alert Banner */}
-            {availability?.is_currently_in_use && availability.current_session && !availability.current_session.is_mine && (
+            {isNoFreeComputer && (
               <div className="flex items-start gap-3 bg-gradient-to-br from-amber-500/15 to-red-500/10 border border-amber-500/40 rounded-xl p-3 mb-3.5 shadow-[0_4px_20px_rgba(255,159,10,0.12)]">
                 <div className="text-amber-400 shrink-0 mt-0.5">
                   <ClockIcon size={18} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-1 text-xs font-extrabold text-amber-400">
-                    <span>⚡ Gaming Rig Currently in Use</span>
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/20 border border-amber-500/45 text-amber-300 px-2 py-0.5 rounded-full">Occupied</span>
+                    <span>⚡ No Free Gaming PC Right Now</span>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider bg-amber-500/20 border border-amber-500/45 text-amber-300 px-2 py-0.5 rounded-full">
+                      All Rigs In Use
+                    </span>
                   </div>
                   <p className="text-[11.5px] leading-relaxed text-white/85 m-0">
-                    Another player is actively streaming right now (~{availability.current_session.remaining_minutes} min{availability.current_session.remaining_minutes > 1 ? 's' : ''} left until {formatTimeDisplay(availability.current_session.end_time.substring(11, 16))}). Please choose an available time slot below to reserve your turn.
+                    {availability?.current_session?.remaining_minutes ? (
+                      <>
+                        Another player is actively streaming right now (~{availability.current_session.remaining_minutes} min{availability.current_session.remaining_minutes > 1 ? 's' : ''} left until {formatTimeDisplay(availability.current_session.end_time ? availability.current_session.end_time.substring(11, 16) : '')}).
+                      </>
+                    ) : (
+                      <>
+                        All gaming computers configured for <strong>{title}</strong> are currently running active sessions or occupied.
+                      </>
+                    )}{' '}
+                    We have auto-switched to <strong>Schedule</strong> so you can select an available time slot below to reserve your turn.
                   </p>
                 </div>
               </div>

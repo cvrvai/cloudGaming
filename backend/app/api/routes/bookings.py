@@ -150,14 +150,14 @@ async def get_slot_availability(
         # 1. Identify capable machines for this game
         if machine_id:
             cursor.execute(
-                "SELECT id, name, status, is_host FROM machines WHERE id = %s AND status != 'maintenance';",
+                "SELECT id, name, status, is_host, stream_started_at FROM machines WHERE id = %s AND status != 'maintenance';",
                 (machine_id,),
             )
             capable_machines = cursor.fetchall()
         elif game_id:
             cursor.execute(
                 """
-                SELECT m.id, m.name, m.status, m.is_host
+                SELECT m.id, m.name, m.status, m.is_host, m.stream_started_at
                 FROM machines m
                 JOIN node_games ng ON m.id = ng.node_id
                 WHERE ng.game_id = %s
@@ -171,7 +171,7 @@ async def get_slot_availability(
             capable_machines = cursor.fetchall()
         else:
             cursor.execute(
-                "SELECT id, name, status, is_host FROM machines WHERE status != 'maintenance' ORDER BY (CASE WHEN status = 'available' THEN 0 ELSE 1 END) ASC, last_seen DESC NULLS LAST, is_host DESC, id ASC;"
+                "SELECT id, name, status, is_host, stream_started_at FROM machines WHERE status != 'maintenance' ORDER BY (CASE WHEN status = 'available' THEN 0 ELSE 1 END) ASC, last_seen DESC NULLS LAST, is_host DESC, id ASC;"
             )
             capable_machines = cursor.fetchall()
 
@@ -179,7 +179,9 @@ async def get_slot_availability(
         if capable_count == 0:
             return {
                 "capable_machines_count": 0,
-                "is_currently_in_use": False,
+                "free_machines_count": 0,
+                "can_play_now": False,
+                "is_currently_in_use": True,
                 "current_session": None,
                 "date": target_date,
                 "server_time": now_iso,
@@ -206,8 +208,17 @@ async def get_slot_availability(
         )
         active_sessions = cursor.fetchall()
 
-        # Rig is currently in-use if all capable machines have an active session right now
-        is_currently_in_use = len(active_sessions) >= capable_count
+        # Rig is currently free only if not actively booked and not in-use/streaming/offline
+        booked_m_ids = {s["machine_id"] for s in active_sessions}
+        free_machines = [
+            m for m in capable_machines
+            if m["id"] not in booked_m_ids
+            and m["status"] not in ("in-use", "streaming", "maintenance", "offline")
+            and not m.get("stream_started_at")
+        ]
+        free_count = len(free_machines)
+        is_currently_in_use = (free_count == 0)
+
         current_session_info = None
 
         if active_sessions:
@@ -229,6 +240,23 @@ async def get_slot_availability(
                 "remaining_minutes": rem_mins,
                 "is_mine": is_my_active,
             }
+        elif is_currently_in_use and capable_machines:
+            # Rig is active (streaming/in-use) or offline with no explicit booking row
+            busy_m = next((m for m in capable_machines if m["status"] in ("in-use", "streaming") or m.get("stream_started_at")), capable_machines[0])
+            current_session_info = {
+                "booking_id": None,
+                "machine_id": busy_m["id"],
+                "machine_name": busy_m["name"],
+                "game_title": game_id,
+                "user_name": "Another Player",
+                "start_time": now_iso,
+                "end_time": None,
+                "remaining_seconds": 1800,
+                "remaining_minutes": 30,
+                "is_mine": False,
+            }
+
+        can_play_now = (free_count > 0) or (current_session_info and current_session_info.get("is_mine", False))
 
         # 3. Fetch all confirmed bookings for target date
         cursor.execute(
@@ -261,6 +289,8 @@ async def get_slot_availability(
 
     return {
         "capable_machines_count": capable_count,
+        "free_machines_count": free_count,
+        "can_play_now": bool(can_play_now),
         "is_currently_in_use": is_currently_in_use,
         "current_session": current_session_info,
         "date": target_date,
