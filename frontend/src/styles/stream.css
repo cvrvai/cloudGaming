@@ -530,6 +530,8 @@
   font: inherit;
   font-size: 13px;
   line-height: 1.45;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .session-feedback-comment:focus {

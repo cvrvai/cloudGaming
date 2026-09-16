@@ -553,6 +553,20 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
   // Universal keyboard event capture (simultaneous input alongside gamepad)
   useEffect(() => {
     const sendKeyEvent = (e, pressed) => {
+      // Never intercept keystrokes when feedback modal is open or when typing in inputs/textareas
+      if (feedbackOpen || isExiting) return;
+      const target = e.target;
+      if (
+        target && (
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable ||
+          Boolean(target.closest?.('input, textarea, [contenteditable="true"], .session-feedback-dialog, .modal-dialog, [role="dialog"]'))
+        )
+      ) {
+        return;
+      }
+
       // Ignore functional browser shortcuts and Windows system keys to protect kiosk mode
       if (
         ['F5', 'F11', 'F12', 'Meta', 'OS'].includes(e.key) ||
@@ -585,7 +599,7 @@ export default function CloudStreamPlayer({ sessionData, onSessionEnd, apiBase, 
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [sessionData?.machine_id]);
+  }, [feedbackOpen, isExiting, sessionData?.machine_id]);
 
   const checkGst = async () => {
     try {

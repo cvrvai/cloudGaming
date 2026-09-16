@@ -274,8 +274,21 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20, mouseMo
             desktopButtonsRef.current.clear();
         };
 
+        const isEditableTarget = (target) => {
+            if (!target) return false;
+            const tag = target.tagName;
+            return (
+                tag === 'INPUT' ||
+                tag === 'TEXTAREA' ||
+                target.isContentEditable ||
+                Boolean(target.closest?.('input, textarea, [contenteditable="true"], .session-feedback-dialog, .modal-dialog, [role="dialog"]'))
+            );
+        };
+
         const onKeyDown = (event) => {
             if (event.isComposing) return;
+            if (isEditableTarget(event.target)) return;
+
             if (event.key === 'Escape') {
                 event.preventDefault();
                 if (document.pointerLockElement === surfaceRef.current) document.exitPointerLock?.();
@@ -291,6 +304,8 @@ export default function TouchpadOverlay({ sendMessage, sensitivity = 20, mouseMo
         };
 
         const onKeyUp = (event) => {
+            if (isEditableTarget(event.target)) return;
+
             const key = browserKey(event);
             if (!key) return;
             event.preventDefault();

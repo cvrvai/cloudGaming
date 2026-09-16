@@ -33,13 +33,20 @@ export default function SessionFeedbackModal({
   };
 
   return (
-    <div className="session-feedback-backdrop" role="presentation">
+    <div
+      className="session-feedback-backdrop"
+      role="presentation"
+      onKeyDown={(event) => event.stopPropagation()}
+      onKeyUp={(event) => event.stopPropagation()}
+    >
       <div
         className="session-feedback-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="session-feedback-title"
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+        onKeyUp={(event) => event.stopPropagation()}
       >
         <div className="session-feedback-kicker">Voice of Customer Feedback</div>
         <h2 id="session-feedback-title">Session completed</h2>
@@ -96,9 +103,12 @@ export default function SessionFeedbackModal({
             className="session-feedback-comment"
             value={comment}
             onChange={(event) => setComment(event.target.value.slice(0, 1000))}
+            onKeyDown={(event) => event.stopPropagation()}
+            onKeyUp={(event) => event.stopPropagation()}
             placeholder="What worked well, or what should we improve?"
             rows={4}
             maxLength={1000}
+            spellCheck="true"
           />
           <div className="session-feedback-char-count">{comment.length}/1000</div>
 
