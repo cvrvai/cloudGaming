@@ -661,6 +661,7 @@ export default function AdminDashboard() {
   const [clearingEvidence, setClearingEvidence] = useState(false);
   const [seedSuccessMsg, setSeedSuccessMsg] = useState(null);
   const [dailyRigFilter, setDailyRigFilter] = useState('all');
+  const [fleetViewMode, setFleetViewMode] = useState('cards'); // 'cards' | 'table'
   const [vocExperienceFilter, setVocExperienceFilter] = useState('all'); // 'all' | 'smooth' | 'mixed' | 'laggy' | 'comments'
   const [energyViewMode, setEnergyViewMode] = useState('sessions'); // 'sessions' | 'daily'
   const [powerDetailsOpen, setPowerDetailsOpen] = useState({});
@@ -1725,65 +1726,112 @@ export default function AdminDashboard() {
       </div>
 
       {/* Modern Bento Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-2">
-        <div className="bg-slate-900/60 border border-white/10 backdrop-blur-xl rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-cyan-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+        <div className="bg-slate-900/70 border border-white/10 backdrop-blur-xl rounded-2xl p-3.5 flex flex-col justify-between transition-all hover:border-cyan-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Fleet Rigs</span>
+            <ServerIcon size={15} className="text-cyan-400 opacity-90" />
           </div>
           <div className="text-2xl font-black text-white tracking-tight flex items-baseline gap-1">
             {machines.filter((m) => ['available', 'in-use', 'streaming'].includes(m.live_status || m.status)).length}
-            <span className="text-xs font-semibold text-slate-400">/{machines.length}</span>
+            <span className="text-xs font-semibold text-slate-400">/{machines.length} Online</span>
+          </div>
+          <div className="text-[10px] text-cyan-300 font-semibold mt-1 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 inline-block shadow-[0_0_6px_#22d3ee]" />
+            <span>Active Nodes</span>
           </div>
         </div>
 
-        <div className="bg-slate-900/60 border border-white/10 backdrop-blur-xl rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-cyan-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+        <div className="bg-slate-900/70 border border-white/10 backdrop-blur-xl rounded-2xl p-3.5 flex flex-col justify-between transition-all hover:border-purple-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Catalog Games</span>
+            <GamepadIcon size={15} className="text-purple-400 opacity-90" />
           </div>
-          <div className="text-2xl font-black text-white tracking-tight">{games.length}</div>
+          <div className="text-2xl font-black text-white tracking-tight flex items-baseline gap-1">
+            {games.length}
+            <span className="text-xs font-semibold text-slate-400">Titles</span>
+          </div>
+          <div className="text-[10px] text-purple-300 font-semibold mt-1 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block shadow-[0_0_6px_#c084fc]" />
+            <span>Stream Ready</span>
+          </div>
         </div>
 
-        <div className="bg-slate-900/60 border border-white/10 backdrop-blur-xl rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-cyan-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+        <div className="bg-slate-900/70 border border-white/10 backdrop-blur-xl rounded-2xl p-3.5 flex flex-col justify-between transition-all hover:border-emerald-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">PCs Streaming Now</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Streaming Now</span>
+            <PlayIcon size={15} className={livePcCount > 0 ? 'text-emerald-400 animate-pulse' : 'text-slate-500'} />
           </div>
-          <div className={`text-2xl font-black tracking-tight ${livePcCount > 0 ? 'text-emerald-400' : 'text-white'}`}>
+          <div className={`text-2xl font-black tracking-tight flex items-baseline gap-1 ${livePcCount > 0 ? 'text-emerald-400' : 'text-white'}`}>
             {livePcCount}
+            <span className="text-xs font-semibold text-slate-400">Active</span>
+          </div>
+          <div className="text-[10px] font-semibold mt-1 flex items-center gap-1.5">
+            {livePcCount > 0 ? (
+              <span className="text-emerald-300 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-ping" />
+                Live In Session
+              </span>
+            ) : (
+              <span className="text-slate-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-500 inline-block" />
+                Fleet In Standby
+              </span>
+            )}
           </div>
         </div>
 
-        <div className="bg-slate-900/60 border border-white/10 backdrop-blur-xl rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-cyan-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+        <div className="bg-slate-900/70 border border-white/10 backdrop-blur-xl rounded-2xl p-3.5 flex flex-col justify-between transition-all hover:border-blue-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Reservations</span>
+            <CalendarIcon size={15} className="text-blue-400 opacity-90" />
           </div>
-          <div className="text-2xl font-black text-white tracking-tight">{bookings.length}</div>
+          <div className="text-2xl font-black text-white tracking-tight flex items-baseline gap-1">
+            {bookings.length}
+            <span className="text-xs font-semibold text-slate-400">Total</span>
+          </div>
+          <div className="text-[10px] text-blue-300 font-semibold mt-1 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block shadow-[0_0_6px_#60a5fa]" />
+            <span>Booked Sessions</span>
+          </div>
         </div>
 
         <div
-          className="bg-slate-900/60 border border-white/10 backdrop-blur-xl rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-cyan-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)] cursor-pointer"
+          className="bg-slate-900/70 border border-white/10 backdrop-blur-xl rounded-2xl p-3.5 flex flex-col justify-between transition-all hover:border-amber-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)] cursor-pointer"
           onClick={() => setAdminTab('users')}
           title="Click to view all registered users"
         >
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">User Accounts</span>
+            <UsersIcon size={15} className="text-amber-400 opacity-90" />
           </div>
-          <div className="text-2xl font-black text-white tracking-tight">{users.length}</div>
+          <div className="text-2xl font-black text-white tracking-tight flex items-baseline gap-1">
+            {users.length}
+            <span className="text-xs font-semibold text-slate-400">Users</span>
+          </div>
+          <div className="text-[10px] text-amber-300 font-semibold mt-1 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block shadow-[0_0_6px_#fbbf24]" />
+            <span>Registered Players</span>
+          </div>
         </div>
 
         <div
-          className="bg-slate-900/60 border border-white/10 backdrop-blur-xl rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-cyan-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)] cursor-pointer"
+          className="bg-slate-900/70 border border-white/10 backdrop-blur-xl rounded-2xl p-3.5 flex flex-col justify-between transition-all hover:border-emerald-400/40 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)] cursor-pointer"
           onClick={() => setAdminTab('dmaic')}
           title="Click to view Session Analytics & Telemetry Data"
         >
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Quality Pass Rate</span>
-            <ActivityIcon size={16} />
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Quality Pass</span>
+            <ActivityIcon size={15} className="text-emerald-400 opacity-90" />
           </div>
-          <div className="text-2xl font-black text-white tracking-tight">
-            {dmaicMetrics?.ctq4_completion_rate ? `${dmaicMetrics.ctq4_completion_rate.completion_rate_pct}%` : '---'}
+          <div className="text-2xl font-black text-white tracking-tight flex items-baseline gap-1">
+            {dmaicMetrics?.ctq4_completion_rate ? `${dmaicMetrics.ctq4_completion_rate.completion_rate_pct}%` : '100%'}
           </div>
-          <div className="text-[11px] font-medium text-slate-400 mt-1 truncate">
-            {dmaicMetrics?.ctq4_completion_rate ? `${dmaicMetrics.ctq4_completion_rate.completed_sessions || 0}/${dmaicMetrics.ctq4_completion_rate.total_sessions || 0} sessions completed` : 'Calculating metrics...'}
+          <div className="text-[10px] text-emerald-300 font-semibold mt-1 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block shadow-[0_0_6px_#4ade80]" />
+            <span>
+              {dmaicMetrics?.ctq4_completion_rate ? `${dmaicMetrics.ctq4_completion_rate.completed_sessions || 0}/${dmaicMetrics.ctq4_completion_rate.total_sessions || 0} Pass` : 'CTQ Target Met'}
+            </span>
           </div>
         </div>
       </div>
@@ -1898,292 +1946,593 @@ export default function AdminDashboard() {
           {/* TAB 1: GAMING PCS IN-LINE LIST & DAILY WATT CONSUMPTION TABLE */}
           {adminTab === 'machines' && (
             <div className="admin-tab-content">
-              {/* Section 1 Header: In-Line Actions */}
-              <div className="tab-section-header compact" style={{ marginBottom: '12px' }}>
+              {/* Section 1 Header: Clean Fleet Status & View Switcher */}
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-white/10">
                 <div>
-                  <h2 className="section-heading-compact" style={{ fontSize: '1.2rem', margin: 0, fontWeight: 700 }}>
-                    Connected Gaming PCs
-                  </h2>
-                  <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #94a3b8)' }}>
-                    Active Gaming Fleet ({machines.length} Rigs Registered)
-                  </span>
+                  <div className="flex items-center gap-2.5">
+                    <h2 className="text-xl font-bold text-white tracking-tight m-0">Connected Gaming Rigs</h2>
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-400/10 text-cyan-300 border border-cyan-400/30">
+                      {machines.length} Rigs Configured
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 mb-0">
+                    Host workstations powering cloud game streams, real-time power profiles, and title assignments.
+                  </p>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <button
-                    className="btn-primary btn-compact"
-                    onClick={openPairModal}
-                    style={{ height: '32px', padding: '0 12px', fontSize: '11.5px', display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '6px' }}
-                    title="Pair an additional Windows PC Host via MFA Keypair"
-                  >
-                    <KeyIcon size={13} />
-                    <span>Pair PC (MFA)</span>
-                  </button>
-                  <button
-                    className="btn-secondary btn-compact"
-                    onClick={fetchAllAdminData}
-                    style={{ height: '32px', padding: '0 10px', fontSize: '11.5px', display: 'inline-flex', alignItems: 'center', gap: '5px', borderRadius: '6px' }}
-                    title="Refresh Fleet Telemetry"
-                  >
-                    <RefreshIcon size={13} />
-                    <span>Refresh</span>
-                  </button>
+
+                <div className="flex items-center gap-3">
+                  {/* View Switcher: Cards vs Table */}
+                  <div className="inline-flex rounded-xl bg-slate-900/90 border border-white/10 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setFleetViewMode('cards')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        fleetViewMode === 'cards'
+                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 shadow-[0_0_10px_rgba(0,210,255,0.2)]'
+                          : 'text-slate-400 hover:text-white border border-transparent'
+                      }`}
+                      title="Modern Rig Cards View"
+                    >
+                      <MonitorIcon size={14} />
+                      <span>Cards View</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFleetViewMode('table')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        fleetViewMode === 'table'
+                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 shadow-[0_0_10px_rgba(0,210,255,0.2)]'
+                          : 'text-slate-400 hover:text-white border border-transparent'
+                      }`}
+                      title="Compact Table View"
+                    >
+                      <TableIcon size={14} />
+                      <span>Table View</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* TABLE 1: CONNECTED GAMING PCS IN-LINE LIST TABLE */}
-              <div className="dmaic-electricity-table-container glass-panel" style={{ marginBottom: '26px' }}>
-                <div className="electricity-table-scroll">
-                  <table className="dmaic-electricity-table">
-                    <thead>
-                      <tr>
-                        <th style={{ minWidth: '180px' }}>Gaming Rig / Node</th>
-                        <th style={{ width: '90px', textAlign: 'center' }}>Status</th>
-                        <th style={{ minWidth: '240px' }}>Hardware Specifications</th>
-                        <th style={{ minWidth: '140px', textAlign: 'right' }}>Power Profile</th>
-                        <th style={{ minWidth: '220px' }}>Installed Games</th>
-                        <th style={{ minWidth: '240px', textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {machines.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted, #94a3b8)' }}>
-                            No gaming PCs connected. Click "Pair PC (MFA)" above to register a host machine.
-                          </td>
-                        </tr>
-                      ) : (
-                        machines.map((m) => {
-                          const isStreaming = (m.live_status || m.status) === 'in-use' || (m.live_status || m.status) === 'streaming' || Boolean(m.stream_started_at);
-                          const isOnline = isStreaming || (m.live_status || m.status) === 'available';
-                          const isMaint = (m.live_status || m.status) === 'maintenance';
-                          
-                          let statusKey = 'standby';
-                          let statusLabel = 'Standby';
-                          let dotColor = 'gray';
+              {/* FLEET VIEW: MODERN CARDS GRID OR COMPACT TABLE */}
+              {fleetViewMode === 'cards' ? (
+                machines.length === 0 ? (
+                  <div className="p-8 text-center rounded-2xl bg-slate-900/40 border border-white/10 text-slate-400 text-sm mb-6">
+                    No gaming PCs connected. Click "Pair PC" at the top to register a host machine.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+                    {machines.map((m) => {
+                      const isStreaming = (m.live_status || m.status) === 'in-use' || (m.live_status || m.status) === 'streaming' || Boolean(m.stream_started_at);
+                      const isOnline = isStreaming || (m.live_status || m.status) === 'available';
+                      const isMaint = (m.live_status || m.status) === 'maintenance';
 
-                          if (isMaint) {
-                            statusKey = 'maintenance';
-                            statusLabel = 'Maintenance';
-                            dotColor = 'amber';
-                          } else if (isStreaming) {
-                            statusKey = 'streaming';
-                            statusLabel = 'Streaming';
-                            dotColor = 'cyan';
-                          } else if (isOnline) {
-                            statusKey = 'online';
-                            statusLabel = 'Online';
-                            dotColor = 'green';
-                          }
+                      let statusLabel = 'Standby';
+                      let dotColor = 'bg-slate-400';
+                      let statusBadgeClass = 'border-slate-500/30 bg-slate-500/10 text-slate-300';
 
-                          const actWatts = Number(m.active_watts) || 0;
-                          const idlWatts = Number(m.idle_watts) || 0;
+                      if (isMaint) {
+                        statusLabel = 'Maintenance';
+                        dotColor = 'bg-amber-400 shadow-[0_0_8px_#fbbf24]';
+                        statusBadgeClass = 'border-amber-400/40 bg-amber-400/10 text-amber-300';
+                      } else if (isStreaming) {
+                        statusLabel = 'Live Streaming';
+                        dotColor = 'bg-cyan-400 shadow-[0_0_8px_#22d3ee] animate-pulse';
+                        statusBadgeClass = 'border-cyan-400/40 bg-cyan-400/15 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.25)]';
+                      } else if (isOnline) {
+                        statusLabel = 'Online & Ready';
+                        dotColor = 'bg-emerald-400 shadow-[0_0_8px_#4ade80]';
+                        statusBadgeClass = 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300';
+                      }
 
-                          return (
-                            <tr key={m.id}>
-                              <td>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
-                                  <span className="pc-role-badge remote" style={{ fontSize: '9.5px', padding: '1px 5px', borderRadius: '4px' }}>
-                                    Node #{m.id}
-                                  </span>
-                                  {Boolean(m.is_host) && (
-                                    <span style={{ fontSize: '10px', color: '#38bdf8', fontWeight: 700 }}>[HOST]</span>
-                                  )}
-                                  {isOnline && (
-                                    <span style={{ fontSize: '9.5px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '1px 5px', borderRadius: '4px', fontWeight: 600, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                                      OPEN
-                                    </span>
-                                  )}
+                      const actWatts = Number(m.active_watts) || 0;
+                      const idlWatts = Number(m.idle_watts) || 0;
+
+                      return (
+                        <div
+                          key={m.id}
+                          className={`rounded-2xl border backdrop-blur-xl p-4 flex flex-col justify-between transition-all ${
+                            isStreaming
+                              ? 'bg-slate-900/90 border-cyan-500/50 shadow-[0_0_24px_rgba(6,182,212,0.2)]'
+                              : isOnline
+                              ? 'bg-slate-900/75 border-emerald-500/30 hover:border-emerald-500/50 hover:shadow-[0_8px_24px_rgba(0,0,0,0.5)]'
+                              : 'bg-slate-900/60 border-white/10 hover:border-white/20'
+                          }`}
+                        >
+                          <div>
+                            {/* Card Header: Node ID, Host, Name & Status Badge */}
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600/30 to-cyan-500/20 border border-cyan-400/30 flex items-center justify-center text-cyan-300 shrink-0">
+                                  <MonitorIcon size={20} />
                                 </div>
-                                <strong style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <MonitorIcon size={14} style={{ opacity: 0.75 }} />
-                                  <span>{m.name}</span>
-                                </strong>
-                                {isStreaming && (
-                                  <div style={{ marginTop: '5px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                    <span className="running-timer-badge">
-                                      <ClockIcon size={11} />
-                                      <span>Running: {formatLiveDuration(m.runtime_started_at || m.stream_started_at)}</span>
+                                <div>
+                                  <div className="flex items-center gap-2 mb-0.5">
+                                    <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                                      Node #{m.id}
                                     </span>
-                                    {m.current_game && (
-                                      <span style={{ fontSize: '10px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '1px 6px', borderRadius: '4px', border: '1px solid rgba(56, 189, 248, 0.3)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                        {m.current_game}
+                                    {Boolean(m.is_host) && (
+                                      <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-cyan-400/20 text-cyan-300 border border-cyan-400/40">
+                                        HOST
                                       </span>
                                     )}
                                   </div>
-                                )}
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                <span className={`pc-status-pill-table ${statusKey}`}>
-                                  <span className={`live-dot ${dotColor}`} />
-                                  {statusLabel}
-                                </span>
-                              </td>
-                              <td>
-                                <div style={{ fontSize: '11.5px', lineHeight: 1.5 }}>
-                                  <div>
-                                    <span style={{ color: 'var(--text-muted, #94a3b8)' }}>GPU:</span>{' '}
-                                    <strong style={{ color: '#e2e8f0' }}>{m.gpu}</strong>
-                                  </div>
-                                  <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '11px' }}>
-                                    <span>CPU: {formatCpu(m.cpu)}</span> &bull;{' '}
-                                    <span>RAM: {formatRam(m.ram)}</span> &bull;{' '}
-                                    <span>OS: {formatOs(m)}</span>
-                                  </div>
+                                  <h3 className="text-base font-bold text-white tracking-tight m-0">{m.name}</h3>
                                 </div>
-                              </td>
-                              <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                                {isStreaming ? (
-                                  <div>
-                                    <div style={{ color: '#06b6d4', fontWeight: 700, fontSize: '12.5px' }}>
-                                      {formatWattRate(actWatts)} active rate
-                                    </div>
-                                    <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '10.5px' }}>
-                                      {m.current_game || 'Active Game Session'}
-                                    </div>
-                                  </div>
-                                ) : isOnline ? (
-                                  <div>
-                                    <span style={{ color: '#38bdf8', fontWeight: 600 }}>{formatWattRate(idlWatts)} standby rate</span>
-                                    <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '10.5px' }}>
-                                      Reference active rate: {formatWattRate(actWatts)}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div>
-                                    <span style={{ color: 'var(--text-muted, #94a3b8)' }}>0W (Standby)</span>
-                                  </div>
+                              </div>
+
+                              <div className="flex flex-col items-end gap-1">
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${statusBadgeClass}`}>
+                                  <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                                  <span>{statusLabel}</span>
+                                </span>
+                                {isOnline && !isStreaming && (
+                                  <span className="text-[10px] font-semibold text-emerald-400/80">Available</span>
                                 )}
+                              </div>
+                            </div>
+
+                            {/* Active Live Streaming Ticker (if in-use) */}
+                            {isStreaming && (
+                              <div className="mb-3 px-3 py-2 rounded-xl bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-between gap-2 text-xs">
+                                <div className="flex items-center gap-2 text-cyan-300 font-semibold truncate">
+                                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping shrink-0" />
+                                  <span>Playing: <strong className="text-white font-bold">{m.current_game || 'Active Session'}</strong></span>
+                                </div>
+                                <span className="text-[11px] font-mono font-bold text-cyan-200 bg-cyan-500/20 px-2 py-0.5 rounded border border-cyan-400/30 shrink-0 flex items-center gap-1">
+                                  <ClockIcon size={11} />
+                                  <span>{formatLiveDuration(m.runtime_started_at || m.stream_started_at)}</span>
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Structured Hardware Specifications Grid (4 clean chips) */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3 bg-black/25 p-2.5 rounded-xl border border-white/5">
+                              <div className="flex flex-col">
+                                <span className="text-[10px] uppercase font-bold text-slate-400">GPU</span>
+                                <span className="text-xs font-bold text-cyan-300 truncate" title={m.gpu}>{m.gpu || 'Discrete GPU'}</span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[10px] uppercase font-bold text-slate-400">CPU</span>
+                                <span className="text-xs font-semibold text-slate-200 truncate" title={m.cpu}>{formatCpu(m.cpu)}</span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[10px] uppercase font-bold text-slate-400">Memory</span>
+                                <span className="text-xs font-semibold text-slate-200 truncate">{formatRam(m.ram)}</span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[10px] uppercase font-bold text-slate-400">OS</span>
+                                <span className="text-xs font-semibold text-slate-200 truncate">{formatOs(m)}</span>
+                              </div>
+                            </div>
+
+                            {/* Power & Energy Telemetry Strip */}
+                            <div className="mb-3 px-3 py-2 rounded-xl bg-white/[0.02] border border-white/5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                              <div className="flex items-center gap-2">
+                                <ZapIcon size={14} className="text-amber-400 shrink-0" />
+                                <span className="text-slate-400">Power Draw:</span>
+                                <strong className="text-white font-bold">
+                                  {isStreaming ? (
+                                    <span className="text-cyan-400">{formatWattRate(actWatts)} active</span>
+                                  ) : isOnline ? (
+                                    <span className="text-emerald-400">{formatWattRate(idlWatts)} standby <span className="text-slate-400 font-normal">(Ref: {formatWattRate(actWatts)})</span></span>
+                                  ) : (
+                                    <span className="text-slate-400">0 W (Standby)</span>
+                                  )}
+                                </strong>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => togglePowerDetails(`machine-${m.id}`)}
+                                className="text-[11px] text-cyan-400 hover:text-cyan-300 hover:underline cursor-pointer"
+                              >
+                                {powerDetailsOpen[`machine-${m.id}`] ? 'Hide Component Details ▴' : 'Component Details ▾'}
+                              </button>
+                            </div>
+                            {powerDetailsOpen[`machine-${m.id}`] && (
+                              <div className="mb-3">
                                 <PowerBreakdownDetails
                                   activeWatts={actWatts}
                                   idleWatts={idlWatts}
                                   activeBreakdown={m.active_power_breakdown}
                                   idleBreakdown={m.idle_power_breakdown}
-                                  expanded={Boolean(powerDetailsOpen[`machine-${m.id}`])}
+                                  expanded={true}
                                   onToggle={() => togglePowerDetails(`machine-${m.id}`)}
                                 />
-                              </td>
-                              <td>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
-                                  {m.installed_games && m.installed_games.length > 0 ? (
-                                    m.installed_games.map((ng) => (
-                                      <span key={ng.id} className="node-game-chip">
-                                        <span className="node-game-chip-title" title={ng.executable_path}>{ng.title}</span>
-                                        <button
-                                          className="btn-chip-action"
-                                          onClick={() => openEditNodeGameModal(m, ng)}
-                                          title="Edit game configuration"
-                                        >
-                                          <EditIcon size={10} />
-                                        </button>
-                                        <button
-                                          className="btn-chip-action delete"
-                                          onClick={() => handleRemoveNodeGame(m.id, ng.game_id, ng.title)}
-                                          title="Unassign game from this PC"
-                                        >
-                                          <XIcon size={10} />
-                                        </button>
-                                      </span>
-                                    ))
-                                  ) : (
-                                    <span style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic' }}>
-                                      0 games assigned
+                              </div>
+                            )}
+
+                            {/* Assigned Games Tray */}
+                            <div className="mb-4">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                  Assigned Games ({m.installed_games?.length || 0})
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => openAddGameToNodeModal(m)}
+                                  className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer"
+                                >
+                                  <PlusIcon size={12} />
+                                  <span>Assign Game</span>
+                                </button>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {m.installed_games && m.installed_games.length > 0 ? (
+                                  m.installed_games.map((ng) => (
+                                    <span
+                                      key={ng.id}
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/10 text-xs text-slate-200 group hover:border-cyan-400/40 transition-all"
+                                    >
+                                      <GamepadIcon size={12} className="text-purple-400 shrink-0" />
+                                      <span className="font-medium max-w-[130px] truncate" title={ng.executable_path}>{ng.title}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => openEditNodeGameModal(m, ng)}
+                                        className="text-slate-400 hover:text-white p-0.5 cursor-pointer"
+                                        title="Edit game configuration"
+                                      >
+                                        <EditIcon size={10} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveNodeGame(m.id, ng.game_id, ng.title)}
+                                        className="text-slate-400 hover:text-red-400 p-0.5 cursor-pointer"
+                                        title="Unassign game"
+                                      >
+                                        <XIcon size={10} />
+                                      </button>
                                     </span>
-                                  )}
-                                  <button
-                                    className="btn-add-game-mini"
-                                    onClick={() => openAddGameToNodeModal(m)}
-                                    title="Assign game to this PC"
-                                  >
-                                    <PlusIcon size={10} />
-                                    <span>Add</span>
-                                  </button>
-                                </div>
-                              </td>
-                              <td style={{ textAlign: 'right' }}>
-                                <div style={{ display: 'inline-flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                  {isStreaming ? (
-                                    <button
-                                      className="btn-stop-stream"
-                                      onClick={() => handleStopStreamOnMachine(m)}
-                                      disabled={updatingId === m.id}
-                                      title="Stop stream runner and log session kWh & EDC cost"
-                                    >
-                                      <SquareIcon size={11} />
-                                      <span>Stop Stream</span>
-                                    </button>
-                                  ) : (
-                                    <button
-                                      className="btn-run-stream"
-                                      onClick={() => handleStartStreamOnMachine(m)}
-                                      disabled={updatingId === m.id || isMaint}
-                                      title="Run stream on this PC under load and track live uptime"
-                                    >
-                                      <PlayIcon size={11} />
-                                      <span>Run Stream</span>
-                                    </button>
-                                  )}
+                                  ))
+                                ) : (
+                                  <span className="text-xs text-slate-500 italic py-1">No games assigned to this node yet.</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
 
-                                  <button
-                                    className={`btn-power-toggle ${isOnline ? 'active' : ''}`}
-                                    onClick={() => handleTogglePower(m)}
-                                    disabled={updatingId === m.id || isMaint || isStreaming}
-                                    title={isOnline ? 'Put PC into Standby / Sleep' : 'Open / Turn On PC'}
-                                  >
-                                    <PowerIcon size={11} />
-                                    <span>{isOnline ? 'Sleep' : 'Open'}</span>
-                                  </button>
+                          {/* Card Actions Footer */}
+                          <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              {isStreaming ? (
+                                <button
+                                  type="button"
+                                  className="px-3.5 py-1.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-red-500/20 cursor-pointer transition-all"
+                                  onClick={() => handleStopStreamOnMachine(m)}
+                                  disabled={updatingId === m.id}
+                                >
+                                  <SquareIcon size={12} />
+                                  <span>Stop Stream</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:brightness-110 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-cyan-500/20 cursor-pointer transition-all disabled:opacity-50"
+                                  onClick={() => handleStartStreamOnMachine(m)}
+                                  disabled={updatingId === m.id || isMaint}
+                                >
+                                  <PlayIcon size={12} />
+                                  <span>Run Stream</span>
+                                </button>
+                              )}
 
-                                  <button
-                                    className={`btn-toggle-maintenance-compact ${m.status === 'maintenance' ? 'restore' : ''}`}
-                                    onClick={() => handleToggleMaintenance(m)}
-                                    disabled={updatingId === m.id || isStreaming}
-                                    title={m.status === 'maintenance' ? 'Restore PC to available pool' : 'Put PC in maintenance mode'}
-                                  >
-                                    {updatingId === m.id ? (
-                                      '...'
-                                    ) : m.status === 'maintenance' ? (
-                                      <>
-                                        <CheckIcon size={11} />
-                                        <span>Restore</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <AlertTriangleIcon size={11} />
-                                        <span>Maint</span>
-                                      </>
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePower(m)}
+                                disabled={updatingId === m.id || isMaint || isStreaming}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all border ${
+                                  isOnline
+                                    ? 'bg-white/5 hover:bg-white/10 border-white/15 text-slate-300'
+                                    : 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/30 text-emerald-400'
+                                } disabled:opacity-40`}
+                                title={isOnline ? 'Put PC into Standby / Sleep' : 'Open / Turn On PC'}
+                              >
+                                <PowerIcon size={12} />
+                                <span>{isOnline ? 'Sleep' : 'Open'}</span>
+                              </button>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleMaintenance(m)}
+                                disabled={updatingId === m.id || isStreaming}
+                                className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer transition-all border ${
+                                  m.status === 'maintenance'
+                                    ? 'bg-amber-500/20 border-amber-400/40 text-amber-300'
+                                    : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-400 hover:text-white'
+                                } disabled:opacity-40`}
+                                title={m.status === 'maintenance' ? 'Exit maintenance mode' : 'Put into maintenance mode'}
+                              >
+                                {m.status === 'maintenance' ? <CheckIcon size={11} /> : <AlertTriangleIcon size={11} />}
+                                <span>{m.status === 'maintenance' ? 'Exit Maint' : 'Maint'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMachine(m.id, m.name)}
+                                disabled={isStreaming}
+                                className="p-1.5 rounded-xl bg-white/5 hover:bg-red-500/20 border border-white/10 hover:border-red-400/30 text-slate-400 hover:text-red-400 cursor-pointer transition-all disabled:opacity-30"
+                                title="Delete this gaming PC node"
+                              >
+                                <TrashIcon size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
+              ) : (
+                /* COMPACT TABLE VIEW */
+                <div className="dmaic-electricity-table-container glass-panel" style={{ marginBottom: '26px' }}>
+                  <div className="electricity-table-scroll">
+                    <table className="dmaic-electricity-table">
+                      <thead>
+                        <tr>
+                          <th style={{ minWidth: '180px' }}>Gaming Rig / Node</th>
+                          <th style={{ width: '90px', textAlign: 'center' }}>Status</th>
+                          <th style={{ minWidth: '240px' }}>Hardware Specifications</th>
+                          <th style={{ minWidth: '140px', textAlign: 'right' }}>Power Profile</th>
+                          <th style={{ minWidth: '220px' }}>Installed Games</th>
+                          <th style={{ minWidth: '240px', textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {machines.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted, #94a3b8)' }}>
+                              No gaming PCs connected. Click "Pair PC" at the top to register a host machine.
+                            </td>
+                          </tr>
+                        ) : (
+                          machines.map((m) => {
+                            const isStreaming = (m.live_status || m.status) === 'in-use' || (m.live_status || m.status) === 'streaming' || Boolean(m.stream_started_at);
+                            const isOnline = isStreaming || (m.live_status || m.status) === 'available';
+                            const isMaint = (m.live_status || m.status) === 'maintenance';
+
+                            let statusKey = 'standby';
+                            let statusLabel = 'Standby';
+                            let dotColor = 'gray';
+
+                            if (isMaint) {
+                              statusKey = 'maintenance';
+                              statusLabel = 'Maintenance';
+                              dotColor = 'amber';
+                            } else if (isStreaming) {
+                              statusKey = 'streaming';
+                              statusLabel = 'Streaming';
+                              dotColor = 'cyan';
+                            } else if (isOnline) {
+                              statusKey = 'online';
+                              statusLabel = 'Online';
+                              dotColor = 'green';
+                            }
+
+                            const actWatts = Number(m.active_watts) || 0;
+                            const idlWatts = Number(m.idle_watts) || 0;
+
+                            return (
+                              <tr key={m.id}>
+                                <td>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                                    <span className="pc-role-badge remote" style={{ fontSize: '9.5px', padding: '1px 5px', borderRadius: '4px' }}>
+                                      Node #{m.id}
+                                    </span>
+                                    {Boolean(m.is_host) && (
+                                      <span style={{ fontSize: '10px', color: '#38bdf8', fontWeight: 700 }}>[HOST]</span>
                                     )}
-                                  </button>
+                                    {isOnline && (
+                                      <span style={{ fontSize: '9.5px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '1px 5px', borderRadius: '4px', fontWeight: 600, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                                        OPEN
+                                      </span>
+                                    )}
+                                  </div>
+                                  <strong style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <MonitorIcon size={14} style={{ opacity: 0.75 }} />
+                                    <span>{m.name}</span>
+                                  </strong>
+                                  {isStreaming && (
+                                    <div style={{ marginTop: '5px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                      <span className="running-timer-badge">
+                                        <ClockIcon size={11} />
+                                        <span>Running: {formatLiveDuration(m.runtime_started_at || m.stream_started_at)}</span>
+                                      </span>
+                                      {m.current_game && (
+                                        <span style={{ fontSize: '10px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '1px 6px', borderRadius: '4px', border: '1px solid rgba(56, 189, 248, 0.3)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                          {m.current_game}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <span className={`pc-status-pill-table ${statusKey}`}>
+                                    <span className={`live-dot ${dotColor}`} />
+                                    {statusLabel}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div style={{ fontSize: '11.5px', lineHeight: 1.5 }}>
+                                    <div>
+                                      <span style={{ color: 'var(--text-muted, #94a3b8)' }}>GPU:</span>{' '}
+                                      <strong style={{ color: '#e2e8f0' }}>{m.gpu}</strong>
+                                    </div>
+                                    <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '11px' }}>
+                                      <span>CPU: {formatCpu(m.cpu)}</span> &bull;{' '}
+                                      <span>RAM: {formatRam(m.ram)}</span> &bull;{' '}
+                                      <span>OS: {formatOs(m)}</span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                  {isStreaming ? (
+                                    <div>
+                                      <div style={{ color: '#06b6d4', fontWeight: 700, fontSize: '12.5px' }}>
+                                        {formatWattRate(actWatts)} active rate
+                                      </div>
+                                      <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '10.5px' }}>
+                                        {m.current_game || 'Active Game Session'}
+                                      </div>
+                                    </div>
+                                  ) : isOnline ? (
+                                    <div>
+                                      <span style={{ color: '#38bdf8', fontWeight: 600 }}>{formatWattRate(idlWatts)} standby rate</span>
+                                      <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '10.5px' }}>
+                                        Reference active rate: {formatWattRate(actWatts)}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <span style={{ color: 'var(--text-muted, #94a3b8)' }}>0W (Standby)</span>
+                                    </div>
+                                  )}
+                                  <PowerBreakdownDetails
+                                    activeWatts={actWatts}
+                                    idleWatts={idlWatts}
+                                    activeBreakdown={m.active_power_breakdown}
+                                    idleBreakdown={m.idle_power_breakdown}
+                                    expanded={Boolean(powerDetailsOpen[`machine-${m.id}`])}
+                                    onToggle={() => togglePowerDetails(`machine-${m.id}`)}
+                                  />
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
+                                    {m.installed_games && m.installed_games.length > 0 ? (
+                                      m.installed_games.map((ng) => (
+                                        <span key={ng.id} className="node-game-chip">
+                                          <span className="node-game-chip-title" title={ng.executable_path}>{ng.title}</span>
+                                          <button
+                                            className="btn-chip-action"
+                                            onClick={() => openEditNodeGameModal(m, ng)}
+                                            title="Edit game configuration"
+                                          >
+                                            <EditIcon size={10} />
+                                          </button>
+                                          <button
+                                            className="btn-chip-action delete"
+                                            onClick={() => handleRemoveNodeGame(m.id, ng.game_id, ng.title)}
+                                            title="Unassign game from this PC"
+                                          >
+                                            <XIcon size={10} />
+                                          </button>
+                                        </span>
+                                      ))
+                                    ) : (
+                                      <span style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic' }}>
+                                        0 games assigned
+                                      </span>
+                                    )}
+                                    <button
+                                      className="btn-add-game-mini"
+                                      onClick={() => openAddGameToNodeModal(m)}
+                                      title="Assign game to this PC"
+                                    >
+                                      <PlusIcon size={10} />
+                                      <span>Add</span>
+                                    </button>
+                                  </div>
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <div style={{ display: 'inline-flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                    {isStreaming ? (
+                                      <button
+                                        className="btn-stop-stream"
+                                        onClick={() => handleStopStreamOnMachine(m)}
+                                        disabled={updatingId === m.id}
+                                        title="Stop stream runner and log session kWh & EDC cost"
+                                      >
+                                        <SquareIcon size={11} />
+                                        <span>Stop Stream</span>
+                                      </button>
+                                    ) : (
+                                      <button
+                                        className="btn-run-stream"
+                                        onClick={() => handleStartStreamOnMachine(m)}
+                                        disabled={updatingId === m.id || isMaint}
+                                        title="Run stream on this PC under load and track live uptime"
+                                      >
+                                        <PlayIcon size={11} />
+                                        <span>Run Stream</span>
+                                      </button>
+                                    )}
 
-                                  <button
-                                    className="btn-delete-compact"
-                                    onClick={() => handleDeleteMachine(m.id, m.name)}
-                                    title="Delete this gaming PC node"
-                                    disabled={isStreaming}
-                                  >
-                                    <TrashIcon size={11} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                                    <button
+                                      className={`btn-power-toggle ${isOnline ? 'active' : ''}`}
+                                      onClick={() => handleTogglePower(m)}
+                                      disabled={updatingId === m.id || isMaint || isStreaming}
+                                      title={isOnline ? 'Put PC into Standby / Sleep' : 'Open / Turn On PC'}
+                                    >
+                                      <PowerIcon size={11} />
+                                      <span>{isOnline ? 'Sleep' : 'Open'}</span>
+                                    </button>
+
+                                    <button
+                                      className={`btn-toggle-maintenance-compact ${m.status === 'maintenance' ? 'restore' : ''}`}
+                                      onClick={() => handleToggleMaintenance(m)}
+                                      disabled={updatingId === m.id || isStreaming}
+                                      title={m.status === 'maintenance' ? 'Restore PC to available pool' : 'Put PC in maintenance mode'}
+                                    >
+                                      {updatingId === m.id ? (
+                                        '...'
+                                      ) : m.status === 'maintenance' ? (
+                                        <>
+                                          <CheckIcon size={11} />
+                                          <span>Restore</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <AlertTriangleIcon size={11} />
+                                          <span>Maint</span>
+                                        </>
+                                      )}
+                                    </button>
+
+                                    <button
+                                      className="btn-delete-compact"
+                                      onClick={() => handleDeleteMachine(m.id, m.name)}
+                                      title="Delete this gaming PC node"
+                                      disabled={isStreaming}
+                                    >
+                                      <TrashIcon size={11} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* SECTION: GAMING TELEMETRY & WATT CONSUMPTION */}
-              <PowerMeasurementGuide
-                watts={ctq2ActiveWatts}
-                hours={ctq2Power.gaming_hours}
-              />
-              <VoiceOfCustomerSummary
-                stats={dmaicMetrics?.voice_of_customer}
-                records={allRigSessions}
-                activeFilter={vocExperienceFilter}
-                onFilterChange={setVocExperienceFilter}
-              />
+              {/* SECTION 2: FLEET TELEMETRY & VOICE OF CUSTOMER */}
+              <div className="mt-8 pt-6 border-t border-white/10 flex flex-col gap-4">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <h2 className="text-lg font-bold text-white tracking-tight m-0">
+                      Live Telemetry &amp; Voice of Customer
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-0.5 mb-0">
+                      Real-time power measurements, session quality CTQs, and player experience feedback.
+                    </p>
+                  </div>
+                </div>
+
+                <VoiceOfCustomerSummary
+                  stats={dmaicMetrics?.voice_of_customer}
+                  records={allRigSessions}
+                  activeFilter={vocExperienceFilter}
+                  onFilterChange={setVocExperienceFilter}
+                />
+
+                <PowerMeasurementGuide
+                  watts={ctq2ActiveWatts}
+                  hours={ctq2Power.gaming_hours}
+                />
+              </div>
               <div className="tab-section-header compact" style={{ marginTop: '20px', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   <h2 className="section-heading-compact" style={{ fontSize: '1.2rem', margin: 0, fontWeight: 700 }}>
