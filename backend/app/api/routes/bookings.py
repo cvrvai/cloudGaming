@@ -313,10 +313,17 @@ def get_my_bookings(current_user: Dict = Depends(get_current_user)):
             """
             SELECT b.id, b.user_id, b.machine_id, b.game_id, b.game_title, b.start_time, b.end_time, b.status, b.created_at,
                    m.name as machine_name, m.gpu, m.cpu, m.ram, m.is_host,
-                   g.cover_url as game_cover_url, g.genre as game_genre
+                   g.cover_url as game_cover_url, g.genre as game_genre,
+                   st.user_rating, st.experience_tag, st.user_comment, st.feedback_submitted_at
             FROM bookings b
             JOIN machines m ON b.machine_id = m.id
             LEFT JOIN games g ON b.game_id = g.id
+            LEFT JOIN (
+                SELECT DISTINCT ON (booking_id) booking_id, user_rating, experience_tag, user_comment, feedback_submitted_at
+                FROM session_telemetry
+                WHERE booking_id IS NOT NULL
+                ORDER BY booking_id, id DESC
+            ) st ON st.booking_id = b.id
             WHERE b.user_id = %s
             ORDER BY b.start_time DESC;
             """,

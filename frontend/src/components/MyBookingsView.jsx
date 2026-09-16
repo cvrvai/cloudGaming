@@ -6,7 +6,7 @@ import { GamepadIcon, RocketIcon, CalendarIcon, LockIcon, HistoryIcon, PlayIcon,
 let cachedBookingsData = null;
 let cachedDailyQuota = null;
 
-export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
+export default function MyBookingsView({ onLaunchSession, onBrowseGames, onRateSession }) {
   const { token, user, openAuth } = useAuth();
   const [bookingsData, setBookingsData] = useState(() => cachedBookingsData || { active: [], upcoming: [], past: [] });
   const [dailyQuota, setDailyQuota] = useState(() => cachedDailyQuota || null);
@@ -316,6 +316,7 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
               <span>Date</span>
               <span>Time</span>
               <span>Status</span>
+              <span style={{ textAlign: 'right' }}>Voice of Customer</span>
             </div>
             {bookingsData.past.slice(0, 8).map((b) => {
               const isCancelled = b.status === 'cancelled';
@@ -332,6 +333,48 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames }) {
                       <span className="past-status-dot" />
                       {isCancelled ? 'Cancelled' : isCompleted ? 'Completed' : b.status}
                     </span>
+                  </span>
+                  <span className="past-cell-voc" style={{ textAlign: 'right' }}>
+                    {b.user_rating ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ color: '#eab308', fontSize: '13px' }}>{'★'.repeat(b.user_rating)}</span>
+                        {b.experience_tag && (
+                          <span style={{
+                            fontSize: '10px',
+                            background: b.experience_tag === 'smooth' ? 'rgba(74, 222, 128, 0.15)' : b.experience_tag === 'laggy' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(234, 179, 8, 0.15)',
+                            color: b.experience_tag === 'smooth' ? '#4ade80' : b.experience_tag === 'laggy' ? '#ef4444' : '#facc15',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            textTransform: 'capitalize',
+                            fontWeight: 600,
+                          }}>
+                            {b.experience_tag}
+                          </span>
+                        )}
+                      </span>
+                    ) : isCompleted ? (
+                      <button
+                        type="button"
+                        onClick={() => onRateSession?.(b)}
+                        style={{
+                          background: 'rgba(234, 179, 8, 0.15)',
+                          color: '#facc15',
+                          border: '1px solid rgba(234, 179, 8, 0.35)',
+                          borderRadius: '6px',
+                          padding: '3px 10px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        ★ Rate Session
+                      </button>
+                    ) : (
+                      <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '12px' }}>—</span>
+                    )}
                   </span>
                 </div>
               );

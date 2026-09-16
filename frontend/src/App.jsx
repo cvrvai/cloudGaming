@@ -9,6 +9,7 @@ import AdminDashboard from './components/AdminDashboard';
 import ProfileSettingsView from './components/ProfileSettingsView';
 import BookingModal from './components/BookingModal';
 import CloudStreamPlayer from './components/CloudStreamPlayer';
+import SessionFeedbackModal from './components/SessionFeedbackModal';
 import './App.css';
 import './CloudKH.css';
 
@@ -19,6 +20,9 @@ function CloudKHPlatform() {
   const [activeBookingsCount, setActiveBookingsCount] = useState(0);
   const [selectedGameForBooking, setSelectedGameForBooking] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [feedbackSession, setFeedbackSession] = useState(null);
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [bookingsRefreshKey, setBookingsRefreshKey] = useState(0);
 
   // Poll for active bookings to display badge in navbar
   useEffect(() => {
@@ -73,6 +77,11 @@ function CloudKHPlatform() {
     setActiveSession(null);
     setActiveTab('bookings');
 
+    // Prompt user for feedback on the dashboard cleanly without video lag
+    if (stoppingSession?.booking_id) {
+      setFeedbackSession(stoppingSession);
+    }
+
     // Run backend teardown and booking release asynchronously in the background
     if (token) {
       fetch(`${API_BASE}/api/session/stop`, {
@@ -86,6 +95,40 @@ function CloudKHPlatform() {
           headers: { Authorization: `Bearer ${token}` },
         }).catch((e) => console.warn('Failed to release booking:', e));
       }
+    }
+  };
+
+  const handleFeedbackSubmit = async (feedbackData) => {
+    setFeedbackSubmitting(true);
+    try {
+      if (token && feedbackSession) {
+        const bId = feedbackSession.booking_id || feedbackSession.id;
+        await fetch(`${API_BASE}/api/session/telemetry`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            booking_id: bId,
+            user_rating: feedbackData.user_rating,
+            experience_tag: feedbackData.experience_tag,
+            user_comment: feedbackData.user_comment,
+            avg_latency_ms: 42,
+            max_latency_ms: 48,
+            avg_fps: 60,
+            packet_loss_pct: 0.0,
+            completed: true,
+            duration_seconds: 60,
+          }),
+        });
+        setBookingsRefreshKey((k) => k + 1);
+      }
+    } catch (e) {
+      console.warn('Feedback submit error:', e);
+    } finally {
+      setFeedbackSubmitting(false);
+      setFeedbackSession(null);
     }
   };
 
@@ -125,8 +168,10 @@ function CloudKHPlatform() {
 
             {activeTab === 'bookings' && (
               <MyBookingsView
+                key={bookingsRefreshKey}
                 onLaunchSession={handleLaunchSession}
                 onBrowseGames={() => setActiveTab('games')}
+                onRateSession={(booking) => setFeedbackSession(booking)}
               />
             )}
 
@@ -157,6 +202,15 @@ function CloudKHPlatform() {
           )}
 
           <AuthModal />
+
+          {feedbackSession && (
+            <SessionFeedbackModal
+              sessionData={feedbackSession}
+              onSubmit={handleFeedbackSubmit}
+              onSkip={() => setFeedbackSession(null)}
+              submitting={feedbackSubmitting}
+            />
+          )}
         </>
       )}
     </div>

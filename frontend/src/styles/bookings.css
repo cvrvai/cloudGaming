@@ -369,7 +369,7 @@
 .past-table-header,
 .past-table-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1.2fr;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1.4fr;
   padding: 10px 18px;
   font-size: 13px;
 }

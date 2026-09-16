@@ -326,6 +326,29 @@ async def record_live_session_telemetry(
             feedback_comment = None
         feedback_submitted_at = now_iso if (req.user_rating or req.experience_tag or feedback_comment) else None
 
+        # If a telemetry row already exists for this booking (e.g. from automated disconnect), update it with VOC feedback
+        if valid_booking_id and (req.user_rating or req.experience_tag or feedback_comment):
+            cursor.execute(
+                "SELECT id FROM session_telemetry WHERE booking_id = %s ORDER BY id DESC LIMIT 1;",
+                (valid_booking_id,),
+            )
+            existing_row = cursor.fetchone()
+            if existing_row:
+                cursor.execute(
+                    """
+                    UPDATE session_telemetry
+                    SET user_rating = COALESCE(%s, user_rating),
+                        experience_tag = COALESCE(%s, experience_tag),
+                        user_comment = COALESCE(%s, user_comment),
+                        feedback_submitted_at = %s
+                    WHERE id = %s RETURNING *;
+                    """,
+                    (req.user_rating, req.experience_tag, feedback_comment, now_iso, existing_row["id"]),
+                )
+                record = dict(cursor.fetchone())
+                conn.commit()
+                return record
+
         # Generate Cryptographic Integrity Hash (SHA-256 for academic/audit verification)
         integrity_payload = (
             f"{test_id}:{user_id or 'guest'}:{valid_booking_id}:{req.avg_latency_ms}:"
