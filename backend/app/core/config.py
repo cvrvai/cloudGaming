@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     mfa_encryption_key: str = "cloudkh-mfa-encryption-key-2026-super-secret"
     bootstrap_admin_email: str = "choonvai@cloudkh.space"
     bootstrap_admin_password: str = "cloudkh2026"
+    google_client_id: str = ""
 
     # Video stream
     target_fps: int = 60

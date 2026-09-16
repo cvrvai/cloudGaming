@@ -16,6 +16,7 @@ export const SERVER_IP = server || window.location.hostname;
 export const API_PORT = port;
 
 export const API_BASE = apiBaseOverride || (server ? `${httpScheme}//${server}:${port}` : '');
+export const GOOGLE_CLIENT_ID = urlParams.get('google_client_id') || import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 export const INPUT_WS_URL = apiBaseOverride
   ? `${apiBaseOverride.replace(/^http/, 'ws')}/ws/input`
   : (server

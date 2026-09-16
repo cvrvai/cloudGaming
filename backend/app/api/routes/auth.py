@@ -60,6 +60,10 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class GoogleAuthRequest(BaseModel):
+    credential: str = Field(..., description="Google ID Token (JWT) from Google Identity Services")
+
+
 class MFAVerifyRequest(BaseModel):
     challenge_id: str
     code: str = Field(..., min_length=6, max_length=8)
@@ -245,6 +249,134 @@ async def login(req: LoginRequest, request: Request):
         "secret": pending_secret,
         "provisioning_uri": provisioning_uri,
         "message": "Enter 6-digit authenticator security code to complete administrator sign-in.",
+    }
+
+
+@router.post("/google")
+async def google_auth(req: GoogleAuthRequest, request: Request):
+    """Authenticate or register player via Google Social Sign-In (OAuth 2.0 / GIS)."""
+    import json
+    import urllib.request
+    import urllib.error
+
+    credential = req.credential.strip()
+    if not credential:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google authentication credential is required.",
+        )
+
+    # Verify ID token using Google's public tokeninfo endpoint
+    tokeninfo_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={credential}"
+    try:
+        req_obj = urllib.request.Request(
+            tokeninfo_url,
+            headers={"User-Agent": "CloudKH-Backend/1.0"},
+        )
+        with urllib.request.urlopen(req_obj, timeout=8) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as err:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google token verification failed or expired. Please sign in again.",
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not reach Google authentication servers. Please try again.",
+        )
+
+    # Validate audience if client ID configured
+    if settings.google_client_id:
+        token_aud = payload.get("aud")
+        if token_aud != settings.google_client_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Google token audience mismatch.",
+            )
+
+    email_verified = payload.get("email_verified")
+    if email_verified is not True and email_verified != "true":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google account email is not verified.",
+        )
+
+    email_clean = payload.get("email", "").lower().strip()
+    if not email_clean:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email not provided by Google account.",
+        )
+
+    name_clean = payload.get("name", "").strip() or email_clean.split("@")[0]
+    picture_url = payload.get("picture", "")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    client_ip = request.client.host if request.client else None
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name, email, role, mfa_enabled, created_at FROM users WHERE LOWER(email) = %s;", (email_clean,))
+        user = cursor.fetchone()
+
+        if user:
+            # Existing user logging in with Google
+            user_id = user["id"]
+            role = user["role"]
+            name_clean = user["name"]
+            cursor.execute("UPDATE users SET last_login_at = %s WHERE id = %s;", (now_iso, user_id))
+            conn.commit()
+
+            record_audit_event(
+                action="USER_LOGIN_GOOGLE",
+                actor_user_id=user_id,
+                role=role,
+                ip=client_ip,
+                result="SUCCESS",
+                details=f"User logged in via Google OAuth: {email_clean}",
+            )
+        else:
+            # New user registering with Google
+            role = "user"
+            cursor.execute(
+                """
+                INSERT INTO users (name, email, password_hash, salt, role, mfa_enabled, created_at, last_login_at)
+                VALUES (%s, %s, 'oauth_google', 'google', %s, FALSE, %s, %s)
+                RETURNING id;
+                """,
+                (name_clean, email_clean, role, now_iso, now_iso),
+            )
+            user_id = cursor.fetchone()["id"]
+            conn.commit()
+
+            record_audit_event(
+                action="USER_REGISTER_GOOGLE",
+                actor_user_id=user_id,
+                role=role,
+                ip=client_ip,
+                result="SUCCESS",
+                details=f"New user registered via Google OAuth: {email_clean}",
+            )
+
+    token = create_access_token({
+        "sub": user_id,
+        "email": email_clean,
+        "role": role,
+        "mfa_verified": True,
+    })
+
+    return {
+        "status": "authenticated",
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": user_id,
+            "name": name_clean,
+            "email": email_clean,
+            "role": role,
+            "picture": picture_url,
+            "created_at": now_iso,
+        },
     }
 
 

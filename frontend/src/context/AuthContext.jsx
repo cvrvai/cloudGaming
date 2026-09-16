@@ -159,6 +159,24 @@ export function AuthProvider({ children }) {
     return data.user;
   };
 
+  const loginWithGoogle = async (credential) => {
+    const res = await fetch(`${API_BASE}/api/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || 'Google sign-in failed');
+    }
+    localStorage.setItem(AUTH_TOKEN_KEY, data.access_token);
+    persistStoredUser(data.user);
+    setToken(data.access_token);
+    setUser(data.user);
+    setAuthModalOpen(false);
+    return data.user;
+  };
+
   const verifyMfa = async (challengeId, code) => {
     const res = await fetch(`${API_BASE}/api/auth/mfa/verify`, {
       method: 'POST',
@@ -265,6 +283,7 @@ export function AuthProvider({ children }) {
         token,
         loading,
         login,
+        loginWithGoogle,
         verifyMfa,
         register,
         updateProfile,
