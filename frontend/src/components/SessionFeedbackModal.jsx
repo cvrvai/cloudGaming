@@ -41,11 +41,11 @@ export default function SessionFeedbackModal({
         aria-labelledby="session-feedback-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="session-feedback-kicker">Verbatim Voice of Customer</div>
+        <div className="session-feedback-kicker">Voice of Customer Feedback</div>
         <h2 id="session-feedback-title">Session completed</h2>
         <p className="session-feedback-intro">
           How was your experience on {sessionData?.machine_name || 'this gaming PC'}?
-          Your feedback helps us measure the streaming CTQs.
+          Your feedback helps us measure stream quality and responsiveness.
         </p>
 
         <form onSubmit={handleSubmit}>

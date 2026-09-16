@@ -485,7 +485,7 @@ export default function AdminDashboard() {
   const [createUserError, setCreateUserError] = useState(null);
   const [createUserSubmitting, setCreateUserSubmitting] = useState(false);
 
-  // Operations Research - Lean Six Sigma DMAIC CTQ state
+  // Session Telemetry & Analytics state
   const [dmaicMetrics, setDmaicMetrics] = useState(() => cachedAdminData?.dmaicMetrics || null);
   const [dmaicRecords, setDmaicRecords] = useState(() => cachedAdminData?.dmaicRecords || []);
   const [dmaicPhaseFilter, setDmaicPhaseFilter] = useState('all');
@@ -718,7 +718,7 @@ export default function AdminDashboard() {
       setTimeout(() => setSeedSuccessMsg(null), 6000);
       fetchAllAdminData();
     } catch (err) {
-      alert('Error seeding DMAIC evidence: ' + err.message);
+      alert('Error seeding sample trials: ' + err.message);
     } finally {
       setSeedingTrials(false);
     }
@@ -1591,53 +1591,57 @@ export default function AdminDashboard() {
           className="admin-bento-card glass-panel"
           onClick={() => setAdminTab('dmaic')}
           style={{ cursor: 'pointer' }}
-          title="Click to view Lean Six Sigma DMAIC CTQ Dashboard"
+          title="Click to view Session Analytics & Telemetry Data"
         >
-          <div className="bento-top-row">
-            <span className="bento-tag">DMAIC Pass Rate</span>
+          <div className="bento-head">
+            <span className="bento-tag">Quality Pass Rate</span>
+            <ActivityIcon size={16} />
           </div>
-          <div className="bento-value highlight-green">
+          <div className="bento-val">
             {dmaicMetrics?.ctq4_completion_rate ? `${dmaicMetrics.ctq4_completion_rate.completion_rate_pct}%` : '---'}
+          </div>
+          <div className="bento-sub">
+            {dmaicMetrics?.ctq4_completion_rate ? `${dmaicMetrics.ctq4_completion_rate.completed_sessions || 0}/${dmaicMetrics.ctq4_completion_rate.total_sessions || 0} sessions completed` : 'Calculating metrics...'}
           </div>
         </div>
       </div>
 
-      {/* Admin Tabs */}
-      <div className="admin-subnav-tabs">
+      {/* Admin Subnav */}
+      <div className="admin-subnav-bar">
         <button
           className={`admin-subnav-btn ${adminTab === 'machines' ? 'active' : ''}`}
           onClick={() => setAdminTab('machines')}
         >
-          <MonitorIcon size={16} />
-          <span>Gaming PCs ({machines.length})</span>
+          <ServerIcon size={16} />
+          <span>Machines &amp; Fleet</span>
         </button>
         <button
           className={`admin-subnav-btn ${adminTab === 'games' ? 'active' : ''}`}
           onClick={() => setAdminTab('games')}
         >
           <GamepadIcon size={16} />
-          <span>Game Catalog ({games.length})</span>
+          <span>Games Library</span>
         </button>
         <button
           className={`admin-subnav-btn ${adminTab === 'bookings' ? 'active' : ''}`}
           onClick={() => setAdminTab('bookings')}
         >
-          <ClipboardListIcon size={16} />
-          <span>Reservations ({bookings.length})</span>
+          <CalendarIcon size={16} />
+          <span>Bookings &amp; Schedules</span>
         </button>
         <button
           className={`admin-subnav-btn ${adminTab === 'users' ? 'active' : ''}`}
           onClick={() => setAdminTab('users')}
         >
           <UsersIcon size={16} />
-          <span>User Accounts ({users.length})</span>
+          <span>User Management</span>
         </button>
         <button
           className={`admin-subnav-btn ${adminTab === 'dmaic' ? 'active' : ''}`}
           onClick={() => setAdminTab('dmaic')}
         >
-          <ChartIcon size={16} />
-          <span>Lean Six Sigma DMAIC</span>
+          <ActivityIcon size={16} />
+          <span>Session Analytics &amp; Data</span>
         </button>
       </div>
 
@@ -1646,7 +1650,7 @@ export default function AdminDashboard() {
           <AlertTriangleIcon size={40} style={{ color: '#f59e0b', margin: '0 auto 1rem', display: 'block' }} />
           <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: '#1e293b' }}>Administrator Login Required</h3>
           <p style={{ color: '#64748b', fontSize: '0.925rem', maxWidth: '480px', margin: '0 auto' }}>
-            Please sign in with your administrator account to access fleet hardware, DMAIC evidence, and electricity tracking.
+            Please sign in with your administrator account to access fleet hardware, session telemetry data, and electricity tracking.
           </p>
         </div>
       ) : loading && machines.length === 0 && !cachedAdminData ? (
@@ -2133,7 +2137,7 @@ export default function AdminDashboard() {
                                       LIVE (42ms • 60 FPS)
                                     </span>
                                   ) : isPass ? (
-                                    <span className="pc-status-pill-table online" title="Lean Six Sigma Quality PASS">
+                                    <span className="pc-status-pill-table online" title="Quality PASS">
                                       <span className="live-dot green" />
                                       PASS ({Math.round(row.latency_ms || 42)}ms • {Math.round(row.fps || 60)} FPS)
                                     </span>
@@ -2595,25 +2599,25 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB 5: LEAN SIX SIGMA DMAIC CTQ DASHBOARD */}
+          {/* TAB 5: SESSION ANALYTICS & DATA DASHBOARD */}
           {adminTab === 'dmaic' && (
             <div className={`admin-tab-content ${dmaicWhiteBg ? 'dmaic-academic-white-theme' : ''}`}>
               {/* Project Hero Banner - Compact Executive Header */}
               <div className="dmaic-hero-banner glass-panel compact" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
                 <div className="dmaic-hero-content" style={{ maxWidth: 'none', flex: 1, minWidth: '240px' }}>
                   <div className="dmaic-badge-row compact" style={{ marginBottom: '6px' }}>
-                    <span className="dmaic-badge">Operations Research &bull; Lean Six Sigma</span>
+                    <span className="dmaic-badge">Live System Metrics &bull; Verified Data</span>
                     <button
                       type="button"
                       className={`dmaic-theme-toggle-btn ${dmaicWhiteBg ? 'white-active' : 'dark-active'}`}
                       onClick={() => setDmaicWhiteBg(!dmaicWhiteBg)}
-                      title="Toggle academic white paper mode for grading review"
+                      title="Toggle light/dark report theme"
                     >
-                      {dmaicWhiteBg ? 'Academic White Paper' : 'Dark Theme'}
+                      {dmaicWhiteBg ? 'Light Theme' : 'Dark Theme'}
                     </button>
                   </div>
                   <h2 className="dmaic-hero-title compact" style={{ fontSize: '1.2rem', margin: 0, fontWeight: 700 }}>
-                    DMAIC CTQ Telemetry
+                    Session Telemetry &amp; Performance Data
                   </h2>
                 </div>
                 <div className="dmaic-hero-actions compact" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -2681,13 +2685,18 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
+              {/* Voice of Customer (VOC) Summary Strip */}
+              <div style={{ marginTop: '12px', marginBottom: '12px' }}>
+                <VoiceOfCustomerSummary stats={dmaicMetrics?.voice_of_customer} />
+              </div>
+
               <div className="dmaic-analysis-method-strip" role="note">
                 <div>
                   <strong>Measurement definition</strong>
                   <span>Power rate is measured in watts (W); energy is measured in kilowatt-hours (kWh).</span>
                 </div>
                 <div>
-                  <strong>CTQ decision rule</strong>
+                  <strong>Quality decision rule</strong>
                   <span>Compare each observed value with its target, count defects, then report PASS, RISK, or NO DATA.</span>
                 </div>
                 <div>
@@ -2714,13 +2723,13 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              {/* SECTION: SIX SIGMA CTQ PERFORMANCE MATRIX TABLE */}
+              {/* SECTION: STREAM QUALITY & PERFORMANCE MATRIX TABLE */}
               <div className="tab-section-header compact" style={{ marginTop: '16px', marginBottom: '10px' }}>
                 <div>
                   <h2 className="section-heading-compact" style={{ fontSize: '1.1rem', margin: 0, fontWeight: 700 }}>
-                    Six Sigma Critical to Quality (CTQ) Performance Matrix
+                    Stream Quality &amp; Performance Matrix
                   </h2>
-                  <span className="ctq-click-hint">Select any CTQ row to view its measurement, calculation, evidence, and action.</span>
+                  <span className="ctq-click-hint">Select any metric row to view its measurement, calculation, evidence, and action.</span>
                 </div>
               </div>
 
@@ -2729,12 +2738,12 @@ export default function AdminDashboard() {
                   <table className="dmaic-electricity-table">
                     <thead>
                       <tr>
-                        <th style={{ minWidth: '180px' }}>CTQ &amp; Team Member</th>
+                        <th style={{ minWidth: '180px' }}>Metric &amp; Lead</th>
                         <th style={{ minWidth: '190px' }}>Quality Characteristic</th>
                         <th style={{ minWidth: '160px' }}>Target Specification</th>
                         <th style={{ minWidth: '120px', textAlign: 'right' }}>Observed Level</th>
                         <th style={{ minWidth: '290px' }}>Performance Telemetry Breakdown</th>
-                        <th style={{ width: '90px', textAlign: 'center' }}>Six Sigma Status</th>
+                        <th style={{ width: '90px', textAlign: 'center' }}>Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3919,7 +3928,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* MODAL 5: LOG DMAIC EXPERIMENTAL OBSERVATION */}
+      {/* MODAL 5: LOG SESSION OBSERVATION */}
       {showAddTestModal && (
         <div className="modal-backdrop" onClick={() => setShowAddTestModal(false)}>
           <div className="modal-dialog glass-panel" style={{ maxWidth: '540px' }} onClick={(e) => e.stopPropagation()}>
@@ -3928,9 +3937,9 @@ export default function AdminDashboard() {
             </button>
 
             <div className="auth-header">
-              <h2>Log DMAIC Observation Run</h2>
+              <h2>Log Session Observation Run</h2>
               <p style={{ color: 'var(--text-2)', fontSize: '13px', margin: '4px 0 0' }}>
-                Record trial metrics for Lean Six Sigma CTQ analysis &amp; dataset export.
+                Record trial metrics for stream quality analysis &amp; dataset export.
               </p>
             </div>
 
