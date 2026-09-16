@@ -68,9 +68,11 @@ async def create_stream(offer: SdpOffer) -> dict:
 
     # 2. Cloud Relay Mode: Backend is running on Cloud (Render) - forward offer to connected gaming PC node
     target_node_id = offer.node_id or offer.machine_id
-    if not target_node_id or not node_relay.is_node_connected(target_node_id):
-        target_node_id = node_relay.get_any_connected_node_id()
-    if target_node_id and node_relay.is_node_connected(target_node_id):
+    if not target_node_id or target_node_id not in node_relay._nodes:
+        fallback_id = node_relay.get_any_connected_node_id()
+        if fallback_id:
+            target_node_id = fallback_id
+    if target_node_id and (target_node_id in node_relay._nodes or node_relay.is_node_connected(target_node_id)):
         try:
             _, turn_uri = await get_ice_configuration()
             answer = await node_relay.relay_offer(

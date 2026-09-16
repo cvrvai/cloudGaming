@@ -61,9 +61,25 @@ class NodeRelayManager:
         return False
 
     def get_any_connected_node_id(self) -> Optional[int]:
-        """Return first available connected node ID."""
+        """Return first available connected node ID (in memory or via active DB heartbeat)."""
         if self._nodes:
             return next(iter(self._nodes.keys()))
+        try:
+            from datetime import datetime, timezone
+            from app.db import get_db
+            now = datetime.now(timezone.utc)
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT id, last_seen FROM machines WHERE status = 'available' ORDER BY last_seen DESC NULLS LAST;"
+                )
+                for r in cursor.fetchall():
+                    if r.get("last_seen"):
+                        ls_dt = datetime.fromisoformat(r["last_seen"].replace("Z", "+00:00"))
+                        if (now - ls_dt).total_seconds() < 45:
+                            return r["id"]
+        except Exception:
+            pass
         return None
 
     def get_node_meta(self, node_id: int) -> Optional[Dict[str, Any]]:

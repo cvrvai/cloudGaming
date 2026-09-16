@@ -164,14 +164,14 @@ async def get_slot_availability(
                   AND ng.enabled = TRUE
                   AND ng.status = 'ready'
                   AND m.status != 'maintenance'
-                ORDER BY m.is_host DESC, m.id ASC;
+                ORDER BY (CASE WHEN m.status = 'available' THEN 0 ELSE 1 END) ASC, m.last_seen DESC NULLS LAST, m.is_host DESC, m.id ASC;
                 """,
                 (game_id,),
             )
             capable_machines = cursor.fetchall()
         else:
             cursor.execute(
-                "SELECT id, name, status, is_host FROM machines WHERE status != 'maintenance' ORDER BY is_host DESC, id ASC;"
+                "SELECT id, name, status, is_host FROM machines WHERE status != 'maintenance' ORDER BY (CASE WHEN status = 'available' THEN 0 ELSE 1 END) ASC, last_seen DESC NULLS LAST, is_host DESC, id ASC;"
             )
             capable_machines = cursor.fetchall()
 

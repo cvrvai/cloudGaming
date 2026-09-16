@@ -85,16 +85,25 @@ async def verify_session_access(
     from app.services.streaming.node_relay import node_relay
     from app.services.streaming.manager import stream_manager
 
-    # If the reserved machine is not connected, fallback to any connected node
-    if not node_relay.is_node_connected(target_machine_id):
+    # If the reserved machine is not connected or not in node_relay._nodes, fallback to any connected node
+    if not node_relay.is_node_connected(target_machine_id) or target_machine_id not in node_relay._nodes:
         fallback_node = node_relay.get_any_connected_node_id()
         if fallback_node:
             target_machine_id = fallback_node
 
+    if target_machine_id != booking["machine_id"]:
+        try:
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("UPDATE bookings SET machine_id = %s WHERE id = %s;", (target_machine_id, booking["id"]))
+                conn.commit()
+        except Exception:
+            pass
+
     # Trigger trusted host agent to start game if a game was reserved
     agent_launch_info = None
     if booking["game_id"]:
-        if node_relay.is_node_connected(target_machine_id):
+        if target_machine_id in node_relay._nodes or node_relay.is_node_connected(target_machine_id):
             try:
                 cmd_res = await node_relay.forward_game_command(
                     target_machine_id,

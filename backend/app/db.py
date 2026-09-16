@@ -346,13 +346,13 @@ def create_booking_atomic(
                           AND ng.enabled = TRUE 
                           AND ng.status = 'ready'
                           AND m.status != 'maintenance'
-                        ORDER BY m.is_host DESC, m.id ASC FOR UPDATE;
+                        ORDER BY (CASE WHEN m.status = 'available' THEN 0 ELSE 1 END) ASC, m.last_seen DESC NULLS LAST, m.is_host DESC, m.id ASC FOR UPDATE;
                         """,
                         (game_id,),
                     )
                 else:
                     cursor.execute(
-                        "SELECT id, name FROM machines WHERE status != 'maintenance' ORDER BY is_host DESC, id ASC FOR UPDATE;"
+                        "SELECT id, name FROM machines WHERE status != 'maintenance' ORDER BY (CASE WHEN status = 'available' THEN 0 ELSE 1 END) ASC, last_seen DESC NULLS LAST, is_host DESC, id ASC FOR UPDATE;"
                     )
                 available_candidates = cursor.fetchall()
                 if not available_candidates:
