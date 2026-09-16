@@ -186,7 +186,7 @@ function VoiceOfCustomerSummary({ stats, records = [], activeFilter = 'all', onF
     <div className="my-3.5 p-4 rounded-2xl bg-slate-900/80 border border-cyan-400/25 backdrop-blur-xl shadow-lg flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2.5">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-black uppercase tracking-wider text-cyan-400">Voice of Customer Experience &amp; Ratings</span>
+          <span className="text-xs font-black uppercase tracking-wider text-cyan-400">Player Experience &amp; Feedback</span>
           <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-cyan-400/10 text-cyan-300 border border-cyan-400/30">
             {feedbackCount} Feedback Review{feedbackCount === 1 ? '' : 's'}
           </span>
@@ -216,11 +216,11 @@ function VoiceOfCustomerSummary({ stats, records = [], activeFilter = 'all', onF
               title="Click to filter sessions by Smooth experience"
             >
               <div className="flex items-center justify-between text-[11px] text-emerald-400 font-bold mb-1">
-                <span>🟢 Smooth Rate</span>
+                <span>🟢 Smooth</span>
                 <span className="text-xs font-extrabold">{smoothRate}%</span>
               </div>
               <div className="text-xl font-black text-white">{smoothCount} <span className="text-xs font-semibold text-slate-400">sessions</span></div>
-              <div className="text-[10px] text-emerald-300/80 mt-1">Responsive &amp; steady 60 FPS</div>
+              <div className="text-[10px] text-emerald-300/80 mt-1">Fast &amp; smooth 60 FPS</div>
             </button>
 
             {/* Mostly Okay Card */}
@@ -232,14 +232,14 @@ function VoiceOfCustomerSummary({ stats, records = [], activeFilter = 'all', onF
                   ? 'bg-amber-500/20 border-amber-400 shadow-[0_0_14px_rgba(251,191,36,0.35)]'
                   : 'bg-white/[0.03] hover:bg-amber-500/10 border-white/10 hover:border-amber-500/30'
               }`}
-              title="Click to filter sessions by Mostly Okay experience"
+              title="Click to filter sessions by Okay experience"
             >
               <div className="flex items-center justify-between text-[11px] text-amber-400 font-bold mb-1">
-                <span>🟡 Mostly Okay</span>
+                <span>🟡 Okay</span>
                 <span className="text-xs font-extrabold">{mixedRate}%</span>
               </div>
               <div className="text-xl font-black text-white">{mixedCount} <span className="text-xs font-semibold text-slate-400">sessions</span></div>
-              <div className="text-[10px] text-amber-300/80 mt-1">Minor transient stutter</div>
+              <div className="text-[10px] text-amber-300/80 mt-1">Small stutters</div>
             </button>
 
             {/* Laggy Card */}
@@ -254,11 +254,11 @@ function VoiceOfCustomerSummary({ stats, records = [], activeFilter = 'all', onF
               title="Click to filter sessions by Laggy experience"
             >
               <div className="flex items-center justify-between text-[11px] text-red-400 font-bold mb-1">
-                <span>🔴 Laggy Rate</span>
+                <span>🔴 Laggy</span>
                 <span className="text-xs font-extrabold">{laggyRate}%</span>
               </div>
               <div className="text-xl font-black text-white">{laggyCount} <span className="text-xs font-semibold text-slate-400">sessions</span></div>
-              <div className="text-[10px] text-red-300/80 mt-1">High latency or packet drops</div>
+              <div className="text-[10px] text-red-300/80 mt-1">High ping or lag</div>
             </button>
 
             {/* Written Comments Card */}
@@ -270,14 +270,14 @@ function VoiceOfCustomerSummary({ stats, records = [], activeFilter = 'all', onF
                   ? 'bg-blue-500/20 border-blue-400 shadow-[0_0_14px_rgba(96,165,250,0.35)]'
                   : 'bg-white/[0.03] hover:bg-blue-500/10 border-white/10 hover:border-blue-500/30'
               }`}
-              title="Click to filter sessions with written comments"
+              title="Click to filter sessions with comments"
             >
               <div className="flex items-center justify-between text-[11px] text-blue-400 font-bold mb-1">
-                <span>💬 Written Feedback</span>
+                <span>💬 Comments</span>
                 <span className="text-xs font-extrabold">{feedbackCount > 0 ? Math.round((commentCount / feedbackCount) * 100) : 0}%</span>
               </div>
               <div className="text-xl font-black text-white">{commentCount} <span className="text-xs font-semibold text-slate-400">comments</span></div>
-              <div className="text-[10px] text-blue-300/80 mt-1">Player verbatim notes</div>
+              <div className="text-[10px] text-blue-300/80 mt-1">Player comments</div>
             </button>
           </div>
 
@@ -295,7 +295,7 @@ function VoiceOfCustomerSummary({ stats, records = [], activeFilter = 'all', onF
                 <div
                   style={{ width: `${mixedRate}%` }}
                   className="h-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all"
-                  title={`Mostly Okay: ${mixedCount} (${mixedRate}%)`}
+                  title={`Okay: ${mixedCount} (${mixedRate}%)`}
                 />
               )}
               {laggyCount > 0 && (
@@ -308,7 +308,7 @@ function VoiceOfCustomerSummary({ stats, records = [], activeFilter = 'all', onF
             </div>
             <div className="flex items-center justify-between text-[10.5px] text-slate-400 flex-wrap gap-2">
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block shadow-[0_0_6px_#10b981]" /> <b>Smooth:</b> {smoothCount} ({smoothRate}%)</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block shadow-[0_0_6px_#fbbf24]" /> <b>Mostly Okay:</b> {mixedCount} ({mixedRate}%)</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block shadow-[0_0_6px_#fbbf24]" /> <b>Okay:</b> {mixedCount} ({mixedRate}%)</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block shadow-[0_0_6px_#ef4444]" /> <b>Laggy:</b> {laggyCount} ({laggyRate}%)</span>
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-400 inline-block" /> <b>Comments:</b> {commentCount}</span>
             </div>
@@ -666,7 +666,7 @@ export default function AdminDashboard() {
   const [energyViewMode, setEnergyViewMode] = useState('sessions'); // 'sessions' | 'daily'
   const [powerDetailsOpen, setPowerDetailsOpen] = useState({});
   const [selectedCtq, setSelectedCtq] = useState(null);
-  const [dmaicWhiteBg, setDmaicWhiteBg] = useState(true); // Default to clean white background for academic review / teacher presentation
+  const [dmaicWhiteBg, setDmaicWhiteBg] = useState(false); // Default to dark theme matching admin console
   const [backendError, setBackendError] = useState(null);
   const [timeTick, setTimeTick] = useState(Date.now());
 
@@ -1666,7 +1666,14 @@ export default function AdminDashboard() {
     (r) => r.user_rating || r.experience_tag || (r.user_comment && r.user_comment.trim())
   ).length;
 
-  const filteredDmaicRecords = dmaicRecords.filter((r) => dmaicPhaseFilter === 'all' || r.phase === dmaicPhaseFilter);
+  const filteredDmaicRecords = dmaicRecords.filter((r) => {
+    if (dmaicPhaseFilter !== 'all' && r.phase !== dmaicPhaseFilter) return false;
+    if (vocExperienceFilter === 'smooth') return r.experience_tag === 'smooth';
+    if (vocExperienceFilter === 'mixed') return r.experience_tag === 'mixed';
+    if (vocExperienceFilter === 'laggy') return r.experience_tag === 'laggy';
+    if (vocExperienceFilter === 'comments') return Boolean(r.user_comment && r.user_comment.trim());
+    return true;
+  });
   const nDmaic = filteredDmaicRecords.length;
   const avgWait = nDmaic > 0 ? (filteredDmaicRecords.reduce((s, r) => s + (r.waiting_time_mins ?? r.waiting_time_minutes ?? 0), 0) / nDmaic) : 0;
   const avgLatency = nDmaic > 0 ? (filteredDmaicRecords.reduce((s, r) => s + (r.latency_ms ?? r.avg_latency_ms ?? 0), 0) / nDmaic) : 0;
@@ -3223,12 +3230,15 @@ export default function AdminDashboard() {
                       onClick={() => setDmaicWhiteBg(!dmaicWhiteBg)}
                       title="Toggle light/dark report theme"
                     >
-                      {dmaicWhiteBg ? 'Light Theme' : 'Dark Theme'}
+                      {dmaicWhiteBg ? 'Dark Theme' : 'Light Theme'}
                     </button>
                   </div>
-                  <h2 className="dmaic-hero-title compact" style={{ fontSize: '1.2rem', margin: 0, fontWeight: 700 }}>
-                    Session Telemetry &amp; Performance Data
+                  <h2 className="dmaic-hero-title compact" style={{ fontSize: '1.25rem', margin: 0, fontWeight: 800 }}>
+                    Performance &amp; Business Metrics
                   </h2>
+                  <p className="text-xs text-slate-400 mt-1 mb-0">
+                    Tracking Adoption, Completion, Stream Quality, Fleet Efficiency, and Player Satisfaction.
+                  </p>
                 </div>
                 <div className="dmaic-hero-actions compact" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <button
@@ -3239,7 +3249,7 @@ export default function AdminDashboard() {
                     title="Export dataset as .CSV"
                   >
                     <DownloadIcon size={13} />
-                    <span>{exportingCsv ? 'Exporting...' : 'Export .CSV'}</span>
+                    <span>{exportingCsv ? 'Exporting...' : 'Export CSV'}</span>
                   </button>
                   <button
                     className="btn-secondary btn-compact"
@@ -3257,10 +3267,10 @@ export default function AdminDashboard() {
                       borderColor: 'rgba(56, 189, 248, 0.35)',
                       color: '#38bdf8',
                     }}
-                    title="Generate 30 trial observations across both Gaming PCs"
+                    title="Generate trial observations across both Gaming PCs"
                   >
                     <ShieldCheckIcon size={12} />
-                    <span>{seedingTrials ? 'Generating...' : 'Seed 30 Trials'}</span>
+                    <span>{seedingTrials ? 'Generating...' : 'Seed Test Data'}</span>
                   </button>
                   <button
                     className="btn-secondary btn-compact"
@@ -3290,37 +3300,14 @@ export default function AdminDashboard() {
                     title="Wipe dataset to 0 records"
                   >
                     <TrashIcon size={12} />
-                    <span>{clearingEvidence ? 'Clearing...' : 'Clear All Data'}</span>
+                    <span>{clearingEvidence ? 'Clearing...' : 'Clear Data'}</span>
                   </button>
-                </div>
-              </div>
-
-              {/* Voice of Customer (VOC) Summary Strip */}
-              <div style={{ marginTop: '12px', marginBottom: '12px' }}>
-                <VoiceOfCustomerSummary
-                  stats={dmaicMetrics?.voice_of_customer}
-                  records={dmaicRecords}
-                />
-              </div>
-
-              <div className="dmaic-analysis-method-strip" role="note">
-                <div>
-                  <strong>Measurement definition</strong>
-                  <span>Power rate is measured in watts (W); energy is measured in kilowatt-hours (kWh).</span>
-                </div>
-                <div>
-                  <strong>Quality decision rule</strong>
-                  <span>Compare each observed value with its target, count defects, then report PASS, RISK, or NO DATA.</span>
-                </div>
-                <div>
-                  <strong>Evidence basis</strong>
-                  <span>n = {dmaicMetrics?.ctq4_completion_rate?.sample_size || dmaicRecords.length || 0} observations; component power is estimated from the rig-level profile.</span>
                 </div>
               </div>
 
               {seedSuccessMsg && (
                 <div style={{
-                  margin: '0 0 16px 0',
+                  margin: '12px 0 0 0',
                   padding: '10px 16px',
                   borderRadius: '10px',
                   background: 'rgba(74, 222, 128, 0.12)',
@@ -3336,322 +3323,213 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              {/* SECTION: STREAM QUALITY & PERFORMANCE MATRIX TABLE */}
-              <div className="tab-section-header compact" style={{ marginTop: '16px', marginBottom: '10px' }}>
-                <div>
-                  <h2 className="section-heading-compact" style={{ fontSize: '1.1rem', margin: 0, fontWeight: 700 }}>
-                    Stream Quality &amp; Performance Matrix
-                  </h2>
-                  <span className="ctq-click-hint">Select any metric row to view its measurement, calculation, evidence, and action.</span>
+              {/* 5 CORE BUSINESS METRICS ROW */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mt-3.5 mb-2">
+                {/* 1. ADOPTION */}
+                <div
+                  className={`p-3.5 rounded-2xl border backdrop-blur-xl flex flex-col justify-between transition-all cursor-pointer ${
+                    selectedCtq === 'ctq3'
+                      ? 'bg-blue-500/20 border-blue-400 shadow-[0_0_14px_rgba(96,165,250,0.35)]'
+                      : 'bg-slate-900/80 border-white/10 hover:border-blue-400/40 hover:bg-slate-900/95'
+                  }`}
+                  onClick={() => toggleCtqDetails('ctq3')}
+                  title="Click to view Adoption & Waiting Time details"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-md bg-blue-500/20 text-blue-300 flex items-center justify-center font-black text-[11px]">1</span>
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-200">Adoption</span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-400/10 text-blue-300 border border-blue-400/25">
+                      {users.length} Users
+                    </span>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-black text-white tracking-tight flex items-baseline gap-1.5">
+                      {bookings.length}
+                      <span className="text-xs font-semibold text-slate-400">Bookings</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      Avg <strong className="text-white">{(bookings.length / Math.max(1, users.length)).toFixed(1)}</strong> bookings / player
+                    </div>
+                  </div>
+                  <div className="text-[10.5px] text-blue-300/80 mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between">
+                    <span>Wait: {dmaicMetrics?.ctq3_waiting_time?.mean_waiting_time_mins || 0}m mean</span>
+                    <span className="font-semibold text-slate-400">Lim Hokann</span>
+                  </div>
+                </div>
+
+                {/* 2. COMPLETION */}
+                <div
+                  className={`p-3.5 rounded-2xl border backdrop-blur-xl flex flex-col justify-between transition-all cursor-pointer ${
+                    selectedCtq === 'ctq4'
+                      ? 'bg-emerald-500/20 border-emerald-400 shadow-[0_0_14px_rgba(74,222,128,0.35)]'
+                      : 'bg-slate-900/80 border-white/10 hover:border-emerald-400/40 hover:bg-slate-900/95'
+                  }`}
+                  onClick={() => toggleCtqDetails('ctq4')}
+                  title="Click to view Completion & Reliability details"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-300 flex items-center justify-center font-black text-[11px]">2</span>
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-200">Completion</span>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      (dmaicMetrics?.ctq4_completion_rate?.completion_rate_pct ?? 100) >= 95
+                        ? 'bg-emerald-400/10 text-emerald-300 border border-emerald-400/25'
+                        : 'bg-amber-400/10 text-amber-300 border border-amber-400/25'
+                    }`}>
+                      {dmaicMetrics?.ctq4_completion_rate?.status || 'PASS'}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-black text-white tracking-tight flex items-baseline gap-1.5">
+                      {dmaicMetrics?.ctq4_completion_rate?.completion_rate_pct ?? 100}%
+                      <span className="text-xs font-semibold text-slate-400">Rate</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      <strong className="text-white">{dmaicMetrics?.ctq4_completion_rate?.completed_sessions || 0}</strong> of {dmaicMetrics?.ctq4_completion_rate?.total_sessions || 0} finished
+                    </div>
+                  </div>
+                  <div className="text-[10.5px] text-emerald-300/80 mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between">
+                    <span>Target: &ge;95% finished</span>
+                    <span className="font-semibold text-slate-400">Hour</span>
+                  </div>
+                </div>
+
+                {/* 3. QUALITY */}
+                <div
+                  className={`p-3.5 rounded-2xl border backdrop-blur-xl flex flex-col justify-between transition-all cursor-pointer ${
+                    selectedCtq === 'ctq1'
+                      ? 'bg-cyan-500/20 border-cyan-400 shadow-[0_0_14px_rgba(6,182,212,0.35)]'
+                      : 'bg-slate-900/80 border-white/10 hover:border-cyan-400/40 hover:bg-slate-900/95'
+                  }`}
+                  onClick={() => toggleCtqDetails('ctq1')}
+                  title="Click to view Quality & Latency details"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-md bg-cyan-500/20 text-cyan-300 flex items-center justify-center font-black text-[11px]">3</span>
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-200">Quality</span>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      (dmaicMetrics?.ctq1_latency?.mean_latency_ms ?? 0) <= 100
+                        ? 'bg-cyan-400/10 text-cyan-300 border border-cyan-400/25'
+                        : 'bg-red-400/10 text-red-300 border border-red-400/25'
+                    }`}>
+                      {dmaicMetrics?.ctq1_latency?.status || 'PASS'}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-black text-white tracking-tight flex items-baseline gap-1.5">
+                      {dmaicMetrics?.ctq1_latency?.mean_latency_ms ?? 0}
+                      <span className="text-xs font-semibold text-slate-400">ms ping</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      <strong className="text-white">{dmaicMetrics?.ctq1_latency?.mean_fps ?? 60} FPS</strong> stream average
+                    </div>
+                  </div>
+                  <div className="text-[10.5px] text-cyan-300/80 mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between">
+                    <span>Target: &le;100ms &bull; 60 FPS</span>
+                    <span className="font-semibold text-slate-400">Sean</span>
+                  </div>
+                </div>
+
+                {/* 4. EFFICIENCY */}
+                <div
+                  className={`p-3.5 rounded-2xl border backdrop-blur-xl flex flex-col justify-between transition-all cursor-pointer ${
+                    selectedCtq === 'ctq2'
+                      ? 'bg-amber-500/20 border-amber-400 shadow-[0_0_14px_rgba(251,191,36,0.35)]'
+                      : 'bg-slate-900/80 border-white/10 hover:border-amber-400/40 hover:bg-slate-900/95'
+                  }`}
+                  onClick={() => toggleCtqDetails('ctq2')}
+                  title="Click to view Efficiency & Power details"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-md bg-amber-500/20 text-amber-300 flex items-center justify-center font-black text-[11px]">4</span>
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-200">Efficiency</span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-300 border border-amber-400/25">
+                      {dmaicMetrics?.ctq2_utilization?.status || 'POWER'}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-black text-white tracking-tight flex items-baseline gap-1.5">
+                      {totalObservedKwh < 0.01 && totalObservedKwh > 0 ? totalObservedKwh.toFixed(3) : totalObservedKwh.toFixed(1)}
+                      <span className="text-xs font-semibold text-slate-400">kWh</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      Cost: <strong className="text-white">${totalObservedUsd < 0.01 && totalObservedUsd > 0 ? '< 0.01' : totalObservedUsd.toFixed(2)}</strong> ({totalGamingHours.toFixed(1)}h active)
+                    </div>
+                  </div>
+                  <div className="text-[10.5px] text-amber-300/80 mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between">
+                    <span>Target: &ge;70% active</span>
+                    <span className="font-semibold text-slate-400">Choonvai</span>
+                  </div>
+                </div>
+
+                {/* 5. SATISFACTION */}
+                <div
+                  className="p-3.5 rounded-2xl bg-slate-900/80 border border-white/10 backdrop-blur-xl flex flex-col justify-between hover:border-purple-400/40 transition-all"
+                  title="Player Experience & Feedback Rating"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-md bg-purple-500/20 text-purple-300 flex items-center justify-center font-black text-[11px]">5</span>
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-200">Satisfaction</span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-400/10 text-purple-300 border border-purple-400/25">
+                      {vocFeedbacks.length} Reviews
+                    </span>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-black text-white tracking-tight flex items-baseline gap-1.5">
+                      ★ {vocMeanRating > 0 ? vocMeanRating.toFixed(1) : '—'}
+                      <span className="text-xs font-semibold text-slate-400">/ 5.0</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      <strong className={vocLaggyCount > 0 ? 'text-red-400' : 'text-emerald-400'}>
+                        {vocFeedbacks.length > 0 ? `${Math.round((vocSmoothCount / vocFeedbacks.length) * 100)}% Smooth` : 'No reviews yet'}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="text-[10.5px] text-purple-300/80 mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between">
+                    <span>Target: &ge;4.0 stars</span>
+                    <span className="font-semibold text-slate-400">Player CSAT</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="dmaic-electricity-table-container glass-panel" style={{ marginBottom: '22px' }}>
-                <div className="electricity-table-scroll">
-                  <table className="dmaic-electricity-table">
-                    <thead>
-                      <tr>
-                        <th style={{ minWidth: '180px' }}>Metric &amp; Lead</th>
-                        <th style={{ minWidth: '190px' }}>Quality Characteristic</th>
-                        <th style={{ minWidth: '160px' }}>Target Specification</th>
-                        <th style={{ minWidth: '120px', textAlign: 'right' }}>Observed Level</th>
-                        <th style={{ minWidth: '290px' }}>Performance Telemetry Breakdown</th>
-                        <th style={{ width: '90px', textAlign: 'center' }}>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {/* CTQ 1: Latency & Frame Stability (Sean Pheavyraksonya) */}
-                      <tr
-                        className={`ctq-matrix-row ${selectedCtq === 'ctq1' ? 'selected' : ''}`}
-                        onClick={() => toggleCtqDetails('ctq1')}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            toggleCtqDetails('ctq1');
-                          }
-                        }}
-                        tabIndex={0}
-                        role="button"
-                        aria-expanded={selectedCtq === 'ctq1'}
-                      >
-                        <td>
-                          <div className="ctq-owner-tag sean" style={{ marginBottom: '2px' }}>
-                            CTQ 1 &bull; Sean Pheavyraksonya
-                          </div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>
-                            Network &amp; Streaming Quality
-                          </div>
-                        </td>
-                        <td>
-                          <strong style={{ fontSize: '13px' }}>Latency &amp; FPS Stability</strong>
-                        </td>
-                        <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                          <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Target: </span>
-                          <strong>&le; 100 ms mean</strong> &bull; <strong>60 FPS</strong>
-                        </td>
-                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                          <span style={{ fontSize: '15px', fontWeight: 800 }}>
-                            {dmaicMetrics?.ctq1_latency?.mean_latency_ms || 0}
-                          </span>{' '}
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>ms mean</span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '11.5px' }}>
-                            <span>n={dmaicMetrics?.ctq1_latency?.sample_size || 0}</span>
-                            &bull;
-                            <span>Peak: <strong>{dmaicMetrics?.ctq1_latency?.peak_latency_ms || 0} ms</strong></span>
-                            &bull;
-                            <span>Framerate: <strong>{dmaicMetrics?.ctq1_latency?.mean_fps || 0} FPS</strong></span>
-                            &bull;
-                            <span>Defects (&gt;100ms): <strong className={(dmaicMetrics?.ctq1_latency?.defect_rate_pct || 0) > 0 ? 'text-defect' : ''}>{dmaicMetrics?.ctq1_latency?.defect_rate_pct || 0}%</strong></span>
-                            &bull;
-                            <span>DPMO: <strong>{dmaicMetrics?.ctq1_latency?.dpmo || 0}</strong></span>
-                          </div>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span className={`ctq-status-badge compact ${getCtqStatusClass(dmaicMetrics?.ctq1_latency?.status)}`}>
-                            {dmaicMetrics?.ctq1_latency?.status || 'NO DATA'}
-                          </span>
-                        </td>
-                      </tr>
-                      {selectedCtq === 'ctq1' && (
-                        <tr className="ctq-detail-row">
-                          <td colSpan={6}>
-                            <CtqDetailPanel
-                              ctqKey="ctq1"
-                              metrics={dmaicMetrics}
-                              records={dmaicRecords}
-                              onClose={() => setSelectedCtq(null)}
-                            />
-                          </td>
-                        </tr>
-                      )}
-
-                      {/* CTQ 2: PC Utilization & Energy Waste (Choonvai) */}
-                      <tr
-                        className={`ctq-matrix-row ${selectedCtq === 'ctq2' ? 'selected' : ''}`}
-                        onClick={() => toggleCtqDetails('ctq2')}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            toggleCtqDetails('ctq2');
-                          }
-                        }}
-                        tabIndex={0}
-                        role="button"
-                        aria-expanded={selectedCtq === 'ctq2'}
-                      >
-                        <td>
-                          <div className="ctq-owner-tag choonvai" style={{ marginBottom: '2px' }}>
-                            CTQ 2 &bull; Choonvai
-                          </div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>
-                            Hardware Fleet &amp; Energy Waste
-                          </div>
-                        </td>
-                        <td>
-                          <strong style={{ fontSize: '13px' }}>PC Utilization &amp; Energy Waste</strong>
-                        </td>
-                        <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                          <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Target: </span>
-                          <strong>&ge; 70%</strong> active-time utilization
-                        </td>
-                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                          <span style={{ fontSize: '15px', fontWeight: 800 }}>
-                            {dmaicMetrics?.ctq2_utilization?.status === 'NO DATA' ? '—' : (dmaicMetrics?.ctq2_utilization?.utilization_pct || 0)}
-                          </span>{' '}
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>%</span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11.5px' }}>
-                            <div>
-                              <span><strong>{dmaicMetrics?.ctq2_utilization?.gaming_hours || 0}h</strong> active time &bull; <strong>{dmaicMetrics?.ctq2_utilization?.idle_hours || 0}h</strong> standby time</span>
-                              {' '}&bull;{' '}
-                              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Active rate: {formatWattRate(ctq2ActiveWatts)} &bull; standby rate: {formatWattRate(ctq2IdleWatts)}</span>
-                            </div>
-                            <PowerBreakdownDetails
-                              activeWatts={ctq2ActiveWatts}
-                              idleWatts={ctq2IdleWatts}
-                              activeBreakdown={ctq2Power.active_power_breakdown}
-                              idleBreakdown={ctq2Power.idle_power_breakdown}
-                              activeHours={ctq2Power.gaming_hours}
-                              idleHours={ctq2Power.idle_hours}
-                              expanded={Boolean(powerDetailsOpen.ctq2)}
-                              onToggle={() => togglePowerDetails('ctq2')}
-                            />
-                            <div style={{ fontSize: '11px' }}>
-                              <span style={{ color: '#38bdf8' }}>
-                                Energy intensity: {ctq2Power.energy_intensity_kwh_per_active_hour ?? 0} kWh per active hour
-                              </span>
-                              {' '}&bull;{' '}
-                              <span style={{ color: '#f87171' }}>Standby waste: {dmaicMetrics?.ctq2_utilization?.idle_waste_kwh ?? 0} kWh ({dmaicMetrics?.ctq2_utilization?.idle_waste_pct ?? 0}%)</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span className={`ctq-status-badge compact ${getCtqStatusClass(dmaicMetrics?.ctq2_utilization?.status)}`}>
-                            {dmaicMetrics?.ctq2_utilization?.status || 'NO DATA'}
-                          </span>
-                        </td>
-                      </tr>
-                      {selectedCtq === 'ctq2' && (
-                        <tr className="ctq-detail-row">
-                          <td colSpan={6}>
-                            <CtqDetailPanel
-                              ctqKey="ctq2"
-                              metrics={dmaicMetrics}
-                              records={dmaicRecords}
-                              activeWatts={ctq2ActiveWatts}
-                              idleWatts={ctq2IdleWatts}
-                              onClose={() => setSelectedCtq(null)}
-                            />
-                          </td>
-                        </tr>
-                      )}
-
-                      {/* CTQ 3: Booking Waiting Time & Capacity (Lim Hokann) */}
-                      <tr
-                        className={`ctq-matrix-row ${selectedCtq === 'ctq3' ? 'selected' : ''}`}
-                        onClick={() => toggleCtqDetails('ctq3')}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            toggleCtqDetails('ctq3');
-                          }
-                        }}
-                        tabIndex={0}
-                        role="button"
-                        aria-expanded={selectedCtq === 'ctq3'}
-                      >
-                        <td>
-                          <div className="ctq-owner-tag hokann" style={{ marginBottom: '2px' }}>
-                            CTQ 3 &bull; Lim Hokann
-                          </div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>
-                            Queue &amp; Slot Capacity Management
-                          </div>
-                        </td>
-                        <td>
-                          <strong style={{ fontSize: '13px' }}>Queue Waiting &amp; Capacity</strong>
-                        </td>
-                        <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                          <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Target: </span>
-                          <strong>&le; 30 min</strong> mean wait; zero capacity defects
-                        </td>
-                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                          <span style={{ fontSize: '15px', fontWeight: 800 }}>
-                            {dmaicMetrics?.ctq3_waiting_time?.mean_waiting_time_mins || 0}
-                          </span>{' '}
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>min mean</span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '11.5px' }}>
-                            <span>n={dmaicMetrics?.ctq3_waiting_time?.sample_size || 0}</span>
-                            &bull;
-                            <span>Max Wait: <strong>{dmaicMetrics?.ctq3_waiting_time?.max_waiting_time_mins || 0} min</strong></span>
-                            &bull;
-                            <span>Booked Slots: <strong>{dmaicMetrics?.ctq3_waiting_time?.total_booked_slots || 0}</strong></span>
-                            &bull;
-                            <span>Wait defects (&gt;30m): <strong className={(dmaicMetrics?.ctq3_waiting_time?.waiting_defect_count || 0) > 0 ? 'text-defect' : ''}>{dmaicMetrics?.ctq3_waiting_time?.waiting_defect_count || 0}</strong></span>
-                            &bull;
-                            <span>Capacity defects: <strong className={(dmaicMetrics?.ctq3_waiting_time?.capacity_defects_count || 0) > 0 ? 'text-defect' : ''}>{dmaicMetrics?.ctq3_waiting_time?.capacity_defects_count || 0}</strong></span>
-                          </div>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span className={`ctq-status-badge compact ${getCtqStatusClass(dmaicMetrics?.ctq3_waiting_time?.status)}`}>
-                            {dmaicMetrics?.ctq3_waiting_time?.status || 'NO DATA'}
-                          </span>
-                        </td>
-                      </tr>
-                      {selectedCtq === 'ctq3' && (
-                        <tr className="ctq-detail-row">
-                          <td colSpan={6}>
-                            <CtqDetailPanel
-                              ctqKey="ctq3"
-                              metrics={dmaicMetrics}
-                              records={dmaicRecords}
-                              onClose={() => setSelectedCtq(null)}
-                            />
-                          </td>
-                        </tr>
-                      )}
-
-                      {/* CTQ 4: Session Completion Rate (Hour) */}
-                      <tr
-                        className={`ctq-matrix-row ${selectedCtq === 'ctq4' ? 'selected' : ''}`}
-                        onClick={() => toggleCtqDetails('ctq4')}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            toggleCtqDetails('ctq4');
-                          }
-                        }}
-                        tabIndex={0}
-                        role="button"
-                        aria-expanded={selectedCtq === 'ctq4'}
-                      >
-                        <td>
-                          <div className="ctq-owner-tag hour" style={{ marginBottom: '2px' }}>
-                            CTQ 4 &bull; Hour
-                          </div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>
-                            Session Reliability &amp; QoS
-                          </div>
-                        </td>
-                        <td>
-                          <strong style={{ fontSize: '13px' }}>Session Completion Rate</strong>
-                        </td>
-                        <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                          <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Target: </span>
-                          <strong>&ge; 95%</strong> Completion
-                        </td>
-                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                          <span style={{ fontSize: '15px', fontWeight: 800 }}>
-                            {dmaicMetrics?.ctq4_completion_rate?.completion_rate_pct || 0}
-                          </span>{' '}
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>%</span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '11.5px' }}>
-                            <span>n={dmaicMetrics?.ctq4_completion_rate?.sample_size || 0}</span>
-                            &bull;
-                            <span>Sessions: <strong>{dmaicMetrics?.ctq4_completion_rate?.completed_sessions || 0} / {dmaicMetrics?.ctq4_completion_rate?.total_sessions || 0}</strong></span>
-                            &bull;
-                            <span>Defect Rate: <strong className={(dmaicMetrics?.ctq4_completion_rate?.defect_rate_pct || 0) > 0 ? 'text-defect' : ''}>{dmaicMetrics?.ctq4_completion_rate?.defect_rate_pct || 0}%</strong></span>
-                            &bull;
-                            <span>Failures: <strong>{dmaicMetrics?.ctq4_completion_rate?.failure_counts?.disconnect || 0} disc, {dmaicMetrics?.ctq4_completion_rate?.failure_counts?.crash || 0} crash</strong></span>
-                            &bull;
-                            <span>DPMO: <strong>{dmaicMetrics?.ctq4_completion_rate?.dpmo || 0}</strong></span>
-                          </div>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span className={`ctq-status-badge compact ${getCtqStatusClass(dmaicMetrics?.ctq4_completion_rate?.status)}`}>
-                            {dmaicMetrics?.ctq4_completion_rate?.status || 'NO DATA'}
-                          </span>
-                        </td>
-                      </tr>
-                      {selectedCtq === 'ctq4' && (
-                        <tr className="ctq-detail-row">
-                          <td colSpan={6}>
-                            <CtqDetailPanel
-                              ctqKey="ctq4"
-                              metrics={dmaicMetrics}
-                              records={dmaicRecords}
-                              onClose={() => setSelectedCtq(null)}
-                            />
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+              {/* Expandable CTQ Detail Panel (when a card is clicked) */}
+              {selectedCtq && (
+                <div style={{ marginTop: '12px', marginBottom: '14px' }}>
+                  <CtqDetailPanel
+                    ctqKey={selectedCtq}
+                    metrics={dmaicMetrics}
+                    records={dmaicRecords}
+                    activeWatts={ctq2ActiveWatts}
+                    idleWatts={ctq2IdleWatts}
+                    onClose={() => setSelectedCtq(null)}
+                  />
                 </div>
+              )}
+
+              {/* Voice of Customer (VOC) Summary Strip */}
+              <div style={{ marginTop: '10px', marginBottom: '14px' }}>
+                <VoiceOfCustomerSummary
+                  stats={dmaicMetrics?.voice_of_customer}
+                  records={dmaicRecords}
+                  activeFilter={vocExperienceFilter}
+                  onFilterChange={(filterKey) => setVocExperienceFilter(filterKey)}
+                />
               </div>
 
-              {/* SECTION: MULTI-PC ELECTRICITY & OPERATING EXPENSE TRACKER */}
+              {/* SECTION: HOST PC ELECTRICITY & OPERATING COST */}
               <div className="tab-section-header compact" style={{ marginTop: '20px', marginBottom: '10px' }}>
                 <div>
                   <h2 className="section-heading-compact" style={{ fontSize: '1.1rem', margin: 0, fontWeight: 700 }}>
-                    Multi-PC Electricity &amp; Operating Cost
+                    Host PC Power &amp; Operating Cost
                   </h2>
                 </div>
               </div>
@@ -3805,258 +3683,192 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* SECTION: CLEAN EXCEL-STYLE DATASET SPREADSHEET */}
+              {/* SECTION: SESSION ACTIVITY & LOGS */}
               <div className="tab-section-header compact" style={{ marginTop: '22px', marginBottom: '8px' }}>
-                <div>
-                  <h2 className="section-heading-compact" style={{ fontSize: '1.1rem', margin: 0, fontWeight: 700 }}>
-                    Observation Dataset (Excel View)
-                  </h2>
-                </div>
-                <div className="excel-export-actions">
-                  <button
-                    className="btn-primary btn-compact excel-download-btn"
-                    onClick={handleExportCsv}
-                    disabled={exportingCsv || dmaicRecords.length === 0}
-                    style={{ height: '30px', padding: '0 10px', fontSize: '11px', borderRadius: '6px' }}
-                    title="Export dataset as .CSV"
-                  >
-                    <DownloadIcon size={12} />
-                    <span>{exportingCsv ? 'Exporting...' : 'Export .CSV'}</span>
-                  </button>
+                <div className="flex items-center justify-between w-full flex-wrap gap-2">
+                  <div>
+                    <h2 className="section-heading-compact" style={{ fontSize: '1.1rem', margin: 0, fontWeight: 700 }}>
+                      Session Logs &amp; Activity
+                    </h2>
+                    <span className="text-xs text-slate-400">Stream performance, player reviews, and power usage per session.</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="inline-flex rounded-xl bg-slate-900/90 border border-white/10 p-0.5 text-xs">
+                      <button
+                        type="button"
+                        className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                          dmaicPhaseFilter === 'all' && vocExperienceFilter === 'all'
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                        onClick={() => { setDmaicPhaseFilter('all'); setVocExperienceFilter('all'); }}
+                      >
+                        All ({dmaicRecords.length})
+                      </button>
+                      <button
+                        type="button"
+                        className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                          dmaicPhaseFilter === 'V1_Baseline'
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                        onClick={() => setDmaicPhaseFilter('V1_Baseline')}
+                      >
+                        Baseline ({dmaicRecords.filter((r) => r.phase === 'V1_Baseline').length})
+                      </button>
+                      <button
+                        type="button"
+                        className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                          dmaicPhaseFilter === 'V2_Improved'
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                        onClick={() => setDmaicPhaseFilter('V2_Improved')}
+                      >
+                        Improved ({dmaicRecords.filter((r) => r.phase === 'V2_Improved').length})
+                      </button>
+                    </div>
+                    <button
+                      className="btn-primary btn-compact"
+                      onClick={handleExportCsv}
+                      disabled={exportingCsv || dmaicRecords.length === 0}
+                      style={{ height: '28px', padding: '0 10px', fontSize: '11px', borderRadius: '6px' }}
+                      title="Export dataset as .CSV"
+                    >
+                      <DownloadIcon size={12} />
+                      <span>{exportingCsv ? 'Exporting...' : 'Export .CSV'}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Excel Spreadsheet Container */}
-              <div className="excel-sheet-container">
-                {/* Excel Ribbon & Sheet Bar */}
-                <div className="excel-sheet-header">
-                  <div className="excel-brand-title">
-                    <span className="excel-icon-pill">XLSX</span>
-                    <span className="excel-filename">CloudKH_Dataset.xlsx</span>
-                  </div>
-                  
-                  {/* Excel Sheet Tabs */}
-                  <div className="excel-sheet-tabs">
-                    <button
-                      className={`excel-tab-btn ${dmaicPhaseFilter === 'all' ? 'active' : ''}`}
-                      onClick={() => setDmaicPhaseFilter('all')}
-                    >
-                      All Data ({dmaicRecords.length})
-                    </button>
-                    <button
-                      className={`excel-tab-btn ${dmaicPhaseFilter === 'V1_Baseline' ? 'active' : ''}`}
-                      onClick={() => setDmaicPhaseFilter('V1_Baseline')}
-                    >
-                      V1 Baseline ({dmaicRecords.filter((r) => r.phase === 'V1_Baseline').length})
-                    </button>
-                    <button
-                      className={`excel-tab-btn ${dmaicPhaseFilter === 'V2_Improved' ? 'active' : ''}`}
-                      onClick={() => setDmaicPhaseFilter('V2_Improved')}
-                    >
-                      V2 Improved ({dmaicRecords.filter((r) => r.phase === 'V2_Improved').length})
-                    </button>
-                  </div>
-                </div>
-
-                {/* Excel Formula Bar (fx) */}
-                <div className="excel-formula-bar">
-                  <div className="excel-name-box">
-                    <span>A1:N{Math.max(1, filteredDmaicRecords.length + 1)}</span>
-                  </div>
-                  <div className="excel-fx-label">fx</div>
-                  <div className="excel-formula-input" title="Active Formula">
-                    {filteredDmaicRecords.length > 0
-                      ? `=AVERAGE(G2:G${filteredDmaicRecords.length + 1})`
-                      : ''}
-                  </div>
-                </div>
-
-                {/* Excel Grid Scroll Container */}
-                <div className="excel-grid-scroll">
-                  <table className="excel-grid-table">
+              {/* Clean Modern Session Logs Table */}
+              <div className="dmaic-electricity-table-container glass-panel" style={{ marginBottom: '24px' }}>
+                <div className="electricity-table-scroll">
+                  <table className="dmaic-electricity-table">
                     <thead>
-                      {/* Row 0: Column Letters */}
-                      <tr className="excel-col-letters-row">
-                        <th className="excel-corner-cell">#</th>
-                        <th className="excel-col-letter">A</th>
-                        <th className="excel-col-letter">B</th>
-                        <th className="excel-col-letter">C</th>
-                        <th className="excel-col-letter">D</th>
-                        <th className="excel-col-letter">E</th>
-                        <th className="excel-col-letter">F</th>
-                        <th className="excel-col-letter">G</th>
-                        <th className="excel-col-letter">H</th>
-                        <th className="excel-col-letter">I</th>
-                        <th className="excel-col-letter">J</th>
-                        <th className="excel-col-letter">K</th>
-                        <th className="excel-col-letter">L</th>
-                        <th className="excel-col-letter">M</th>
-                        <th className="excel-col-letter">N</th>
-                      </tr>
-                      {/* Row 1: Field Headers */}
-                      <tr className="excel-field-headers-row">
-                        <th className="excel-row-idx">Row</th>
-                        <th style={{ minWidth: '85px' }}>Test ID</th>
-                        <th style={{ minWidth: '95px' }}>Phase</th>
-                        <th style={{ minWidth: '130px' }}>Rig / Host PC</th>
-                        <th style={{ minWidth: '120px' }}>GPU Spec</th>
-                        <th style={{ minWidth: '150px' }}>Account</th>
-                        <th style={{ minWidth: '75px', textAlign: 'right' }}>Wait (min)</th>
-                        <th style={{ minWidth: '80px', textAlign: 'right' }}>Latency (ms)</th>
-                        <th style={{ minWidth: '65px', textAlign: 'right' }}>FPS</th>
-                        <th style={{ minWidth: '60px', textAlign: 'right' }}>Disc</th>
-                        <th style={{ minWidth: '75px', textAlign: 'center' }}>Result</th>
-                        <th style={{ minWidth: '105px' }}>Defect Reason</th>
-                        <th style={{ minWidth: '75px', textAlign: 'right' }}>Idle (min)</th>
-                        <th style={{ minWidth: '80px', textAlign: 'right' }}>Power (kWh)</th>
-                        <th style={{ minWidth: '80px', textAlign: 'right' }}>Cost (USD)</th>
+                      <tr>
+                        <th style={{ width: '45px', textAlign: 'center' }}>#</th>
+                        <th style={{ minWidth: '95px' }}>Session ID</th>
+                        <th style={{ minWidth: '85px' }}>Phase</th>
+                        <th style={{ minWidth: '130px' }}>Gaming Rig</th>
+                        <th style={{ minWidth: '130px' }}>Player</th>
+                        <th style={{ minWidth: '75px', textAlign: 'right' }}>Ping</th>
+                        <th style={{ minWidth: '60px', textAlign: 'right' }}>FPS</th>
+                        <th style={{ minWidth: '75px', textAlign: 'center' }}>Status</th>
+                        <th style={{ minWidth: '140px' }}>Player Review / Notes</th>
+                        <th style={{ minWidth: '80px', textAlign: 'right' }}>Power</th>
+                        <th style={{ minWidth: '75px', textAlign: 'right' }}>Cost</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredDmaicRecords.length === 0 ? (
-                        /* Empty Sheet State: Clean Excel blank grid cells */
-                        <>
-                          {[1, 2, 3, 4, 5, 6].map((rowNum) => (
-                            <tr key={rowNum} className="excel-empty-row">
-                              <td className="excel-row-idx">{rowNum}</td>
-                              <td colSpan={14} className="excel-blank-cell" style={{ textAlign: rowNum === 2 ? 'center' : 'inherit' }}>
-                                {rowNum === 2 && (
-                                  <span style={{ color: '#94a3b8', fontSize: '11px' }}>
-                                    No records &bull; Click &quot;Seed 30 Trials&quot; above to populate dataset
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </>
+                        <tr>
+                          <td colSpan={11} style={{ textAlign: 'center', padding: '28px 16px', color: '#94a3b8', fontSize: '12px' }}>
+                            No session records matching filter. Click &quot;Seed Test Data&quot; above to populate.
+                          </td>
+                        </tr>
                       ) : (
                         filteredDmaicRecords.map((r, idx) => {
-                          const waitMins = r.waiting_time_mins ?? r.waiting_time_minutes ?? 0;
                           const latency = r.latency_ms ?? r.avg_latency_ms ?? 0;
                           const fps = r.fps ?? r.avg_fps ?? 60;
-                          const idleMins = r.pc_idle_time_mins ?? r.pc_idle_minutes ?? 0;
                           const kwh = r.power_kwh ?? (r.power_usage_watts ? r.power_usage_watts / 1000 : 0);
                           const cost = r.energy_cost_usd ?? (kwh * EDC_TARIFF_USD_PER_KWH);
-                          const rigName = r.machine_name || r.rig_display || (r.machine_id ? `Machine #${r.machine_id}` : 'Machine unavailable');
-                          const rigGpu = formatRigGpu(r.machine_gpu || 'GPU unavailable');
+                          const rigName = r.machine_name || r.rig_display || (r.machine_id ? `Rig #${r.machine_id}` : 'Rig');
+                          const ratingTag = r.experience_tag === 'smooth'
+                            ? '🟢 Smooth'
+                            : r.experience_tag === 'mixed'
+                            ? '🟡 Okay'
+                            : r.experience_tag === 'laggy'
+                            ? '🔴 Laggy'
+                            : null;
 
                           return (
-                            <tr key={r.id || idx} className={`excel-data-row ${idx % 2 === 1 ? 'excel-row-alt' : ''}`}>
-                              {/* Row Index */}
-                              <td className="excel-row-idx">{idx + 1}</td>
-                              {/* A: Test ID */}
-                              <td className="excel-cell-bold">
-                                <span>{r.test_id}</span>
-                                {r.integrity_hash && (
-                                  <span
-                                    className="excel-hash-dot"
-                                    title={`SHA-256 Audit Hash:\n${r.integrity_hash}\nSource: ${r.source || 'automated_stream'}`}
-                                  >
-                                    <ShieldCheckIcon size={11} style={{ opacity: 0.8 }} />
-                                  </span>
-                                )}
-                              </td>
-                              {/* B: Phase */}
+                            <tr key={r.id || idx}>
+                              <td style={{ textAlign: 'center', fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>{idx + 1}</td>
                               <td>
-                                <span className={`excel-phase-pill ${r.phase}`}>
-                                  {r.phase === 'V1_Baseline' ? 'V1 Baseline' : 'V2 Improved'}
+                                <strong style={{ fontSize: '11.5px', fontFamily: 'monospace' }}>{r.test_id}</strong>
+                              </td>
+                              <td>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                  r.phase === 'V2_Improved'
+                                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-slate-700/50 text-slate-300'
+                                }`}>
+                                  {r.phase === 'V2_Improved' ? 'Improved' : 'Baseline'}
                                 </span>
                               </td>
-                              {/* C: Rig */}
-                              <td className="excel-cell-rig">{rigName}</td>
-                              {/* D: GPU */}
-                              <td className="excel-cell-gpu">{rigGpu}</td>
-                              {/* E: Account */}
-                              <td className="excel-cell-acc" title={r.account_name || r.user_email || '—'}>
+                              <td>
+                                <span style={{ fontSize: '12px', fontWeight: 600 }}>{rigName}</span>
+                              </td>
+                              <td style={{ fontSize: '11.5px', color: 'var(--text-muted, #94a3b8)' }}>
                                 {r.account_name || r.user_email || '—'}
                               </td>
-                              {/* F: Wait (m) */}
-                              <td className="excel-cell-num">{waitMins.toFixed(1)}</td>
-                              {/* G: Latency (ms) */}
-                              <td className={`excel-cell-num ${latency > 100 ? 'excel-defect-val' : ''}`}>
-                                {latency.toFixed(1)}
+                              <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                                <strong style={{ color: latency > 100 ? '#f87171' : latency > 60 ? '#fbbf24' : '#4ade80' }}>
+                                  {latency.toFixed(0)} ms
+                                </strong>
                               </td>
-                              {/* H: FPS */}
-                              <td className="excel-cell-num">{Math.round(fps)}</td>
-                              {/* I: Disconnects */}
-                              <td className={`excel-cell-num ${r.disconnects_count > 0 ? 'excel-defect-val' : ''}`}>
-                                {r.disconnects_count ?? 0}
+                              <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontSize: '12px' }}>
+                                {Math.round(fps)}
                               </td>
-                              {/* J: Result */}
                               <td style={{ textAlign: 'center' }}>
-                                <span className={`excel-status-cell ${r.completed ? 'pass' : 'defect'}`}>
-                                  {r.completed ? 'PASS' : 'DEFECT'}
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  r.completed
+                                    ? 'bg-emerald-400/10 text-emerald-300 border border-emerald-400/30'
+                                    : 'bg-red-500/15 text-red-300 border border-red-500/30'
+                                }`}>
+                                  {r.completed ? 'PASS' : 'DROPPED'}
                                 </span>
                               </td>
-                              {/* K: Reason */}
-                              <td className="excel-cell-muted">
-                                {r.failure_reason || '—'}
+                              <td style={{ fontSize: '11.5px', color: 'var(--text-muted, #94a3b8)' }}>
+                                {r.user_rating && (
+                                  <span className="text-amber-400 font-bold mr-1.5">★ {r.user_rating}</span>
+                                )}
+                                {ratingTag && (
+                                  <span className="font-semibold text-slate-300 mr-1.5">{ratingTag}</span>
+                                )}
+                                <span>{r.user_comment || r.failure_reason || (r.completed ? 'Session completed' : 'Interrupted')}</span>
                               </td>
-                              {/* L: Idle (m) */}
-                              <td className="excel-cell-num">{idleMins.toFixed(1)}</td>
-                              {/* M: Power (kWh) */}
-                              <td className="excel-cell-num">{kwh.toFixed(3)}</td>
-                              {/* N: Cost (USD) */}
-                              <td className="excel-cell-num">${cost.toFixed(3)}</td>
+                              <td style={{ textAlign: 'right', fontSize: '11.5px', fontVariantNumeric: 'tabular-nums' }}>
+                                {kwh.toFixed(3)} kWh
+                              </td>
+                              <td style={{ textAlign: 'right', fontSize: '11.5px', fontVariantNumeric: 'tabular-nums', color: '#38bdf8' }}>
+                                ${cost.toFixed(3)}
+                              </td>
                             </tr>
                           );
                         })
                       )}
                     </tbody>
-                    {/* Bottom Excel Summary Formula Row */}
                     {filteredDmaicRecords.length > 0 && (
                       <tfoot>
-                        <tr className="excel-summary-row">
-                          <td className="excel-row-idx">Σ</td>
-                          <td className="excel-summary-label" colSpan={5}>
-                            Average / Total (N = {filteredDmaicRecords.length})
+                        <tr className="electricity-fleet-summary-row">
+                          <td colSpan={5}>
+                            <strong style={{ fontSize: '12px' }}>Summary &bull; {filteredDmaicRecords.length} Sessions</strong>
                           </td>
-                          <td className="excel-cell-num excel-sum-val">
-                            <span className="excel-fn-tag">AVG</span>{avgWait.toFixed(1)}m
+                          <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                            <strong>{avgLatency.toFixed(1)} ms</strong>
                           </td>
-                          <td className="excel-cell-num excel-sum-val">
-                            <span className="excel-fn-tag">AVG</span>{avgLatency.toFixed(1)}ms
+                          <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                            <strong>{avgFps.toFixed(0)} FPS</strong>
                           </td>
-                          <td className="excel-cell-num excel-sum-val">
-                            <span className="excel-fn-tag">AVG</span>{avgFps.toFixed(1)}
+                          <td style={{ textAlign: 'center' }}>
+                            <span className="text-[10.5px] font-bold text-emerald-300">{passRate.toFixed(0)}% Pass</span>
                           </td>
-                          <td className="excel-cell-num excel-sum-val">
-                            <span className="excel-fn-tag">SUM</span>{sumDisc}
+                          <td style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>
+                            {defectCount} dropout{defectCount !== 1 ? 's' : ''}
                           </td>
-                          <td style={{ textAlign: 'center' }} className="excel-sum-val">
-                            <span className="excel-fn-tag">RATE</span>{passRate.toFixed(1)}%
+                          <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                            <strong style={{ color: '#38bdf8' }}>{sumKwh.toFixed(3)} kWh</strong>
                           </td>
-                          <td className="excel-cell-muted excel-sum-val">
-                            {defectCount} defect{defectCount !== 1 ? 's' : ''}
-                          </td>
-                          <td className="excel-cell-num excel-sum-val">
-                            <span className="excel-fn-tag">AVG</span>{avgIdle.toFixed(1)}m
-                          </td>
-                          <td className="excel-cell-num excel-sum-val highlight-kwh">
-                            <span className="excel-fn-tag">SUM</span>{sumKwh.toFixed(3)} kWh
-                          </td>
-                          <td className="excel-cell-num excel-sum-val highlight-usd">
-                            <span className="excel-fn-tag">SUM</span>${sumCost.toFixed(2)}
+                          <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                            <strong style={{ color: '#4ade80' }}>${sumCost.toFixed(2)}</strong>
                           </td>
                         </tr>
                       </tfoot>
                     )}
                   </table>
-                </div>
-
-                {/* Excel Bottom Status Bar */}
-                <div className="excel-status-bar">
-                  <span className="excel-status-item">READY</span>
-                  <div className="excel-status-right">
-                    <span className="excel-status-item">COUNT: <strong>{filteredDmaicRecords.length}</strong></span>
-                    {filteredDmaicRecords.length > 0 && (
-                      <>
-                        <span className="excel-status-item">AVG LATENCY: <strong>{avgLatency.toFixed(1)} ms</strong></span>
-                        <span className="excel-status-item">SUM POWER: <strong>{sumKwh.toFixed(3)} kWh</strong></span>
-                        <span className="excel-status-item">SUM COST: <strong>${sumCost.toFixed(2)}</strong></span>
-                      </>
-                    )}
-                  </div>
                 </div>
               </div>
             </div>
