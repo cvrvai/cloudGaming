@@ -444,23 +444,48 @@ export default function WebRTCPlayer({
                     )}
                     {status === 'disconnected' && 'Stream lost — reconnecting…'}
                     {status === 'error' && (
-                        <>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                             {errorDetail.toLowerCase().includes('blocked') || errorDetail.toLowerCase().includes('wait') || errorDetail.toLowerCase().includes('launch') || errorDetail.toLowerCase().includes('longer') ? (
                                 <>
-                                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 600 }}>
                                         Starting game on host PC…
                                     </div>
-                                    <div style={{ opacity: 0.75, fontSize: 11, fontWeight: 400, maxWidth: 360 }}>
-                                        Please wait a moment while the game initializes and displays its window.
+                                    <div style={{ opacity: 0.75, fontSize: 11, fontWeight: 400, maxWidth: 320 }}>
+                                        Please wait a moment while the game window initializes.
                                     </div>
+                                </>
+                            ) : errorDetail.toLowerCase().includes('not connected') || errorDetail.toLowerCase().includes('offline') || errorDetail.toLowerCase().includes('reconnect') || errorDetail.toLowerCase().includes('negotiation') || errorDetail.toLowerCase().includes('503') ? (
+                                <>
+                                    <div style={{ fontSize: 13, fontWeight: 600 }}>
+                                        Connecting to Gaming Rig…
+                                    </div>
+                                    <div style={{ opacity: 0.75, fontSize: 11, fontWeight: 400, maxWidth: 300 }}>
+                                        Host computer is synchronizing. Retrying automatically…
+                                    </div>
+                                    <button
+                                        onClick={() => connect()}
+                                        style={{
+                                            marginTop: 6,
+                                            padding: '4px 14px',
+                                            borderRadius: 9999,
+                                            border: '1px solid rgba(255,255,255,0.2)',
+                                            background: 'rgba(255,255,255,0.1)',
+                                            color: '#fff',
+                                            fontSize: 11,
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        Retry Now
+                                    </button>
                                 </>
                             ) : (
                                 <>
-                                    Connecting to stream…
-                                    <div style={{ opacity: 0.55, marginTop: 6, fontSize: 11, fontWeight: 400 }}>{errorDetail}</div>
+                                    <div style={{ fontSize: 13, fontWeight: 600 }}>Connecting to stream…</div>
+                                    <div style={{ opacity: 0.75, fontSize: 11, fontWeight: 400 }}>Please wait a moment…</div>
                                 </>
                             )}
-                        </>
+                        </div>
                     )}
                 </div>
             )}

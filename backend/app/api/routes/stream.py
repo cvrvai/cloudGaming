@@ -108,7 +108,18 @@ async def create_stream(offer: SdpOffer) -> dict:
         except Exception:
             pass
 
-    if target_node_id and (target_node_id in node_relay._nodes or node_relay.is_node_connected(target_node_id)):
+    # If target node is not active in WebSocket relay, try any connected node or return 503
+    if target_node_id and target_node_id not in node_relay._nodes:
+        fallback_nid = node_relay.get_any_connected_node_id()
+        if fallback_nid:
+            target_node_id = fallback_nid
+        else:
+            raise HTTPException(
+                status_code=503,
+                detail="Gaming rig is currently reconnecting to the cloud relay. Please try again in a few seconds.",
+            )
+
+    if target_node_id and target_node_id in node_relay._nodes:
         try:
             _, turn_uri = await get_ice_configuration()
             answer = await node_relay.relay_offer(
@@ -143,11 +154,14 @@ async def create_stream(offer: SdpOffer) -> dict:
 
             return answer
         except Exception as exc:
-            logger.exception("Failed to negotiate relayed stream with node #%s", target_node_id)
-            raise HTTPException(status_code=500, detail=f"Node streaming negotiation failed: {exc}")
+            logger.warning("Failed to negotiate relayed stream with node #%s: %s", target_node_id, exc)
+            raise HTTPException(
+                status_code=503,
+                detail="Gaming rig stream connection is initializing. Please retry in a moment.",
+            )
 
     # Neither local capture nor a connected node is available
     raise HTTPException(
         status_code=503,
-        detail="No gaming PC streaming node is currently online. Please start stream_node.py on your gaming PC.",
+        detail="No gaming PC streaming node is currently online. Please ensure stream_node is running on your host PC.",
     )

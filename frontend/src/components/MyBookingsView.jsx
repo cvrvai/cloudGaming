@@ -78,21 +78,27 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames, onRateS
     if (!window.confirm(confirmMsg)) return;
     setCancellingId(bookingId);
     try {
-      if (isActive) {
-        fetch(`${API_BASE}/api/session/stop`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ booking_id: bookingId }),
-        }).catch(() => {});
-      }
       const res = await fetch(`${API_BASE}/api/bookings/${bookingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
+
+      let errDetail = '';
+      let isAlreadyFinished = false;
+      try {
+        const text = await res.text();
+        if (text) {
+          const parsed = JSON.parse(text);
+          errDetail = parsed.detail || parsed.message || '';
+          if (errDetail.toLowerCase().includes('already')) {
+            isAlreadyFinished = true;
+          }
+        }
+      } catch {
+        // Non-JSON or empty response
+      }
+
+      if (res.ok || isAlreadyFinished) {
         setBookingsData((prev) => ({
           ...prev,
           active: prev.active.filter((b) => b.id !== bookingId),
@@ -101,11 +107,12 @@ export default function MyBookingsView({ onLaunchSession, onBrowseGames, onRateS
         fetchBookings();
         fetchQuota();
       } else {
-        const errData = await res.json();
-        alert(errData.detail || 'Could not cancel booking');
+        alert(errDetail || 'Could not cancel booking. Please try again.');
       }
     } catch (err) {
-      alert('Error cancelling booking: ' + err.message);
+      console.warn('[Bookings] Cancel error:', err);
+      fetchBookings();
+      alert('Could not cancel booking: Please check your connection and try again.');
     } finally {
       setCancellingId(null);
     }
