@@ -21,8 +21,6 @@ export default function AuthModal() {
   const [mfaError, setMfaError] = useState(null);
   const [copiedSecret, setCopiedSecret] = useState(false);
 
-  if (!authModalOpen) return null;
-
   const handleClose = () => {
     setAuthModalOpen(false);
     setMfaChallenge(null);
@@ -87,6 +85,8 @@ export default function AuthModal() {
       initGsi();
     }
   }, [authModalOpen, mfaChallenge, authMode]);
+
+  if (!authModalOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
