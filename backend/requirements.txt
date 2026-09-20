@@ -33,6 +33,9 @@ vgamepad>=0.1.0; sys_platform == "win32"   # requires ViGEmBus driver: https://g
 qrcode>=7.4.0
 pillow>=10.0.0
 
+# Excel presentation & data export
+openpyxl>=3.1.2
+
 # GStreamer (media plane) is NOT a pip package on Windows.
 # Install the MSI runtime + development packages from:
 #   https://gstreamer.freedesktop.org/download/

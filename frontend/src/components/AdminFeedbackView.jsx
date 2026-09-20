@@ -4,31 +4,19 @@ import {
   RefreshIcon,
   DownloadIcon,
   AlertTriangleIcon,
-  CheckIcon,
   SearchIcon,
   ClockIcon,
   GamepadIcon,
   ServerIcon,
   UserIcon,
-  XIcon,
-  SparkleIcon,
-  ChartIcon,
 } from './Icons';
 
 export default function AdminFeedbackView({ token }) {
   const [feedbackData, setFeedbackData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [seeding, setSeeding] = useState(false);
-  const [seedSuccess, setSeedSuccess] = useState(false);
-  const [batchSuccessMsg, setBatchSuccessMsg] = useState(null);
   const [error, setError] = useState(null);
-  const [exportingCsv, setExportingCsv] = useState(false);
-
-  // Batch Generation Modal State
-  const [showBatchModal, setShowBatchModal] = useState(false);
-  const [batchCount, setBatchCount] = useState(14);
-  const [clearExisting, setClearExisting] = useState(true);
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   // Filters & Pagination
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -80,88 +68,30 @@ export default function AdminFeedbackView({ token }) {
     fetchFeedback();
   };
 
-  const handleSeedData = async () => {
-    if (!window.confirm('Reset and load the 14 authentic student Voice of Customer (VOC) records for presentation?')) return;
+  const handleExportExcel = async () => {
+    setExportingExcel(true);
     try {
-      setSeeding(true);
-      setError(null);
-      const res = await fetch(`${API_BASE}/api/voc/seed`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      if (!res.ok) {
-        throw new Error('Failed to seed VOC data');
-      }
-      setSeedSuccess(true);
-      setTimeout(() => setSeedSuccess(false), 3500);
-      await fetchFeedback();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSeeding(false);
-    }
-  };
-
-  const handleGenerateBatch = async () => {
-    try {
-      setSeeding(true);
-      setError(null);
-      const res = await fetch(`${API_BASE}/api/voc/generate-batch`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          count: Number(batchCount),
-          clear_existing: clearExisting,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || 'Failed to generate batch VOC records');
-      }
-
-      setShowBatchModal(false);
-      setBatchSuccessMsg(`Successfully generated ${data.count} Voice of Customer records!`);
-      setTimeout(() => setBatchSuccessMsg(null), 4500);
-      setCurrentPage(1);
-      await fetchFeedback();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSeeding(false);
-    }
-  };
-
-  const handleExportCsv = async () => {
-    setExportingCsv(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/voc/export-csv`, {
+      const res = await fetch(`${API_BASE}/api/voc/export-excel`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       if (!res.ok) {
-        throw new Error(`CSV export failed (${res.status})`);
+        throw new Error(`Excel export failed (${res.status})`);
       }
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `CloudKH_Voice_of_Customer_VOC_Dataset_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `CloudKH_Voice_of_Customer_Presentation_${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert('CSV Export Error: ' + err.message);
+      alert('Excel Export Error: ' + err.message);
     } finally {
-      setExportingCsv(false);
+      setExportingExcel(false);
     }
   };
 
@@ -175,35 +105,6 @@ export default function AdminFeedbackView({ token }) {
     const start = (currentPage - 1) * pageSize;
     return records.slice(start, start + pageSize);
   }, [records, currentPage, pageSize]);
-
-  // Pareto distribution calculation
-  const paretoStats = useMemo(() => {
-    const cats = summary.categories || {};
-    const total = summary.total_feedback || 1;
-    const rig = cats.rig_capacity || 0;
-    const queue = cats.queue_waiting || 0;
-    const session = cats.session_limit || 0;
-    const stream = cats.stream_quality || 0;
-
-    const rigPct = Math.round((rig / total) * 1000) / 10;
-    const queuePct = Math.round((queue / total) * 1000) / 10;
-    const sessionPct = Math.round((session / total) * 1000) / 10;
-    const streamPct = Math.round((stream / total) * 1000) / 10;
-
-    const capacityTotalPct = Math.round(((rig + queue) / total) * 1000) / 10;
-
-    return {
-      rig,
-      rigPct,
-      queue,
-      queuePct,
-      session,
-      sessionPct,
-      stream,
-      streamPct,
-      capacityTotalPct,
-    };
-  }, [summary]);
 
   const renderStars = (rating) => {
     return (
@@ -232,56 +133,25 @@ export default function AdminFeedbackView({ token }) {
             </h2>
           </div>
           <p className="text-xs text-slate-400 mt-1 m-0">
-            Player complaints, satisfaction ratings, and fleet capacity bottleneck analysis (Lean Six Sigma DMAIC CTQ 3).
+            Student player complaints and fleet capacity bottleneck feedback ({records.length} records).
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-          {batchSuccessMsg && (
-            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold">
-              <CheckIcon size={14} /> {batchSuccessMsg}
-            </span>
-          )}
-
-          {seedSuccess && (
-            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold">
-              <CheckIcon size={14} /> Seeded 14 Student Records!
-            </span>
-          )}
-
+        <div className="flex items-center gap-3 shrink-0 flex-wrap">
           <button
-            onClick={() => setShowBatchModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs transition-all cursor-pointer shadow-[0_0_15px_rgba(147,51,234,0.3)] border border-purple-400/40"
-            title="Generate custom VOC dataset for Six Sigma analysis"
+            onClick={handleExportExcel}
+            disabled={exportingExcel || records.length === 0}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-emerald-400/40 disabled:opacity-50 active:scale-95"
+            title="Download complete Voice of Customer dataset as Microsoft Excel (.xlsx) presentation workbook"
           >
-            <SparkleIcon size={13} />
-            <span>Generate Dataset ({summary.total_feedback || records.length})</span>
-          </button>
-
-          <button
-            onClick={handleExportCsv}
-            disabled={exportingCsv || records.length === 0}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 hover:border-cyan-400/60 font-bold text-xs transition-all cursor-pointer shadow-[0_0_15px_rgba(0,210,255,0.1)] disabled:opacity-50"
-            title="Export CSV for Jamovi / Excel Six Sigma analysis"
-          >
-            <DownloadIcon size={14} className={exportingCsv ? 'animate-bounce text-cyan-400' : ''} />
-            <span>{exportingCsv ? 'Exporting...' : 'Export CSV'}</span>
-          </button>
-
-          <button
-            onClick={handleSeedData}
-            disabled={seeding}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 font-bold text-xs transition-all cursor-pointer disabled:opacity-50"
-            title="Reset to 14 authentic student records (Presentation Mode)"
-          >
-            <RefreshIcon size={14} className={seeding ? 'animate-spin' : ''} />
-            <span>Reset 14 Records</span>
+            <DownloadIcon size={15} className={exportingExcel ? 'animate-bounce' : ''} />
+            <span>{exportingExcel ? 'Exporting...' : 'Export to Excel'}</span>
           </button>
 
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all cursor-pointer disabled:opacity-50"
+            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all cursor-pointer disabled:opacity-50"
             title="Refresh feedback"
           >
             <RefreshIcon size={16} className={refreshing ? 'animate-spin' : ''} />
@@ -295,180 +165,6 @@ export default function AdminFeedbackView({ token }) {
           <span>{error}</span>
         </div>
       )}
-
-      {/* Top 4 KPI Metric Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: CSAT Rating */}
-        <div className="p-4 rounded-2xl bg-[#111736]/90 border border-white/10 flex flex-col gap-2 relative overflow-hidden shadow-lg">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-400">
-            <span>Overall Player CSAT</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-500/20 text-rose-300 border border-rose-500/30">
-              {summary.csat_status || 'CRITICAL'}
-            </span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black text-white tracking-tight">
-              {summary.avg_rating ? `${summary.avg_rating}` : '1.5'}
-            </span>
-            <span className="text-sm text-slate-400 font-bold">/ 5.0 ★</span>
-          </div>
-          <div className="flex items-center gap-1">
-            {renderStars(Math.round(summary.avg_rating || 2))}
-            <span className="text-[11px] text-slate-400 ml-1">Target ≥ 3.5 ★</span>
-          </div>
-        </div>
-
-        {/* Card 2: 1-PC Rig Bottleneck */}
-        <div className="p-4 rounded-2xl bg-[#111736]/90 border border-rose-500/30 flex flex-col gap-2 relative overflow-hidden shadow-lg shadow-rose-950/20">
-          <div className="flex items-center justify-between text-xs font-bold text-rose-300">
-            <span>#1 Core Bottleneck</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-500/20 text-rose-300 border border-rose-500/30">
-              CTQ 3 Defect
-            </span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black text-rose-400 tracking-tight">
-              {summary.bottleneck_complaints_pct ? `${summary.bottleneck_complaints_pct}%` : '85.0%'}
-            </span>
-            <span className="text-xs text-rose-300/80 font-bold">of Complaints</span>
-          </div>
-          <span className="text-[11px] text-slate-300 truncate font-medium">
-            1-Computer Limit (1 User at a time)
-          </span>
-        </div>
-
-        {/* Card 3: Reported Queue Wait Time */}
-        <div className="p-4 rounded-2xl bg-[#111736]/90 border border-amber-500/30 flex flex-col gap-2 relative overflow-hidden shadow-lg shadow-amber-950/20">
-          <div className="flex items-center justify-between text-xs font-bold text-amber-300">
-            <span>Avg Reported Wait</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
-              Excessive
-            </span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black text-amber-400 tracking-tight">
-              {summary.avg_reported_wait_mins ? `${summary.avg_reported_wait_mins}m` : '73.7m'}
-            </span>
-            <span className="text-xs text-slate-400 font-bold">
-              (Max: {summary.max_reported_wait_mins || 120}m)
-            </span>
-          </div>
-          <span className="text-[11px] text-slate-400">
-            Six Sigma Limit: &le; 30 mins
-          </span>
-        </div>
-
-        {/* Card 4: Total Submissions */}
-        <div className="p-4 rounded-2xl bg-[#111736]/90 border border-white/10 flex flex-col gap-2 relative overflow-hidden shadow-lg">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-400">
-            <span>Total VOC Records</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-              N = {summary.total_feedback || records.length}
-            </span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black text-white tracking-tight">
-              {summary.total_feedback || records.length}
-            </span>
-            <span className="text-xs text-slate-400 font-bold">Submissions</span>
-          </div>
-          <span className="text-[11px] text-slate-400">
-            {summary.sentiments?.negative_pct || 91.7}% Negative / {summary.sentiments?.neutral_pct || 5.0}% Neutral
-          </span>
-        </div>
-      </div>
-
-      {/* Six Sigma Pareto Defect Distribution Bar */}
-      <div className="p-5 rounded-2xl bg-[#111633]/90 border border-white/10 backdrop-blur-xl shadow-xl flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <ChartIcon size={16} className="text-cyan-400" />
-            <span className="text-xs font-black uppercase tracking-wider text-white">
-              Lean Six Sigma Pareto Defect Analysis (80/20 Principle)
-            </span>
-          </div>
-          <span className="text-xs text-rose-300 font-bold">
-            Hardware Capacity &amp; Queue = {paretoStats.capacityTotalPct}% of all defects
-          </span>
-        </div>
-
-        {/* Segmented Pareto Bar */}
-        <div className="w-full h-3 rounded-full overflow-hidden flex bg-white/5 border border-white/10">
-          <div
-            style={{ width: `${paretoStats.rigPct}%` }}
-            className="bg-rose-500 h-full transition-all duration-500"
-            title={`Rig Capacity Bottleneck: ${paretoStats.rigPct}%`}
-          />
-          <div
-            style={{ width: `${paretoStats.queuePct}%` }}
-            className="bg-amber-500 h-full transition-all duration-500"
-            title={`Queue Waiting Time: ${paretoStats.queuePct}%`}
-          />
-          <div
-            style={{ width: `${paretoStats.sessionPct}%` }}
-            className="bg-purple-500 h-full transition-all duration-500"
-            title={`Session Limit & Handover: ${paretoStats.sessionPct}%`}
-          />
-          <div
-            style={{ width: `${paretoStats.streamPct}%` }}
-            className="bg-cyan-500 h-full transition-all duration-500"
-            title={`Stream Latency & Thermal: ${paretoStats.streamPct}%`}
-          />
-        </div>
-
-        {/* Pareto Legend */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px]">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-sm bg-rose-500 shrink-0" />
-            <span className="text-slate-300 truncate">
-              <strong>1-PC Bottleneck:</strong> {paretoStats.rig} ({paretoStats.rigPct}%)
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-sm bg-amber-500 shrink-0" />
-            <span className="text-slate-300 truncate">
-              <strong>Queue &amp; Curfew:</strong> {paretoStats.queue} ({paretoStats.queuePct}%)
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-sm bg-purple-500 shrink-0" />
-            <span className="text-slate-300 truncate">
-              <strong>Session Handover:</strong> {paretoStats.session} ({paretoStats.sessionPct}%)
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-sm bg-cyan-500 shrink-0" />
-            <span className="text-slate-300 truncate">
-              <strong>Stream &amp; Heat:</strong> {paretoStats.stream} ({paretoStats.streamPct}%)
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Six Sigma Root Cause Analysis Callout Box */}
-      <div className="p-5 rounded-2xl bg-gradient-to-r from-rose-950/40 via-[#181333] to-[#111633] border border-rose-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
-        <div className="flex items-start gap-3.5">
-          <div className="p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-400 shrink-0 mt-0.5">
-            <AlertTriangleIcon size={20} />
-          </div>
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black uppercase tracking-wider text-rose-400">
-                DMAIC Define &amp; Measure Insight · CTQ 3 Capacity Bottleneck
-              </span>
-              <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                Single Host Monopolization
-              </span>
-            </div>
-            <p className="text-xs text-slate-300 m-0 leading-relaxed max-w-4xl">
-              <strong>Core Root Cause:</strong> Because only 1 gaming rig is online (<code className="text-rose-300 bg-rose-950/60 px-1.5 py-0.5 rounded">Gaming PC (DESKTOP-BR6FNPB)</code>), only <strong>1 user can play at a time across the entire platform</strong>. Even when players want to play completely different catalog titles (e.g. <em>Hades II</em> vs <em>Stardew Valley</em> vs <em>Minecraft</em>), they are cross-blocked and must wait in a sequential queue.
-            </p>
-            <p className="text-[11px] text-cyan-300/80 m-0 mt-1">
-              💡 <strong>Recommended Countermeasure:</strong> Launch Node #2 (Gaming PC Choonvai) to enable concurrent multi-user streaming.
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* Interactive Filter Bar */}
       <div className="flex flex-col gap-3 p-4 bg-[#111633]/70 border border-white/10 rounded-2xl backdrop-blur-xl">
@@ -794,93 +490,6 @@ export default function AdminFeedbackView({ token }) {
             >
               Next
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Batch Generation Modal */}
-      {showBatchModal && (
-        <div className="modal-backdrop" onClick={() => setShowBatchModal(false)}>
-          <div
-            className="modal-dialog glass-panel"
-            style={{ maxWidth: '480px' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              className="modal-close-btn"
-              onClick={() => setShowBatchModal(false)}
-              aria-label="Close"
-            >
-              <XIcon size={16} />
-            </button>
-
-            <div className="auth-header">
-              <div className="flex items-center gap-2">
-                <SparkleIcon size={18} className="text-purple-400" />
-                <h2 className="text-lg font-black text-white m-0">Generate Six Sigma VOC Dataset</h2>
-              </div>
-              <p className="text-xs text-slate-400 mt-1 m-0">
-                Generate a statistically significant dataset of Voice of Customer feedback highlighting the single-PC limitation.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-4 mt-5">
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-slate-300">Select Dataset Size:</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { count: 14, label: '14 Records (Presentation)', desc: '14 exact student accounts' },
-                    { count: 50, label: '50 Records', desc: 'Extended trial sample' },
-                    { count: 100, label: '100 Records', desc: 'Six Sigma large sample' },
-                    { count: 200, label: '200 Records', desc: 'Monthly campus simulation' },
-                  ].map((preset) => (
-                    <button
-                      key={preset.count}
-                      type="button"
-                      onClick={() => setBatchCount(preset.count)}
-                      className={`p-3 rounded-xl border text-left flex flex-col gap-0.5 transition-all cursor-pointer ${
-                        batchCount === preset.count
-                          ? 'bg-purple-500/20 border-purple-400 text-white shadow-[0_0_15px_rgba(168,85,247,0.25)]'
-                          : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:border-white/20'
-                      }`}
-                    >
-                      <span className="text-xs font-bold">{preset.label}</span>
-                      <span className="text-[10px] text-slate-400">{preset.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-black/20 border border-white/5 flex flex-col gap-1.5">
-                <span className="text-xs font-bold text-slate-300">Dataset Characteristics:</span>
-                <ul className="m-0 pl-4 text-[11px] text-slate-400 space-y-1">
-                  <li><strong>~85% Rig Bottleneck:</strong> Complaints about 1 PC shared across Hades, Minecraft, Stardew, Spiritfarer.</li>
-                  <li><strong>Peak Hours Focus:</strong> 6:00 PM – 11:00 PM queues (45m to 120m wait times).</li>
-                  <li><strong>25+ Student Personas:</strong> Hour, Lihour, Hokann, Neakleng, Choonvai, etc.</li>
-                  <li><strong>Jamovi-Ready:</strong> Quantitative Six Sigma binary defect flags in CSV export.</li>
-                </ul>
-              </div>
-
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={clearExisting}
-                  onChange={(e) => setClearExisting(e.target.checked)}
-                  className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500"
-                />
-                <span>Replace previous VOC records with this new dataset</span>
-              </label>
-
-              <button
-                type="button"
-                onClick={handleGenerateBatch}
-                disabled={seeding}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-purple-950/40 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                <RefreshIcon size={14} className={seeding ? 'animate-spin' : ''} />
-                <span>{seeding ? 'Generating VOC Records...' : `Generate ${batchCount} VOC Records`}</span>
-              </button>
-            </div>
           </div>
         </div>
       )}
