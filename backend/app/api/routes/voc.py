@@ -461,7 +461,7 @@ def list_feedback(
     sentiment: Optional[str] = Query(None, description="Filter: negative | neutral | positive | all"),
     rating: Optional[int] = Query(None, ge=1, le=5, description="Filter exact star rating 1-5"),
     search: Optional[str] = Query(None, description="Search term in comment, player name, or email"),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     current_user: Optional[Dict] = Depends(get_current_user_optional),
 ):
