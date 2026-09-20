@@ -268,8 +268,34 @@ def init_db() -> None:
         cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS user_comment TEXT;")
         cursor.execute("ALTER TABLE session_telemetry ADD COLUMN IF NOT EXISTS feedback_submitted_at TEXT;")
 
-        # 8. Enable Row Level Security (RLS) on all public tables
-        for tbl in ["users", "machines", "games", "node_games", "bookings", "machine_pairings", "audit_logs", "session_telemetry"]:
+        # 8. Voice of Customer (VOC) & Player Feedback table (Lean Six Sigma DMAIC CTQ tracking)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS voc_feedback (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            user_name TEXT NOT NULL,
+            user_email TEXT NOT NULL,
+            game_title TEXT,
+            machine_name TEXT DEFAULT 'Gaming PC (DESKTOP-BR6FNPB)',
+            rating SMALLINT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+            sentiment TEXT NOT NULL DEFAULT 'negative',
+            category TEXT NOT NULL DEFAULT 'rig_capacity',
+            experience_tag TEXT NOT NULL,
+            waiting_time_minutes DOUBLE PRECISION DEFAULT 0.0,
+            comment TEXT NOT NULL,
+            impact_level TEXT DEFAULT 'CRITICAL',
+            ctq_defect_category TEXT DEFAULT 'CTQ 3: Rig Capacity & Waiting Time Defect',
+            status TEXT DEFAULT 'open',
+            created_at TEXT NOT NULL
+        );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_voc_category ON voc_feedback(category);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_voc_rating ON voc_feedback(rating);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_voc_sentiment ON voc_feedback(sentiment);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_voc_created_at ON voc_feedback(created_at DESC);")
+
+        # 9. Enable Row Level Security (RLS) on all public tables
+        for tbl in ["users", "machines", "games", "node_games", "bookings", "machine_pairings", "audit_logs", "session_telemetry", "voc_feedback"]:
             try:
                 cursor.execute(f"ALTER TABLE public.{tbl} ENABLE ROW LEVEL SECURITY;")
             except Exception:
@@ -300,6 +326,44 @@ def _seed_initial_data(conn: Any) -> None:
 
     # 2. Clean up legacy hardcoded host workstation note if any exists
     cursor.execute("DELETE FROM machines WHERE notes LIKE 'Local Host Gaming Workstation%';")
+
+    # 3. Seed Voice of Customer (VOC) feedback if empty (Lean Six Sigma DMAIC CTQ 3)
+    cursor.execute("SELECT COUNT(*) as cnt FROM voc_feedback;")
+    voc_cnt = (cursor.fetchone() or {}).get("cnt", 0)
+    if voc_cnt == 0:
+        try:
+            from app.api.routes.voc import SEED_VOC_COMPLAINTS
+            from datetime import timedelta
+            base_dt = datetime.now(timezone.utc)
+            for idx, item in enumerate(SEED_VOC_COMPLAINTS):
+                created_at = (base_dt - timedelta(days=item.get("days_ago", 1), minutes=idx * 17)).isoformat()
+                cursor.execute(
+                    """
+                    INSERT INTO voc_feedback (
+                        user_name, user_email, game_title, machine_name,
+                        rating, sentiment, category, experience_tag, waiting_time_minutes,
+                        comment, impact_level, ctq_defect_category, status, created_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'open', %s);
+                    """,
+                    (
+                        item["user_name"],
+                        item["user_email"],
+                        item["game_title"],
+                        "Gaming PC (DESKTOP-BR6FNPB)",
+                        item["rating"],
+                        item["sentiment"],
+                        item["category"],
+                        item["experience_tag"],
+                        item["waiting_time_minutes"],
+                        item["comment"],
+                        item["impact_level"],
+                        item["ctq_defect_category"],
+                        created_at,
+                    ),
+                )
+        except Exception:
+            pass
 
     conn.commit()
 

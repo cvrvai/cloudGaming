@@ -29,7 +29,10 @@ import {
   ClockIcon,
   PowerIcon,
   SquareIcon,
+  MessageSquareIcon,
 } from './Icons';
+import AdminFeedbackView from './AdminFeedbackView';
+
 
 // Keep a short-lived per-tab cache so a browser reload can render the last known
 // admin view immediately while the backend refreshes in the background.
@@ -1899,6 +1902,17 @@ export default function AdminDashboard() {
         >
           <ActivityIcon size={16} />
           <span>Session Analytics &amp; Data</span>
+        </button>
+        <button
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs transition-all cursor-pointer whitespace-nowrap ${
+            adminTab === 'voc'
+              ? '!text-cyan-300 !bg-cyan-500/15 border border-cyan-400/40 shadow-[0_0_15px_rgba(0,210,255,0.15)]'
+              : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+          }`}
+          onClick={() => setAdminTab('voc')}
+        >
+          <MessageSquareIcon size={16} />
+          <span>Feedback &amp; VOC</span>
         </button>
       </div>
 
@@ -3872,6 +3886,10 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
+          )}
+
+          {adminTab === 'voc' && (
+            <AdminFeedbackView token={token} />
           )}
         </>
       )}
