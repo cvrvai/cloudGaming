@@ -23,10 +23,11 @@ export default function AdminFeedbackView({ token }) {
   const [seedSuccess, setSeedSuccess] = useState(false);
   const [batchSuccessMsg, setBatchSuccessMsg] = useState(null);
   const [error, setError] = useState(null);
+  const [exportingCsv, setExportingCsv] = useState(false);
 
   // Batch Generation Modal State
   const [showBatchModal, setShowBatchModal] = useState(false);
-  const [batchCount, setBatchCount] = useState(100);
+  const [batchCount, setBatchCount] = useState(14);
   const [clearExisting, setClearExisting] = useState(true);
 
   // Filters & Pagination
@@ -80,7 +81,7 @@ export default function AdminFeedbackView({ token }) {
   };
 
   const handleSeedData = async () => {
-    if (!window.confirm('Reset and re-seed the authentic Voice of Customer (VOC) dataset (30 entries)?')) return;
+    if (!window.confirm('Reset and load the 14 authentic student Voice of Customer (VOC) records for presentation?')) return;
     try {
       setSeeding(true);
       setError(null);
@@ -137,8 +138,31 @@ export default function AdminFeedbackView({ token }) {
     }
   };
 
-  const handleExportCsv = () => {
-    window.open(`${API_BASE}/api/voc/export-csv?token=${token}`, '_blank');
+  const handleExportCsv = async () => {
+    setExportingCsv(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/voc/export-csv`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) {
+        throw new Error(`CSV export failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CloudKH_Voice_of_Customer_VOC_Dataset_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('CSV Export Error: ' + err.message);
+    } finally {
+      setExportingCsv(false);
+    }
   };
 
   const summary = feedbackData?.summary || {};
@@ -221,36 +245,37 @@ export default function AdminFeedbackView({ token }) {
 
           {seedSuccess && (
             <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold">
-              <CheckIcon size={14} /> Seeded 30 VOC Records!
+              <CheckIcon size={14} /> Seeded 14 Student Records!
             </span>
           )}
 
           <button
             onClick={() => setShowBatchModal(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs transition-all cursor-pointer shadow-[0_0_15px_rgba(147,51,234,0.3)] border border-purple-400/40"
-            title="Generate 50, 100, or 200 VOC complaints for Six Sigma analysis"
+            title="Generate custom VOC dataset for Six Sigma analysis"
           >
             <SparkleIcon size={13} />
-            <span>Generate Dataset ({summary.total_feedback || 0})</span>
+            <span>Generate Dataset ({summary.total_feedback || records.length})</span>
           </button>
 
           <button
             onClick={handleExportCsv}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 hover:border-cyan-400/60 font-bold text-xs transition-all cursor-pointer shadow-[0_0_15px_rgba(0,210,255,0.1)]"
+            disabled={exportingCsv || records.length === 0}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 hover:border-cyan-400/60 font-bold text-xs transition-all cursor-pointer shadow-[0_0_15px_rgba(0,210,255,0.1)] disabled:opacity-50"
             title="Export CSV for Jamovi / Excel Six Sigma analysis"
           >
-            <DownloadIcon size={14} />
-            <span>Export CSV</span>
+            <DownloadIcon size={14} className={exportingCsv ? 'animate-bounce text-cyan-400' : ''} />
+            <span>{exportingCsv ? 'Exporting...' : 'Export CSV'}</span>
           </button>
 
           <button
             onClick={handleSeedData}
             disabled={seeding}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 font-bold text-xs transition-all cursor-pointer disabled:opacity-50"
-            title="Reset to default 30 seed complaints"
+            title="Reset to 14 authentic student records (Presentation Mode)"
           >
             <RefreshIcon size={14} className={seeding ? 'animate-spin' : ''} />
-            <span>Reset Baseline (30)</span>
+            <span>Reset 14 Records</span>
           </button>
 
           <button
@@ -804,10 +829,10 @@ export default function AdminFeedbackView({ token }) {
                 <label className="text-xs font-bold text-slate-300">Select Dataset Size:</label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { count: 50, label: '50 Records', desc: 'Quick sample' },
-                    { count: 100, label: '100 Records', desc: 'Recommended for Six Sigma' },
-                    { count: 150, label: '150 Records', desc: 'Multi-week analysis' },
-                    { count: 200, label: '200 Records', desc: 'Large monthly dataset' },
+                    { count: 14, label: '14 Records (Presentation)', desc: '14 exact student accounts' },
+                    { count: 50, label: '50 Records', desc: 'Extended trial sample' },
+                    { count: 100, label: '100 Records', desc: 'Six Sigma large sample' },
+                    { count: 200, label: '200 Records', desc: 'Monthly campus simulation' },
                   ].map((preset) => (
                     <button
                       key={preset.count}
