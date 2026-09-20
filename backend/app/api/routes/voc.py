@@ -714,11 +714,270 @@ def seed_voc_feedback(
     }
 
 
+class GenerateBatchRequest(BaseModel):
+    count: int = Field(100, ge=10, le=250, description="Number of VOC records to generate (10 to 250)")
+    clear_existing: bool = Field(True, description="Whether to clear previous VOC records before generating")
+
+
+@router.post("/generate-batch")
+def generate_batch_voc(
+    req: GenerateBatchRequest,
+    admin_user: Dict = Depends(require_admin),
+):
+    """Generate a statistically rigorous, large-scale Voice of Customer (VOC) dataset (10 to 250 records)
+    tailored for Six Sigma DMAIC Pareto analysis, CTQ 3 defect quantification, and Jamovi testing."""
+    import random
+    from datetime import datetime, timedelta, timezone
+
+    PERSONAS = [
+        ("Hour", "hour0407@gmail.com"),
+        ("Lihour", "lyhourmarch@gmail.com"),
+        ("Hokann", "lim.hokan24@kit.edu.kh"),
+        ("Neakleng", "seanghuy9@gmail.com"),
+        ("Choonvai", "cheong.choonvai24@kit.edu.kh"),
+        ("Chylong", "nou.chylong24@kit.edu.kh"),
+        ("Bokpa", "bokpa@gmail.com"),
+        ("Sean Pheavy", "sean.pheavy@kit.edu.kh"),
+        ("ម៉េង បញ្ញារស្មី", "meimerqe41@gmail.com"),
+        ("Dara Srun", "dara.srun@kit.edu.kh"),
+        ("Sophea Gaming", "sophea.gaming@gmail.com"),
+        ("Vireak KH", "vireak_kh@outlook.com"),
+        ("Rithy Sen", "rithy.sen@gmail.com"),
+        ("Kirirom Gamer", "kirirom_gamer@gmail.com"),
+        ("Chantha Gamer", "chantha.gamer@yahoo.com"),
+        ("Somnang PC", "somnang.pc@gmail.com"),
+        ("Piseth Tech", "piseth.tech@kit.edu.kh"),
+        ("Sreymom Cloud", "sreymom_cloud@gmail.com"),
+        ("Visal Gaming", "visal.gaming@gmail.com"),
+        ("Bunrith", "bunrith.cloud@gmail.com"),
+        ("Kosal Chea", "kosal.chea@kit.edu.kh"),
+        ("Thyda", "thyda.kit@gmail.com"),
+        ("Vannak", "vannak.gaming@gmail.com"),
+        ("Sophat", "sophat.dev@gmail.com"),
+        ("Nary", "nary.student@kit.edu.kh"),
+        ("Samnang", "samnang.kh@outlook.com"),
+        ("Kimleang", "kimleang.gamer@gmail.com"),
+        ("Chantrea", "chantrea.cloud@gmail.com"),
+        ("Rathana", "rathana.kit@edu.kh"),
+        ("Panha Gaming", "panha.player@gmail.com"),
+        ("Theara S", "theara.kit@gmail.com"),
+        ("Boramey", "boramey.cloud@outlook.com"),
+        ("Socheat Tech", "socheat.gaming@gmail.com"),
+    ]
+
+    GAMES = [
+        "Hades II",
+        "Minecraft: Story Mode - Season Two",
+        "Stardew Valley",
+        "Spiritfarer",
+    ]
+
+    # Complaint template pools designed specifically for Lean Six Sigma CTQ 3 single-PC limitation
+    RIG_CAPACITY_TEMPLATES = [
+        ("Why do I have to wait over {wait} minutes to play {game} just because someone else is playing another game on the rig? We need separate PCs for different games! Only 1 person can play in the entire school at a time.", "Rig Capacity Bottleneck"),
+        ("I tried to book {game} at {time}, but the entire evening was occupied by another player on a totally different title. Why can't I play {game} while someone else is playing another game? 1 shared host PC makes no sense.", "Cross-Game Monopolization"),
+        ("Why does a 3D action game like Hades block someone from playing a lightweight 2D game like Stardew Valley? The hardware can run Stardew easily, but because you only have one single desktop PC, everyone has to wait in line.", "Uneven Game Hardware Demand"),
+        ("System rejected my instant launch of {game} because 'Gaming rig is currently in use'. We have 4 games in the catalog, but effectively only 1 game can be running at any given moment across the entire cloud!", "1 PC Hardware Limit"),
+        ("Having to wait for someone else to finish playing a totally unrelated single-player game feels like a 1995 internet cafe with only one computer for the whole campus.", "Zero Concurrency Defect"),
+        ("Zero parallelism: If I want to play {game} and my friend wants to play another title, one of us is forced to wait over an hour. You need multi-node streaming!", "Zero Parallelism"),
+        ("Tried to launch {game} after dinner. Rigid queue because someone booked two consecutive 1-hour blocks. Single-host architecture is the primary bottleneck.", "Single Host Bottleneck"),
+        ("13 registered users fighting over 1 online GTX 1660 Ti rig means 90% of us are locked out every night. Can we get at least one more host PC added to the fleet?", "Fleet Capacity Deficit"),
+        ("Single point of failure: 1 desktop PC powers the entire service. If one user takes a 1-hour {game} session, all other games are literally locked. Please deploy another node!", "Single Point of Failure"),
+        ("We need Node #2 (Choonvai RTX 2080) to be online 24/7 alongside Node #3 to double the capacity! 1 rig cannot handle {game} fans and Minecraft players at once.", "Fleet Capacity Deficit"),
+        ("Why advertise 4 games when zero concurrent gameplay is possible? If I want to play {game}, I have to wait for the PC to be completely empty.", "Catalog Concurrency Illusion"),
+        ("The single desktop node was occupied non-stop from 5 PM to 11 PM. Waited {wait} minutes and gave up. Cloud gaming without multiple servers doesn't work.", "Evening Lockout"),
+    ]
+
+    QUEUE_WAIT_TEMPLATES = [
+        ("Between 7:00 PM and 10:30 PM, all 16 daily slots are permanently booked. Waited {wait} minutes in line. The single host PC queue bottleneck is killing the experience.", "Peak Hour Queue Starvation"),
+        ("Queue defect: Waited {wait} minutes for the previous session to finish. When I finally got in, my slot was cut short. Having only 1 physical machine online creates an unbearable bottleneck during evening peak hours.", "Unbearable Peak Bottleneck"),
+        ("Ridiculous waiting times on weekends. All daily time slots were snapped up within 10 minutes of booking opening. Please deploy Node #2 to double capacity!", "Severe Capacity Shortage"),
+        ("Waited {wait} minutes in the queue for {game}. By the time it was my turn, our campus dorm curfew started and I had to shut down my laptop without playing. Please add more host nodes!", "Dorm Curfew Missed"),
+        ("Queue time: {wait} minutes. Play time: 30 minutes. The waiting ratio is completely upside down because only 1 user can stream at once.", "Inverted Wait-Play Ratio"),
+        ("Waited until {time} for my turn on {game}. The game itself streamed smoothly, but waiting in line for over an hour for a short session makes this super frustrating.", "Excessive Wait Time"),
+        ("The queue pressure is so intense that slots are restricted to 30 minutes, but you still end up waiting {wait} minutes in line for the single PC.", "Slot Starvation Defect"),
+        ("Every single time I check CloudKH during evening hours, the status is 'Streaming Now: 1 Active'. It is literally impossible to get a slot without booking 24h prior.", "Perpetual Busy Status"),
+    ]
+
+    SESSION_LIMIT_TEMPLATES = [
+        ("Booking clash: I reserved for {time}, but the user before me was still in session and the session handover took another 12 minutes. The 1 PC architecture causes friction between players.", "Handover Delay Defect"),
+        ("Waited {wait} minutes for the PC, then got cut off right during a {game} boss fight because the slot ended and the next player was already queued for the single PC.", "Mid-Game Session Cutoff"),
+        ("Rig was idle for 15 minutes between bookings because the previous user left early, but the system kept it locked for their full slot. Total wait was {wait} minutes.", "Lockout During Idle Gap"),
+        ("Got disconnected at minute 30 because the booking handover timer triggered for the next student waiting for the rig. 1 PC forces rigid time cutoffs.", "Rigid Slot Boundary"),
+    ]
+
+    STREAM_QUALITY_TEMPLATES = [
+        ("Experienced stutter and dropped frames after waiting {wait} minutes. The host PC had been running 10 back-to-back sessions non-stop. Single rig needs cooling breaks or load balancing across 2 PCs.", "Thermal Throttling on Shared PC"),
+        ("Stream had occasional packet drops (avg latency 74ms). Host PC GPU was running at high temperature because it never gets to rest with only 1 PC serving everyone.", "Host Rig Heat Fatigue"),
+        ("After waiting {wait} minutes, experienced 2 brief stutter spikes in {game}. Single rig running continuously without cooling breaks affects stream stability.", "Packet Drops on Busy PC"),
+    ]
+
+    OFF_PEAK_TEMPLATES = [
+        ("Played early in the morning at 6:30 AM when nobody was online; 60 FPS and zero wait time! The WebRTC technology is fantastic. You just need more PCs during daytime and evening!", "Flawless Off-Peak Run"),
+        ("Early morning session at 7 AM had zero queue. Streamed {game} flawlessly at 1080p 60fps. Proves the streaming tech works; the only defect is having just 1 PC for the whole school.", "Zero-Queue Morning Baseline"),
+        ("Off-peak 8 AM run was smooth. Controls were instant with sub-50ms latency. The system is great when not clogged by the 1-PC queue bottleneck.", "Control Group Success"),
+    ]
+
+    PEAK_HOURS = ["6:00 PM", "6:30 PM", "7:00 PM", "7:30 PM", "8:00 PM", "8:30 PM", "9:00 PM", "9:30 PM", "10:00 PM", "10:30 PM"]
+    OFF_PEAK_HOURS = ["6:30 AM", "7:00 AM", "7:30 AM", "8:00 AM", "11:00 AM", "2:00 PM"]
+
+    now = datetime.now(timezone.utc)
+    generated_records = []
+    target_count = req.count
+
+    # Weighted distribution:
+    # ~55% rig_capacity, ~28% queue_waiting, ~7% session_limit, ~5% stream_quality, ~5% off_peak_pass
+    for i in range(target_count):
+        persona = PERSONAS[i % len(PERSONAS)]
+        game = random.choice(GAMES)
+        roll = random.random()
+
+        if roll < 0.55:
+            # Rig capacity defect (1-PC limit)
+            template, exp_tag = random.choice(RIG_CAPACITY_TEMPLATES)
+            wait = random.randint(45, 110)
+            time_str = random.choice(PEAK_HOURS)
+            rating = 1 if random.random() < 0.65 else 2
+            sentiment = "negative"
+            category = "rig_capacity"
+            impact = "CRITICAL" if rating == 1 else "HIGH"
+            ctq = "CTQ 3: Rig Capacity & Waiting Time Defect"
+            hour_int = random.randint(18, 23)
+            time_period = "Peak Evening (6PM-11PM)"
+
+        elif roll < 0.83:
+            # Queue waiting defect (Long queue, curfew, ratio inversion)
+            template, exp_tag = random.choice(QUEUE_WAIT_TEMPLATES)
+            wait = random.randint(50, 120)
+            time_str = random.choice(PEAK_HOURS)
+            rating = 1 if random.random() < 0.60 else 2
+            sentiment = "negative"
+            category = "queue_waiting"
+            impact = "CRITICAL" if wait > 75 else "HIGH"
+            ctq = "CTQ 3: Rig Capacity & Waiting Time Defect"
+            hour_int = random.randint(18, 23)
+            time_period = "Peak Evening (6PM-11PM)"
+
+        elif roll < 0.90:
+            # Session limit / Handover delay
+            template, exp_tag = random.choice(SESSION_LIMIT_TEMPLATES)
+            wait = random.randint(25, 55)
+            time_str = random.choice(PEAK_HOURS)
+            rating = 2 if random.random() < 0.70 else 3
+            sentiment = "negative" if rating == 2 else "neutral"
+            category = "session_limit"
+            impact = "HIGH" if rating == 2 else "MEDIUM"
+            ctq = "CTQ 4: Session Completion Defect"
+            hour_int = random.randint(16, 22)
+            time_period = "Peak Evening (6PM-11PM)"
+
+        elif roll < 0.95:
+            # Stream quality / Thermal throttling
+            template, exp_tag = random.choice(STREAM_QUALITY_TEMPLATES)
+            wait = random.randint(30, 65)
+            time_str = random.choice(PEAK_HOURS)
+            rating = 2 if random.random() < 0.60 else 3
+            sentiment = "negative" if rating == 2 else "neutral"
+            category = "stream_quality"
+            impact = "HIGH" if rating == 2 else "MEDIUM"
+            ctq = "CTQ 1: Latency & Stream Quality Defect"
+            hour_int = random.randint(19, 23)
+            time_period = "Peak Evening (6PM-11PM)"
+
+        else:
+            # Off-peak success (Control group)
+            template, exp_tag = random.choice(OFF_PEAK_TEMPLATES)
+            wait = random.randint(0, 10)
+            time_str = random.choice(OFF_PEAK_HOURS)
+            rating = 4 if random.random() < 0.50 else 5
+            sentiment = "positive"
+            category = "stream_quality"
+            impact = "LOW"
+            ctq = "CTQ 3: Rig Capacity & Waiting Time Defect"
+            hour_int = random.randint(6, 11)
+            time_period = "Off-Peak Morning"
+
+        comment = template.format(wait=wait, game=game, time=time_str)
+
+        # Distribute realistic dates over the last 28 days
+        days_back = int((i / float(target_count)) * 27)
+        minutes_jitter = random.randint(5, 55)
+        created_dt = (now - timedelta(days=days_back, hours=24 - hour_int, minutes=minutes_jitter))
+
+        generated_records.append({
+            "user_name": persona[0],
+            "user_email": persona[1],
+            "game_title": game,
+            "machine_name": "Gaming PC (DESKTOP-BR6FNPB)",
+            "rating": rating,
+            "sentiment": sentiment,
+            "category": category,
+            "experience_tag": exp_tag,
+            "waiting_time_minutes": float(wait),
+            "comment": comment,
+            "impact_level": impact,
+            "ctq_defect_category": ctq,
+            "status": "open",
+            "created_at": created_dt.isoformat(),
+        })
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        if req.clear_existing:
+            cursor.execute("DELETE FROM voc_feedback;")
+
+        for r in generated_records:
+            cursor.execute(
+                """
+                INSERT INTO voc_feedback (
+                    user_name, user_email, game_title, machine_name,
+                    rating, sentiment, category, experience_tag, waiting_time_minutes,
+                    comment, impact_level, ctq_defect_category, status, created_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                """,
+                (
+                    r["user_name"],
+                    r["user_email"],
+                    r["game_title"],
+                    r["machine_name"],
+                    r["rating"],
+                    r["sentiment"],
+                    r["category"],
+                    r["experience_tag"],
+                    r["waiting_time_minutes"],
+                    r["comment"],
+                    r["impact_level"],
+                    r["ctq_defect_category"],
+                    r["status"],
+                    r["created_at"],
+                ),
+            )
+
+        conn.commit()
+
+        record_audit_event(
+            action="VOC_BATCH_GENERATION",
+            actor_user_id=admin_user["id"],
+            role="admin",
+            result="SUCCESS",
+            details=f"Generated {len(generated_records)} Voice of Customer records for Six Sigma DMAIC Pareto analysis",
+        )
+
+    return {
+        "status": "success",
+        "message": f"Successfully generated {len(generated_records)} Voice of Customer (VOC) feedback records for Lean Six Sigma DMAIC analysis.",
+        "count": len(generated_records),
+    }
+
+
 @router.get("/export-csv")
 def export_voc_csv(
     admin_user: Dict = Depends(require_admin),
 ):
-    """Download the complete Voice of Customer (VOC) dataset as a CSV for Jamovi / Excel Six Sigma analysis."""
+    """Download the complete Voice of Customer (VOC) dataset as a CSV with quantitative Six Sigma columns
+    for Jamovi, Minitab, and Excel Pareto analysis."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -733,7 +992,7 @@ def export_voc_csv(
     output = io.StringIO()
     writer = csv.writer(output)
 
-    # Standard Six Sigma VOC Header
+    # Standard Six Sigma VOC Header with quantitative columns for ANOVA / Jamovi
     writer.writerow([
         "Feedback ID",
         "Player Name",
@@ -744,31 +1003,61 @@ def export_voc_csv(
         "Sentiment",
         "Category",
         "Experience Tag",
-        "Reported Wait Time (mins)",
+        "Waiting Time (mins)",
+        "CTQ Defect (Binary 1/0)",
+        "Capacity Defect (Binary 1/0)",
+        "Wait Time Defect (>30m)",
+        "Time Period",
         "Verbatim Customer Complaint / Voice of Customer",
         "Impact Level",
-        "DMAIC CTQ Defect Category",
+        "DMAIC CTQ Classification",
         "Resolution Status",
         "Submission Timestamp",
     ])
 
     for r in rows:
+        rating = int(r.get("rating") or 0)
+        wait = float(r.get("waiting_time_minutes") or 0.0)
+        cat = str(r.get("category") or "")
+        created = str(r.get("created_at") or "")
+
+        # Numerical Six Sigma indicators
+        is_ctq_defect = 1 if (rating <= 2 or wait > 30.0) else 0
+        is_capacity_defect = 1 if cat in ("rig_capacity", "queue_waiting") else 0
+        is_wait_defect = 1 if wait > 30.0 else 0
+
+        # Hour parsing for time period analysis
+        time_period = "Peak Evening (6PM-11PM)"
+        if created:
+            try:
+                dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                if 6 <= dt.hour <= 12:
+                    time_period = "Off-Peak Morning (6AM-12PM)"
+                elif 13 <= dt.hour <= 17:
+                    time_period = "Afternoon (1PM-5PM)"
+            except Exception:
+                pass
+
         writer.writerow([
             f"VOC-{r.get('id', 0):04d}",
             r.get("user_name", ""),
             r.get("user_email", ""),
             r.get("game_title", ""),
             r.get("machine_name", ""),
-            r.get("rating", 0),
+            rating,
             r.get("sentiment", ""),
-            r.get("category", ""),
+            cat,
             r.get("experience_tag", ""),
-            r.get("waiting_time_minutes", 0),
+            wait,
+            is_ctq_defect,
+            is_capacity_defect,
+            is_wait_defect,
+            time_period,
             r.get("comment", ""),
             r.get("impact_level", ""),
             r.get("ctq_defect_category", ""),
             r.get("status", ""),
-            r.get("created_at", ""),
+            created,
         ])
 
     csv_data = output.getvalue()
@@ -779,3 +1068,4 @@ def export_voc_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
